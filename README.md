@@ -1,2 +1,2 @@
 # OASYS1-APS-ShadowOui
-ShadowOui customisation for the APS
+Customized widgets for ShadowOui developed at the APS-ANL
