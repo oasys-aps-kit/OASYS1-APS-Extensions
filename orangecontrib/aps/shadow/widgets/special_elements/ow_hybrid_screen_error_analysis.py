@@ -399,9 +399,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         self.plot_canvas[plot_canvas_index].setDefaultPlotLines(True)
         self.plot_canvas[plot_canvas_index].setDefaultPlotPoints(False)
 
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(150)
+        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(300)
         self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setVisible(True)
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(150)
 
         from PyQt5.QtCore import Qt
         self.plot_canvas[plot_canvas_index].addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas[plot_canvas_index].getLegendsDockWidget())
@@ -500,7 +499,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                         histo_data_z_nf=HistoData(),
                                                         profile=profile)
 
-                    centroid_x_ff = histo_data_x_ff.get_centroid()
+                    #centroid_x_ff = histo_data_x_ff.get_centroid()
 
                     input_parameters.ghy_calcType = self.ghy_calcType + 3
 
