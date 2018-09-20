@@ -307,106 +307,6 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     def set_DistanceToImageCalc(self):
          self.le_distance_to_image.setEnabled(self.distance_to_image_calc == 1)
 
-    def plot_histo(self, beam, col, nbins=100, progressBarValue=80, plot_canvas_index=0, title="", xtitle="", ytitle="",
-                   profile=1, control=True, offset=0.0, xrange=None):
-
-        factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
-
-        if profile == 0:
-            ticket = beam._beam.histo1(col, xrange=None, nbins=nbins, nolost=1, ref=23)
-
-            fwhm = ticket['fwhm']
-            xrange = ticket['xrange']
-
-            centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
-
-            xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
-
-        ticket = beam._beam.histo1(col, xrange=xrange, nbins=nbins, nolost=1, ref=23)
-
-        if not ytitle is None:  ytitle = ytitle + ' weighted by ' + ShadowPlot.get_shadow_label(23)
-
-        histogram = ticket['histogram_path']
-        bins = ticket['bin_path']*factor
-
-        sigma = ticket['histogram_sigma']
-        peak_intensity = numpy.max(histogram)
-
-        if profile == 0:
-            h_title = "Reference"
-        else:
-            h_title = "Profile #" + str(profile)
-
-        hex_r = hex(min(255, 128 + profile*10))[2:].upper()
-        hex_g = hex(min(255, 20 + profile*15))[2:].upper()
-        hex_b = hex(min(255, profile*10))[2:].upper()
-        if len(hex_r) == 1: hex_r = "0" + hex_r
-        if len(hex_g) == 1: hex_g = "0" + hex_g
-        if len(hex_b) == 1: hex_b = "0" + hex_b
-
-        color="#" + hex_r + hex_g + hex_b
-
-        if self.plot_canvas[plot_canvas_index] is None:
-            self.plot_canvas[plot_canvas_index] = oasysgui.plotWindow(parent=None,
-                                                                      backend=None,
-                                                                      resetzoom=True,
-                                                                      autoScale=False,
-                                                                      logScale=False,
-                                                                      grid=True,
-                                                                      curveStyle=True,
-                                                                      colormap=False,
-                                                                      aspectRatio=False,
-                                                                      yInverted=False,
-                                                                      copy=True,
-                                                                      save=True,
-                                                                      print_=True,
-                                                                      control=control,
-                                                                      position=True,
-                                                                      roi=False,
-                                                                      mask=False,
-                                                                      fit=False)
-            self.plot_canvas[plot_canvas_index].setActiveCurveColor(color="#00008B")
-            self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
-            self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
-            self.plot_canvas[plot_canvas_index].setGraphTitle(title)
-
-            self.tab[plot_canvas_index].layout().addWidget(self.plot_canvas[plot_canvas_index])
-
-        import matplotlib
-        matplotlib.rcParams['axes.formatter.useoffset']='False'
-
-        if profile == 0:
-            offset = int(peak_intensity*0.3)
-
-        self.plot_canvas[plot_canvas_index].addCurve(bins, histogram + offset*profile, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
-
-        self.plot_canvas[plot_canvas_index]._backend.ax.text(xrange[0]*factor, offset*profile, h_title)
-
-        if not xtitle is None: self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
-        if not ytitle is None: self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
-
-        self.plot_canvas[plot_canvas_index].setDrawModeEnabled(True, 'rectangle')
-        self.plot_canvas[plot_canvas_index].setInteractiveMode('zoom',color='orange')
-        self.plot_canvas[plot_canvas_index].resetZoom()
-        self.plot_canvas[plot_canvas_index].replot()
-
-        self.plot_canvas[plot_canvas_index].setGraphXLimits(xrange[0]*factor, xrange[1]*factor)
-
-        self.plot_canvas[plot_canvas_index].setActiveCurve(h_title)
-
-        self.progressBarSet(progressBarValue)
-
-        self.plot_canvas[plot_canvas_index].setDefaultPlotLines(True)
-        self.plot_canvas[plot_canvas_index].setDefaultPlotPoints(False)
-
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(300)
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setVisible(True)
-
-        from PyQt5.QtCore import Qt
-        self.plot_canvas[plot_canvas_index].addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas[plot_canvas_index].getLegendsDockWidget())
-
-        return HistoData(offset, xrange, sigma, peak_intensity)
-
     def run_hybrid(self):
         try:
             self.setStatusMessage("")
@@ -647,6 +547,106 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                     self.plot_emtpy(88, 0)
 
         return histo_data_x_ff, histo_data_z_ff, histo_data_x_nf, histo_data_z_nf
+
+    def plot_histo(self, beam, col, nbins=100, progressBarValue=80, plot_canvas_index=0, title="", xtitle="", ytitle="",
+                   profile=1, control=True, offset=0.0, xrange=None):
+
+        factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
+
+        if profile == 0:
+            ticket = beam._beam.histo1(col, xrange=None, nbins=nbins, nolost=1, ref=23)
+
+            fwhm = ticket['fwhm']
+            xrange = ticket['xrange']
+
+            centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
+
+            xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
+
+        ticket = beam._beam.histo1(col, xrange=xrange, nbins=nbins, nolost=1, ref=23)
+
+        if not ytitle is None:  ytitle = ytitle + ' weighted by ' + ShadowPlot.get_shadow_label(23)
+
+        histogram = ticket['histogram_path']
+        bins = ticket['bin_path']*factor
+
+        sigma = ticket['histogram_sigma']
+        peak_intensity = numpy.max(histogram)
+
+        if profile == 0:
+            h_title = "Reference"
+        else:
+            h_title = "Profile #" + str(profile)
+
+        hex_r = hex(min(255, 128 + profile*10))[2:].upper()
+        hex_g = hex(min(255, 20 + profile*15))[2:].upper()
+        hex_b = hex(min(255, profile*10))[2:].upper()
+        if len(hex_r) == 1: hex_r = "0" + hex_r
+        if len(hex_g) == 1: hex_g = "0" + hex_g
+        if len(hex_b) == 1: hex_b = "0" + hex_b
+
+        color="#" + hex_r + hex_g + hex_b
+
+        if self.plot_canvas[plot_canvas_index] is None:
+            self.plot_canvas[plot_canvas_index] = oasysgui.plotWindow(parent=None,
+                                                                      backend=None,
+                                                                      resetzoom=True,
+                                                                      autoScale=False,
+                                                                      logScale=False,
+                                                                      grid=True,
+                                                                      curveStyle=True,
+                                                                      colormap=False,
+                                                                      aspectRatio=False,
+                                                                      yInverted=False,
+                                                                      copy=True,
+                                                                      save=True,
+                                                                      print_=True,
+                                                                      control=control,
+                                                                      position=True,
+                                                                      roi=False,
+                                                                      mask=False,
+                                                                      fit=False)
+            self.plot_canvas[plot_canvas_index].setActiveCurveColor(color="#00008B")
+            self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
+            self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
+            self.plot_canvas[plot_canvas_index].setGraphTitle(title)
+
+            self.tab[plot_canvas_index].layout().addWidget(self.plot_canvas[plot_canvas_index])
+
+        import matplotlib
+        matplotlib.rcParams['axes.formatter.useoffset']='False'
+
+        if profile == 0:
+            offset = int(peak_intensity*0.3)
+
+        self.plot_canvas[plot_canvas_index].addCurve(bins, histogram + offset*profile, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
+
+        self.plot_canvas[plot_canvas_index]._backend.ax.text(xrange[0]*factor, offset*profile*1.01, h_title)
+
+        if not xtitle is None: self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
+        if not ytitle is None: self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
+
+        self.plot_canvas[plot_canvas_index].setDrawModeEnabled(True, 'rectangle')
+        self.plot_canvas[plot_canvas_index].setInteractiveMode('zoom',color='orange')
+        self.plot_canvas[plot_canvas_index].resetZoom()
+        self.plot_canvas[plot_canvas_index].replot()
+
+        self.plot_canvas[plot_canvas_index].setGraphXLimits(xrange[0]*factor, xrange[1]*factor)
+
+        self.plot_canvas[plot_canvas_index].setActiveCurve(h_title)
+
+        self.progressBarSet(progressBarValue)
+
+        self.plot_canvas[plot_canvas_index].setDefaultPlotLines(True)
+        self.plot_canvas[plot_canvas_index].setDefaultPlotPoints(False)
+
+        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(300)
+        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setVisible(True)
+
+        from PyQt5.QtCore import Qt
+        self.plot_canvas[plot_canvas_index].addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas[plot_canvas_index].getLegendsDockWidget())
+
+        return HistoData(offset, xrange, sigma, peak_intensity)
 
     def check_fields(self):
         if self.focal_length_calc == 1:
