@@ -12,12 +12,14 @@ from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam
 
 from PyQt5.QtGui import QImage, QPixmap,  QPalette, QFont, QColor, QTextCursor
-from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox, QFileDialog
+from PyQt5.QtCore import Qt
 
 from orangecontrib.shadow.widgets.gui.ow_automatic_element import AutomaticElement
 from orangecontrib.shadow.widgets.special_elements import hybrid_control
 
-from silx.gui.plot.ImageView import ImageView
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 class HistoData(object):
     offset = 0.0
@@ -77,8 +79,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     TABS_AREA_HEIGHT = 560
     CONTROL_AREA_WIDTH = 405
 
-    IMAGE_WIDTH = 860
-    IMAGE_HEIGHT = 545
+    IMAGE_WIDTH = 865
+    IMAGE_HEIGHT = 605
 
     def __init__(self):
         super().__init__()
@@ -194,7 +196,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                      sendSelectedValue=False,
                      orientation="horizontal")
 
-        self.shadow_output = oasysgui.textArea(height=600, width=600)
+        self.shadow_output = oasysgui.textArea(height=590, width=800)
 
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
@@ -220,29 +222,46 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     def initializeTabs(self):
         self.tabs.clear()
 
+        tabs = []
+
         if self.ghy_diff_plane < 2:
+
+
+            tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Image Plane")))
+
+            self.tab = [[gui.createTabPage(tabs[0], "Position"), gui.createTabPage(tabs[0], "Stats")]]
+
             if self.ghy_nf == 1:
-                self.tab = [gui.createTabPage(self.tabs, "Distribution of Position at Image Plane"),
-                            gui.createTabPage(self.tabs, "Distribution of Position at Near Field")
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Near Field")))
+
+                self.tab.append([gui.createTabPage(tabs[1], "Position"), gui.createTabPage(tabs[1], "Stats")])
+
+        elif self.ghy_diff_plane >= 2:
+            if self.ghy_nf == 1:
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Image Plane (S)")))
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Near Field (S)")))
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Image Plane (T)")))
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Near Field (T)")))
+
+                self.tab = [[gui.createTabPage(tabs[0], "Position"), gui.createTabPage(tabs[0], "Stats")],
+                            [gui.createTabPage(tabs[1], "Position"), gui.createTabPage(tabs[1], "Stats")],
+                            [gui.createTabPage(tabs[2], "Position"), gui.createTabPage(tabs[2], "Stats")],
+                            [gui.createTabPage(tabs[3], "Position"), gui.createTabPage(tabs[3], "Stats")]
                             ]
             else:
-                self.tab = [gui.createTabPage(self.tabs, "Distribution of Position at Image Plane")]
-        elif self.ghy_diff_plane == 2:
-             self.tab = [gui.createTabPage(self.tabs, "Distribution of Position at Image Plane")]
-        elif self.ghy_diff_plane == 3:
-            if self.ghy_nf == 1:
-                self.tab = [gui.createTabPage(self.tabs, "Distribution of Position at Near Field"),
-                            gui.createTabPage(self.tabs, "Distribution of Position at Image Plane")
-                            ]
-            else:
-                self.tab = [gui.createTabPage(self.tabs, "Distribution of Position at Image Plane")
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Image Plane (S)")))
+                tabs.append(oasysgui.tabWidget(gui.createTabPage(self.tabs, "Distribution of Position at Image Plane (T)")))
+
+                self.tab = [[gui.createTabPage(tabs[0], "Position"), gui.createTabPage(tabs[0], "Stats")],
+                            [gui.createTabPage(tabs[1], "Position"), gui.createTabPage(tabs[1], "Stats")]
                             ]
 
-        for tab in self.tab:
+        for tab in tabs:
             tab.setFixedHeight(self.IMAGE_HEIGHT)
             tab.setFixedWidth(self.IMAGE_WIDTH)
 
-        self.plot_canvas = [None, None]
+        self.plot_canvas = [None, None, None, None]
+        self.plot_canvas_stats = [None, None, None, None]
 
 
     def plot_emtpy(self, progressBarValue, plot_canvas_index):
@@ -399,6 +418,12 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                         histo_data_z_nf=HistoData(),
                                                         profile=profile)
 
+                    stats_x_ff = [[histo_data_x_ff.sigma], [histo_data_x_ff.peak_intensity]]
+                    stats_z_ff = [[histo_data_z_ff.sigma], [histo_data_z_ff.peak_intensity]]
+                    stats_x_nf = [[histo_data_x_nf.sigma], [histo_data_x_nf.peak_intensity]]
+                    stats_z_nf = [[histo_data_z_nf.sigma], [histo_data_z_nf.peak_intensity]]
+
+
                     #centroid_x_ff = histo_data_x_ff.get_centroid()
 
                     input_parameters.ghy_calcType = self.ghy_calcType + 3
@@ -435,15 +460,32 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                             histo_data_x_nf,
                                                             histo_data_z_nf,
                                                             profile)
+                        stats_x_ff[0].append(histo_data_x_ff.sigma)
+                        stats_z_ff[0].append(histo_data_z_ff.sigma)
+                        stats_x_nf[0].append(histo_data_x_nf.sigma)
+                        stats_z_nf[0].append(histo_data_z_nf.sigma)
+                        stats_x_ff[1].append(histo_data_x_ff.peak_intensity)
+                        stats_z_ff[1].append(histo_data_z_ff.peak_intensity)
+                        stats_x_nf[1].append(histo_data_x_nf.peak_intensity)
+                        stats_z_nf[1].append(histo_data_z_nf.peak_intensity)
+
+                    self.add_empty_curves(do_nf,
+                                          do_plot_x,
+                                          do_plot_z,
+                                          histo_data_x_ff,
+                                          histo_data_x_nf,
+                                          histo_data_z_ff,
+                                          histo_data_z_nf)
 
 
-                    self.plot_canvas[0].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
-                                                 numpy.array([0]),
-                                                     "Click on curve to highlight it",
-                                                     xlabel="", ylabel="",
-                                                     symbol='', color='white')
+                    self.plot_stats(do_nf,
+                                    do_plot_x,
+                                    do_plot_z,
+                                    stats_x_ff,
+                                    stats_z_ff,
+                                    stats_x_nf,
+                                    stats_z_nf,)
 
-                    self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
                 else:
                     raise Exception("Input Beam with no good rays")
             else:
@@ -471,20 +513,15 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                      profile):
         if self.ghy_diff_plane == 0:
             if do_plot_x:
+                histo_data_x_ff = self.plot_histo(calculation_parameters.ff_beam, 1, progressBarValue=88,
+                                              plot_canvas_index=0, title="X",
+                                              xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                              offset=histo_data_x_ff.offset, xrange=histo_data_x_ff.xrange)
                 if do_nf:
-                    histo_data_x_ff = self.plot_histo(calculation_parameters.ff_beam, 1, progressBarValue=88,
-                                                  plot_canvas_index=0, title="X",
-                                                  xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
-                                                  offset=histo_data_x_ff.offset, xrange=histo_data_x_ff.xrange)
                     histo_data_x_nf = self.plot_histo(calculation_parameters.nf_beam, 1, progressBarValue=96,
                                                   plot_canvas_index=1, title="X",
                                                   xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
                                                   offset=histo_data_x_nf.offset, xrange=histo_data_x_nf.xrange)
-                else:
-                    histo_data_x_ff = self.plot_histo(calculation_parameters.ff_beam, 1, progressBarValue=88,
-                                                  plot_canvas_index=0, title="X",
-                                                  xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
-                                                  offset=histo_data_x_ff.offset, xrange=histo_data_x_ff.xrange)
             else:
                 if do_nf:
                     self.plot_emtpy(88, 0)
@@ -493,60 +530,226 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                     self.plot_emtpy(88, 0)
         elif self.ghy_diff_plane == 1:
             if do_plot_z:
+                histo_data_z_ff = self.plot_histo(calculation_parameters.ff_beam, 3, progressBarValue=88,
+                                              plot_canvas_index=0, title="Z",
+                                              xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                              offset=histo_data_z_ff.offset, xrange=histo_data_z_ff.xrange)
                 if do_nf:
-                    histo_data_z_ff = self.plot_histo(calculation_parameters.ff_beam, 3, progressBarValue=88,
-                                                  plot_canvas_index=0, title="Z",
-                                                  xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
-                                                  offset=histo_data_z_ff.offset, xrange=histo_data_z_ff.xrange)
                     histo_data_z_nf = self.plot_histo(calculation_parameters.nf_beam, 3, progressBarValue=96,
                                                   plot_canvas_index=1, title="Z",
                                                   xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
                                                   offset=histo_data_z_nf.offset, xrange=histo_data_z_nf.xrange)
-                else:
+            else:
+                self.plot_emtpy(88, 0)
+
+                if do_nf:
+                    self.plot_emtpy(96, 1)
+
+        elif self.ghy_diff_plane >= 2:
+            if do_plot_x and do_plot_z:
+                histo_data_x_ff = self.plot_histo(calculation_parameters.ff_beam, 1, progressBarValue=88,
+                                              plot_canvas_index=0, title="X",
+                                              xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                              offset=histo_data_x_ff.offset, xrange=histo_data_x_ff.xrange)
+                histo_data_z_ff = self.plot_histo(calculation_parameters.ff_beam, 3, progressBarValue=88,
+                                              plot_canvas_index=1, title="Z",
+                                              xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                              offset=histo_data_z_ff.offset, xrange=histo_data_z_ff.xrange)
+                if do_nf:
+                    histo_data_x_nf = self.plot_histo(calculation_parameters.nf_beam, 1, progressBarValue=96,
+                                                  plot_canvas_index=2, title="X",
+                                                  xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                                  offset=histo_data_x_nf.offset, xrange=histo_data_x_nf.xrange)
+                    histo_data_z_nf = self.plot_histo(calculation_parameters.nf_beam, 3, progressBarValue=96,
+                                                  plot_canvas_index=3, title="Z",
+                                                  xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                                  offset=histo_data_z_nf.offset, xrange=histo_data_z_nf.xrange)
+            else:
+                if do_plot_x:
+                    histo_data_x_ff = self.plot_histo(calculation_parameters.ff_beam, 1, progressBarValue=88,
+                                                  plot_canvas_index=0, title="X",
+                                                  xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                                  offset=histo_data_x_ff.offset, xrange=histo_data_x_ff.xrange)
+                    if do_nf:
+                        histo_data_x_nf = self.plot_histo(calculation_parameters.nf_beam, 1, progressBarValue=96,
+                                                      plot_canvas_index=1, title="X",
+                                                      xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                                      offset=histo_data_x_nf.offset, xrange=histo_data_x_nf.xrange)
+                elif do_plot_z:
                     histo_data_z_ff = self.plot_histo(calculation_parameters.ff_beam, 3, progressBarValue=88,
                                                   plot_canvas_index=0, title="Z",
                                                   xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
                                                   offset=histo_data_z_ff.offset, xrange=histo_data_z_ff.xrange)
-            else:
-                if do_nf:
-                    self.plot_emtpy(88, 0)
-                    self.plot_emtpy(96, 1)
+                    if do_nf:
+                        histo_data_z_nf = self.plot_histo(calculation_parameters.nf_beam, 3, progressBarValue=96,
+                                                      plot_canvas_index=1, title="Z",
+                                                      xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays', profile=profile,
+                                                      offset=histo_data_z_nf.offset, xrange=histo_data_z_nf.xrange)
                 else:
                     self.plot_emtpy(88, 0)
 
-        elif self.ghy_diff_plane == 2:
+                    if do_nf:
+                        self.plot_emtpy(96, 1)
+
+        return histo_data_x_ff, histo_data_z_ff, histo_data_x_nf, histo_data_z_nf
+
+    def add_empty_curves(self, do_nf, do_plot_x, do_plot_z, histo_data_x_ff, histo_data_x_nf, histo_data_z_ff,
+                         histo_data_z_nf):
+
+        if self.ghy_diff_plane == 0:
+            if do_plot_x:
+                self.plot_canvas[0].addCurve(numpy.array([histo_data_x_ff.get_centroid()]),
+                                             numpy.zeros(1),
+                                             "Click on curve to highlight it",
+                                             xlabel="", ylabel="",
+                                             symbol='', color='white')
+
+                self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+
+                if do_nf:
+                    self.plot_canvas[1].addCurve(numpy.array([histo_data_x_nf.get_centroid()]),
+                                                 numpy.zeros(1),
+                                                 "Click on curve to highlight it",
+                                                 xlabel="", ylabel="",
+                                                 symbol='', color='white')
+
+                    self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+        elif self.ghy_diff_plane == 1:
+            if do_plot_z:
+                self.plot_canvas[0].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
+                                             numpy.zeros(1),
+                                             "Click on curve to highlight it",
+                                             xlabel="", ylabel="",
+                                             symbol='', color='white')
+
+                self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+
+                if do_nf:
+                    self.plot_canvas[1].addCurve(numpy.array([histo_data_z_nf.get_centroid()]),
+                                                 numpy.zeros(1),
+                                                 "Click on curve to highlight it",
+                                                 xlabel="", ylabel="",
+                                                 symbol='', color='white')
+
+                    self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+        else:
             if do_plot_x and do_plot_z:
-                self.plot_xy(calculation_parameters.ff_beam, 1, 3, plot_canvas_index=0, title="X,Z",
-                             xtitle=r'X [$\mu$m]', ytitle=r'Z [$\mu$m]')
+                self.plot_canvas[0].addCurve(numpy.array([histo_data_x_ff.get_centroid()]),
+                                             numpy.zeros(1),
+                                             "Click on curve to highlight it",
+                                             xlabel="", ylabel="",
+                                             symbol='', color='white')
+
+                self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+
+                self.plot_canvas[1].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
+                                             numpy.zeros(1),
+                                             "Click on curve to highlight it",
+                                             xlabel="", ylabel="",
+                                             symbol='', color='white')
+
+                self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+
+                if do_nf:
+                    self.plot_canvas[2].addCurve(numpy.array([histo_data_x_nf.get_centroid()]),
+                                                 numpy.zeros(1),
+                                                 "Click on curve to highlight it",
+                                                 xlabel="", ylabel="",
+                                                 symbol='', color='white')
+
+                    self.plot_canvas[2].setActiveCurve("Click on curve to highlight it")
+
+                    self.plot_canvas[2].addCurve(numpy.array([histo_data_z_nf.get_centroid()]),
+                                                 numpy.zeros(1),
+                                                 "Click on curve to highlight it",
+                                                 xlabel="", ylabel="",
+                                                 symbol='', color='white')
+
+                    self.plot_canvas[2].setActiveCurve("Click on curve to highlight it")
+            else:
+                if do_plot_x:
+                    self.plot_canvas[0].addCurve(numpy.array([histo_data_x_ff.get_centroid()]),
+                                                 numpy.zeros(1),
+                                                 "Click on curve to highlight it",
+                                                 xlabel="", ylabel="",
+                                                 symbol='', color='white')
+
+                    self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+
+                    if do_nf:
+                        self.plot_canvas[1].addCurve(numpy.array([histo_data_x_nf.get_centroid()]),
+                                                     numpy.zeros(1),
+                                                     "Click on curve to highlight it",
+                                                     xlabel="", ylabel="",
+                                                     symbol='', color='white')
+
+                        self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+                elif do_plot_z:
+                    self.plot_canvas[0].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
+                                                 numpy.zeros(1),
+                                                 "Click on curve to highlight it",
+                                                 xlabel="", ylabel="",
+                                                 symbol='', color='white')
+
+                    self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+
+                    if do_nf:
+                        self.plot_canvas[1].addCurve(numpy.array([histo_data_z_nf.get_centroid()]),
+                                                     numpy.zeros(1),
+                                                     "Click on curve to highlight it",
+                                                     xlabel="", ylabel="",
+                                                     symbol='', color='white')
+
+                        self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+
+    def plot_stats(self, do_nf, do_plot_x, do_plot_z, stats_x_ff, stats_z_ff, stats_x_nf, stats_z_nf):
+
+        if self.ghy_diff_plane == 0:
+            if do_plot_x:
+                self.plot_stat(stats_x_ff, 0)
+
+                if do_nf:
+                    self.plot_stat(stats_x_nf, 1)
+        elif self.ghy_diff_plane == 1:
+            if do_plot_z:
+                self.plot_stat(stats_z_ff, 0)
+
+                if do_nf:
+                    self.plot_stat(stats_z_nf, 1)
+        else:
+            if do_plot_x and do_plot_z:
+                self.plot_stat(stats_x_ff, 0)
+                self.plot_stat(stats_z_ff, 1)
+
+                if do_nf:
+                    self.plot_stat(stats_x_nf, 2)
+                    self.plot_stat(stats_z_nf, 3)
 
             else:
                 if do_plot_x:
-                    self.plot_histo(calculation_parameters.ff_beam, 1, plot_canvas_index=0, title="X",
-                                    xtitle=r'X [$\mu$m]', ytitle=r'Number of Rays')
+                    self.plot_stat(stats_x_ff, 0)
+
+                    if do_nf:
+                        self.plot_stat(stats_x_nf, 1)
                 elif do_plot_z:
-                    self.plot_histo(calculation_parameters.ff_beam, 3, plot_canvas_index=0, title="Z",
-                                    xtitle=r'Z [$\mu$m]', ytitle=r'Number of Rays')
-                else:
-                    self.plot_emtpy(88, 0)
+                    self.plot_stat(stats_z_ff, 0)
 
-        elif self.ghy_diff_plane == 3:
-            if (do_plot_x or do_plot_z):
-                if do_nf:
-                    self.plot_xy(calculation_parameters.nf_beam, 88, 1, 3, plot_canvas_index=0, title="X,Z",
-                                 xtitle=r'X [$\mu$m]', ytitle=r'Z [$\mu$m]')
-                    self.plot_xy(calculation_parameters.ff_beam, 96, 1, 3, plot_canvas_index=1, title="X,Z",
-                                 xtitle=r'X [$\mu$m]', ytitle=r'Z [$\mu$m]')
-                else:
-                    self.plot_xy(calculation_parameters.ff_beam, 88, 1, 3, plot_canvas_index=0, title="X,Z",
-                                 xtitle=r'X [$\mu$m]', ytitle=r'Z [$\mu$m]')
-            else:
-                if do_nf:
-                    self.plot_emtpy(88, 4)
-                    self.plot_emtpy(96, 5)
-                else:
-                    self.plot_emtpy(88, 0)
+                    if do_nf:
+                        self.plot_stat(stats_z_nf, 1)
 
-        return histo_data_x_ff, histo_data_z_ff, histo_data_x_nf, histo_data_z_nf
+    def plot_stat(self, stats, plot_canvas_index, sigma_um="$\mu$m"):
+        if self.plot_canvas_stats[plot_canvas_index] is None:
+            self.plot_canvas_stats[plot_canvas_index] = StatsPlotWindow2(parent=None)
+
+            self.tab[plot_canvas_index][1].layout().addWidget(self.plot_canvas_stats[plot_canvas_index])
+
+        self.plot_canvas_stats[plot_canvas_index].plotCurves(numpy.arange(0, len(stats[0])),
+                                                             stats[0][:],
+                                                             stats[1][:]/stats[1][0],
+                                                             "Statistics",
+                                                             "Profiles",
+                                                             "Sigma [" + sigma_um + "]",
+                                                             "Relative Peak Intensity")
 
     def plot_histo(self, beam, col, nbins=100, progressBarValue=80, plot_canvas_index=0, title="", xtitle="", ytitle="",
                    profile=1, control=True, offset=0.0, xrange=None):
@@ -558,9 +761,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
             fwhm = ticket['fwhm']
             xrange = ticket['xrange']
-
             centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
-
             xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
 
         ticket = beam._beam.histo1(col, xrange=xrange, nbins=nbins, nolost=1, ref=23)
@@ -570,7 +771,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         histogram = ticket['histogram_path']
         bins = ticket['bin_path']*factor
 
-        sigma = ticket['histogram_sigma']
+        sigma = numpy.average(ticket['histogram_sigma'])
         peak_intensity = numpy.max(histogram)
 
         if profile == 0:
@@ -606,12 +807,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                                       roi=False,
                                                                       mask=False,
                                                                       fit=False)
-            self.plot_canvas[plot_canvas_index].setActiveCurveColor(color="#00008B")
-            self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
-            self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
-            self.plot_canvas[plot_canvas_index].setGraphTitle(title)
 
-            self.tab[plot_canvas_index].layout().addWidget(self.plot_canvas[plot_canvas_index])
+            self.tab[plot_canvas_index][0].layout().addWidget(self.plot_canvas[plot_canvas_index])
 
         import matplotlib
         matplotlib.rcParams['axes.formatter.useoffset']='False'
@@ -621,10 +818,17 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         self.plot_canvas[plot_canvas_index].addCurve(bins, histogram + offset*profile, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
 
-        self.plot_canvas[plot_canvas_index]._backend.ax.text(xrange[0]*factor, offset*profile*1.01, h_title)
+        self.plot_canvas[plot_canvas_index]._backend.ax.text(xrange[0]*factor*1.05, offset*profile*1.05, h_title)
 
         if not xtitle is None: self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
         if not ytitle is None: self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
+        if not title is None:  self.plot_canvas[plot_canvas_index].setGraphTitle(title)
+
+        for label in self.plot_canvas[plot_canvas_index]._backend.ax.yaxis.get_ticklabels():
+            label.set_color('white')
+            label.set_fontsize(1)
+
+        self.plot_canvas[plot_canvas_index].setActiveCurveColor(color="#00008B")
 
         self.plot_canvas[plot_canvas_index].setDrawModeEnabled(True, 'rectangle')
         self.plot_canvas[plot_canvas_index].setInteractiveMode('zoom',color='orange')
@@ -635,16 +839,15 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         self.plot_canvas[plot_canvas_index].setActiveCurve(h_title)
 
-        self.progressBarSet(progressBarValue)
-
         self.plot_canvas[plot_canvas_index].setDefaultPlotLines(True)
         self.plot_canvas[plot_canvas_index].setDefaultPlotPoints(False)
 
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(300)
+        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(510)
         self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setVisible(True)
 
-        from PyQt5.QtCore import Qt
         self.plot_canvas[plot_canvas_index].addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas[plot_canvas_index].getLegendsDockWidget())
+
+        self.progressBarSet(progressBarValue)
 
         return HistoData(offset, xrange, sigma, peak_intensity)
 
@@ -681,3 +884,89 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         self.shadow_output.setTextCursor(cursor)
         self.shadow_output.ensureCursorVisible()
 
+
+from matplotlib import pyplot as plt
+
+class StatsPlotWindow(QWidget):
+
+    def __init__(self, parent=None):
+        super(QWidget, self).__init__(parent=parent)
+
+        self.fig, self.ax1 = plt.subplots()
+        self.ax2 = self.ax1.twinx()
+
+        layout = QVBoxLayout()
+
+        figure_canvas = FigureCanvas(self.fig)
+        figure_canvas.setFixedWidth(700)
+        figure_canvas.setFixedHeight(520)
+
+        layout.addWidget(NavigationToolbar(figure_canvas, self))
+        layout.addWidget(figure_canvas)
+
+        self.setLayout(layout)
+
+    def plotCurves(self, x, y1, y2, xlabel, ylabel1, ylabel2):
+        self.ax1.clear()
+        self.ax2.clear()
+
+        self.ax1.plot(x, y1, "b.-")
+        self.ax1.set_xlabel(xlabel)
+        self.ax1.set_ylabel(ylabel1, color="b")
+        self.ax2.plot(x, y2, "r.-")
+        self.ax2.set_ylabel(ylabel2, color="r")
+
+        self.fig.tight_layout()
+
+class StatsPlotWindow2(QWidget):
+
+    def __init__(self, parent=None):
+        super(QWidget, self).__init__(parent=parent)
+
+        self.plotWindow = oasysgui.plotWindow(parent=None,
+                                              backend=None,
+                                              resetzoom=False,
+                                              autoScale=False,
+                                              logScale=False,
+                                              grid=True,
+                                              curveStyle=False,
+                                              colormap=False,
+                                              aspectRatio=False,
+                                              yInverted=False,
+                                              copy=False,
+                                              save=True,
+                                              print_=True,
+                                              control=True,
+                                              position=False,
+                                              roi=False,
+                                              mask=False,
+                                              fit=False)
+        self.plotWindow.setFixedWidth(700)
+        self.plotWindow.setFixedHeight(520)
+
+        self.plotWindow.setDefaultPlotLines(True)
+        self.plotWindow.setDefaultPlotPoints(True)
+
+        self.ax2 = self.plotWindow._backend.ax.twinx()
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.plotWindow)
+
+        self.setLayout(layout)
+
+    def plotCurves(self, x, y1, y2, title, xlabel, ylabel1, ylabel2):
+        self.plotWindow._backend.ax.clear()
+        self.ax2.clear()
+
+        self.plotWindow.addCurve(x, y1, replace=False, color="b", symbol=".", ylabel=ylabel1, linewidth=1.5)
+        self.plotWindow.setGraphXLabel(xlabel)
+        self.plotWindow.setGraphTitle(title)
+        self.plotWindow._backend.ax.set_ylabel(ylabel1, color="b")
+
+        self.ax2.plot(x, y2, "r.-")
+        self.ax2.set_ylabel(ylabel2, color="r")
+
+        #self.plotWindow.replot()
+
+        #self.fig.tight_layout()
