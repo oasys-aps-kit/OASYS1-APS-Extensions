@@ -18,6 +18,8 @@ from PyQt5.QtCore import Qt
 from orangecontrib.shadow.widgets.gui.ow_automatic_element import AutomaticElement
 from orangecontrib.shadow.widgets.special_elements import hybrid_control
 
+from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
@@ -38,7 +40,8 @@ class HistoData(object):
 
 class HybridScreenErrorAnalysis(AutomaticElement):
 
-    inputs = [("Input Beam", ShadowBeam, "setBeam"),]
+    inputs = [("Input Beam", ShadowBeam, "setBeam"),
+              ("PreProcessor Data", ShadowPreProcessorData, "setPreProcessorData")]
 
     name = "Hybrid Screen - Error Analysis"
     description = "Shadow HYBRID: Hybrid Screen - Error Analysis"
@@ -269,7 +272,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
             widget = QWidget()
             widget.setLayout(QHBoxLayout())
             label = QLabel(widget)
-            label.setPixmap(QPixmap(QImage(os.path.join(resources.package_dirname("orangecontrib.shadow.widgets.special_elements"), "icons", "no_result.png"))))
+            label.setPixmap(QPixmap(QImage(os.path.join(resources.package_dirname("orangecontrib.shadow.widgets.extension"), "icons", "no_result.png"))))
 
             widget.layout().addWidget(label)
 
@@ -883,6 +886,22 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         cursor.insertText(text)
         self.shadow_output.setTextCursor(cursor)
         self.shadow_output.ensureCursorVisible()
+
+    def setPreProcessorData(self, data):
+        if data is not None:
+            if data.error_profile_data_file != ShadowPreProcessorData.NONE:
+                if isinstance(data.error_profile_data_file, str):
+                    self.ghy_files.append(data.error_profile_data_file)
+                elif isinstance(data.error_profile_data_file, list):
+                    self.ghy_files = data.error_profile_data_file
+                else:
+                    raise ValueError("Error Profile Data File: format not recognized")
+
+                text = ""
+                for file in self.ghy_files:
+                    text += file + "\n"
+                self.files_area.setText(text)
+
 
 
 from matplotlib import pyplot as plt

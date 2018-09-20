@@ -48,7 +48,7 @@ INSTALL_REQUIRES = (
 PACKAGES = find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests'))
 
 PACKAGE_DATA = {
-    "orangecontrib.aps.shadow.widgets.special_elements":["icons/*.png", "icons/*.jpg", "misc/*.png"],
+    "orangecontrib.aps.shadow.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
 }
 
 NAMESPACE_PACAKGES = ["orangecontrib", "orangecontrib.aps", "orangecontrib.aps.shadow", "orangecontrib.aps.shadow.widgets"]
@@ -56,7 +56,7 @@ NAMESPACE_PACAKGES = ["orangecontrib", "orangecontrib.aps", "orangecontrib.aps.s
 ENTRY_POINTS = {
     'oasys.addons' : ("SRW = orangecontrib.aps.shadow", ),
     'oasys.widgets' : (
-        "APS Shadow Special Elements = orangecontrib.aps.shadow.widgets.special_elements",
+        "APS Shadow Extension = orangecontrib.aps.shadow.widgets.extension",
     ),
 }
 
