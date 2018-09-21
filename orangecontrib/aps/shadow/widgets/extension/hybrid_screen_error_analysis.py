@@ -151,7 +151,6 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         gui.button(box_files, self, "Select Height Error Profile Data Files", callback=self.select_files)
 
         self.files_area = oasysgui.textArea(height=120, width=360)
-        self.files_area.setReadOnly(True)
 
         self.refresh_files_text_area()
 
@@ -459,7 +458,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                         shadow_oe._oe.F_RIPPLE = 1
                         shadow_oe._oe.F_G_S = 2
 
-                        shadow_oe._oe.FILE_RIP = bytes(congruence.checkFileName(file), 'utf-8')
+                        shadow_oe._oe.FILE_RIP = bytes(congruence.checkFile(file), 'utf-8')
 
                         input_parameters.shadow_beam = shadow_beam
 
@@ -893,6 +892,9 @@ class HybridScreenErrorAnalysis(AutomaticElement):
             congruence.checkStrictlyPositiveNumber(self.ghy_nbins_x, "Number of bins for I(Sagittal) histogram")
         if self.ghy_diff_plane == 1 or self.ghy_diff_plane == 2:
             congruence.checkStrictlyPositiveNumber(self.ghy_nbins_z, "Number of bins for I(Tangential) histogram")
+
+        if self.ghy_files is None or len(self.ghy_files) == 0 or (len(self.ghy_files) == 1 and self.ghy_files[0] == ""):
+            raise ValueError("Height Error Profiles list is empty")
 
         congruence.checkStrictlyPositiveNumber(self.ghy_npeak, "Number of diffraction peaks")
         congruence.checkStrictlyPositiveNumber(self.ghy_fftnpts, "Number of points for FFT")
