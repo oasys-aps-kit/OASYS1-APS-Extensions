@@ -78,15 +78,13 @@ class OWheight_profile_simulator(OWWidget):
     error_type_x = Setting(profiles_simulation.FIGURE_ERROR)
     error_type_y = Setting(profiles_simulation.FIGURE_ERROR)
 
-    rms_x_from = Setting(0.1)
-    rms_x_to = Setting(1.0)
-    rms_x_step = Setting(0.1)
+    rms_x_from = Setting(1.0)
+    rms_x_to = Setting(10.0)
+    rms_x_step = Setting(1.0)
 
     montecarlo_seed_x = Setting(8787)
 
-    rms_y_from = Setting(1)
-    rms_y_to = Setting(1.0)
-    rms_y_step = Setting(0.1)
+    rms_y = Setting(1.0)
 
     montecarlo_seed_y = Setting(8788)
 
@@ -100,7 +98,7 @@ class OWheight_profile_simulator(OWWidget):
     new_length_x = Setting(20.1)
     filler_value_x = Setting(0.0)
 
-    renormalize_x = Setting(0)
+    renormalize_x = 1
 
     heigth_profile_1D_file_name_y = Setting("mirror_1D_y.dat")
     delimiter_y = Setting(0)
@@ -223,13 +221,7 @@ class OWheight_profile_simulator(OWWidget):
                      items=["Figure Error (nm)", "Slope Error (" + "\u03BC" + "rad)"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y_from", "Rms Value From",
-                           labelWidth=260, valueType=float, orientation="horizontal")
-
-        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y_to", "Rms Value To",
-                           labelWidth=260, valueType=float, orientation="horizontal")
-
-        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y_step", "Rms Value Step",
+        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y", "Rms Value",
                            labelWidth=260, valueType=float, orientation="horizontal")
 
         self.kind_of_profile_y_box_2 = oasysgui.widgetBox(input_box_l, "", addSpace=False, orientation="vertical", height=390)
@@ -280,14 +272,9 @@ class OWheight_profile_simulator(OWWidget):
                      items=["Figure Error (nm)", "Slope Error (" + "\u03BC" + "rad)"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y_from", "Rms Value From",
+        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y", "Rms Value",
                            labelWidth=260, valueType=float, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y_to", "Rms Value To",
-                           labelWidth=260, valueType=float, orientation="horizontal")
-
-        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y_step", "Rms Value Step",
-                           labelWidth=260, valueType=float, orientation="horizontal")
 
         self.set_KindOfProfileY()
 
@@ -377,8 +364,9 @@ class OWheight_profile_simulator(OWWidget):
 
         self.set_ModifyX()
 
-        gui.comboBox(self.kind_of_profile_x_box_2, self, "renormalize_x", label="Renormalize to different RMS", labelWidth=260,
+        cb = gui.comboBox(self.kind_of_profile_x_box_2, self, "renormalize_x", label="Renormalize to different RMS", labelWidth=260,
                      items=["No", "Yes"], callback=self.set_KindOfProfileX, sendSelectedValue=False, orientation="horizontal")
+        cb.setEnabled(False)
 
         self.kind_of_profile_x_box_2_1 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical")
 
@@ -481,222 +469,231 @@ class OWheight_profile_simulator(OWWidget):
 
             self.check_fields()
 
-            #### LENGTH
+            rms_x_values = numpy.arange(self.rms_x_from, self.rms_x_to + self.rms_x_step, self.rms_x_step)
 
-            if self.kind_of_profile_y == 2:
-                combination = "E"
+            self.xx = []
+            self.yy = []
+            self.zz = []
 
-                if self.delimiter_y == 1:
-                    profile_1D_y_x, profile_1D_y_y = numpy.loadtxt(self.heigth_profile_1D_file_name_y, delimiter='\t', unpack=True)
-                else:
-                    profile_1D_y_x, profile_1D_y_y = numpy.loadtxt(self.heigth_profile_1D_file_name_y, unpack=True)
+            for rms_x in rms_x_values:
 
-                profile_1D_y_x *= self.conversion_factor_y_x * self.workspace_units_to_cm # to cm
-                profile_1D_y_y *= self.conversion_factor_y_y * self.workspace_units_to_cm # to cm
+                #### LENGTH
 
-                first_coord = profile_1D_y_x[0]
-                second_coord  = profile_1D_y_x[1]
-                last_coord = profile_1D_y_x[-1]
-                step = numpy.abs(second_coord - first_coord)
-                length = numpy.abs(last_coord - first_coord)
-                n_points_old = len(profile_1D_y_x)
+                if self.kind_of_profile_y == 2:
+                    combination = "E"
 
-                if self.modify_y == 2:
-                    profile_1D_y_x_temp = profile_1D_y_x
-                    profile_1D_y_y_temp = profile_1D_y_y
+                    if self.delimiter_y == 1:
+                        profile_1D_y_x, profile_1D_y_y = numpy.loadtxt(self.heigth_profile_1D_file_name_y, delimiter='\t', unpack=True)
+                    else:
+                        profile_1D_y_x, profile_1D_y_y = numpy.loadtxt(self.heigth_profile_1D_file_name_y, unpack=True)
 
-                    if self.new_length_y > length:
-                        difference = self.new_length_y - length
+                    profile_1D_y_x *= self.conversion_factor_y_x * self.workspace_units_to_cm # to cm
+                    profile_1D_y_y *= self.conversion_factor_y_y * self.workspace_units_to_cm # to cm
 
-                        n_added_points = int(difference/step)
-                        if difference % step == 0:
-                            n_added_points += 1
-                        if n_added_points % 2 != 0:
-                            n_added_points += 1
+                    first_coord = profile_1D_y_x[0]
+                    second_coord  = profile_1D_y_x[1]
+                    last_coord = profile_1D_y_x[-1]
+                    step = numpy.abs(second_coord - first_coord)
+                    length = numpy.abs(last_coord - first_coord)
+                    n_points_old = len(profile_1D_y_x)
+
+                    if self.modify_y == 2:
+                        profile_1D_y_x_temp = profile_1D_y_x
+                        profile_1D_y_y_temp = profile_1D_y_y
+
+                        if self.new_length_y > length:
+                            difference = self.new_length_y - length
+
+                            n_added_points = int(difference/step)
+                            if difference % step == 0:
+                                n_added_points += 1
+                            if n_added_points % 2 != 0:
+                                n_added_points += 1
 
 
-                        profile_1D_y_x = numpy.arange(n_added_points + n_points_old) * step
-                        profile_1D_y_y = numpy.ones(n_added_points + n_points_old) * self.filler_value_y * 1e-9 * self.si_to_user_units
-                        profile_1D_y_y[int(n_added_points/2) : n_points_old + int(n_added_points/2)] = profile_1D_y_y_temp
-                    elif self.new_length_y < length:
-                        difference = length - self.new_length_y
+                            profile_1D_y_x = numpy.arange(n_added_points + n_points_old) * step
+                            profile_1D_y_y = numpy.ones(n_added_points + n_points_old) * self.filler_value_y * 1e-9 * self.si_to_user_units
+                            profile_1D_y_y[int(n_added_points/2) : n_points_old + int(n_added_points/2)] = profile_1D_y_y_temp
+                        elif self.new_length_y < length:
+                            difference = length - self.new_length_y
 
-                        n_removed_points = int(difference/step)
-                        if difference % step == 0:
-                            n_removed_points -= 1
-                        if n_removed_points % 2 != 0:
-                            n_removed_points -= 1
+                            n_removed_points = int(difference/step)
+                            if difference % step == 0:
+                                n_removed_points -= 1
+                            if n_removed_points % 2 != 0:
+                                n_removed_points -= 1
 
-                        if n_removed_points >= 2:
-                            profile_1D_y_x = profile_1D_y_x_temp[0 : (n_points_old - n_removed_points)]
-                            profile_1D_y_y = profile_1D_y_y_temp[(int(n_removed_points/2) - 1) : (n_points_old - int(n_removed_points/2) - 1)]
+                            if n_removed_points >= 2:
+                                profile_1D_y_x = profile_1D_y_x_temp[0 : (n_points_old - n_removed_points)]
+                                profile_1D_y_y = profile_1D_y_y_temp[(int(n_removed_points/2) - 1) : (n_points_old - int(n_removed_points/2) - 1)]
 
+                            else:
+                                profile_1D_y_x = profile_1D_y_x_temp
+                                profile_1D_y_y = profile_1D_y_y_temp
                         else:
                             profile_1D_y_x = profile_1D_y_x_temp
                             profile_1D_y_y = profile_1D_y_y_temp
-                    else:
+
+                    elif self.modify_y == 1:
+                        scale_factor_y = self.new_length_y/length
+                        profile_1D_y_x *= scale_factor_y
+
+                    if self.center_y:
+                        first_coord = profile_1D_y_x[0]
+                        last_coord = profile_1D_y_x[-1]
+                        length = numpy.abs(last_coord - first_coord)
+
+                        profile_1D_y_x_temp = numpy.linspace(-length/2, length/2, len(profile_1D_y_x))
                         profile_1D_y_x = profile_1D_y_x_temp
-                        profile_1D_y_y = profile_1D_y_y_temp
 
-                elif self.modify_y == 1:
-                    scale_factor_y = self.new_length_y/length
-                    profile_1D_y_x *= scale_factor_y
-
-                if self.center_y:
-                    first_coord = profile_1D_y_x[0]
-                    last_coord = profile_1D_y_x[-1]
-                    length = numpy.abs(last_coord - first_coord)
-
-                    profile_1D_y_x_temp = numpy.linspace(-length/2, length/2, len(profile_1D_y_x))
-                    profile_1D_y_x = profile_1D_y_x_temp
-
-                if self.renormalize_y == 0:
-                    rms_y = None
+                    if self.renormalize_y == 0:
+                        rms_y = None
+                    else:
+                        if self.error_type_y == profiles_simulation.FIGURE_ERROR:
+                            rms_y = self.rms_y * 1e-7 # from nm to cm
+                        else:
+                            rms_y = self.rms_y * 1e-6 # from urad to rad
                 else:
+                    if self.kind_of_profile_y == 0: combination = "F"
+                    else: combination = "G"
+
+                    profile_1D_y_x = None
+                    profile_1D_y_y = None
+
                     if self.error_type_y == profiles_simulation.FIGURE_ERROR:
                         rms_y = self.rms_y * 1e-7 # from nm to cm
                     else:
                         rms_y = self.rms_y * 1e-6 # from urad to rad
-            else:
-                if self.kind_of_profile_y == 0: combination = "F"
-                else: combination = "G"
 
-                profile_1D_y_x = None
-                profile_1D_y_y = None
+                #### WIDTH
 
-                if self.error_type_y == profiles_simulation.FIGURE_ERROR:
-                    rms_y = self.rms_y * 1e-7 # from nm to cm
-                else:
-                    rms_y = self.rms_y * 1e-6 # from urad to rad
+                if self.kind_of_profile_x == 2:
+                    combination += "E"
 
-            #### WIDTH
+                    if self.delimiter_x == 1:
+                        profile_1D_x_x, profile_1D_x_y = numpy.loadtxt(self.heigth_profile_1D_file_name_x, delimiter='\t', unpack=True)
+                    else:
+                        profile_1D_x_x, profile_1D_x_y = numpy.loadtxt(self.heigth_profile_1D_file_name_x, unpack=True)
 
-            if self.kind_of_profile_x == 2:
-                combination += "E"
+                    profile_1D_x_x *= self.conversion_factor_x_x * self.workspace_units_to_cm
+                    profile_1D_x_y *= self.conversion_factor_x_y * self.workspace_units_to_cm
 
-                if self.delimiter_x == 1:
-                    profile_1D_x_x, profile_1D_x_y = numpy.loadtxt(self.heigth_profile_1D_file_name_x, delimiter='\t', unpack=True)
-                else:
-                    profile_1D_x_x, profile_1D_x_y = numpy.loadtxt(self.heigth_profile_1D_file_name_x, unpack=True)
+                    first_coord = profile_1D_x_x[0]
+                    second_coord  = profile_1D_x_x[1]
+                    last_coord = profile_1D_x_x[-1]
+                    step = numpy.abs(second_coord - first_coord)
+                    length = numpy.abs(last_coord - first_coord)
+                    n_points_old = len(profile_1D_x_x)
 
-                profile_1D_x_x *= self.conversion_factor_x_x * self.workspace_units_to_cm
-                profile_1D_x_y *= self.conversion_factor_x_y * self.workspace_units_to_cm
+                    if self.modify_x == 2:
+                        profile_1D_x_x_temp = profile_1D_x_x
+                        profile_1D_x_y_temp = profile_1D_x_y
 
-                first_coord = profile_1D_x_x[0]
-                second_coord  = profile_1D_x_x[1]
-                last_coord = profile_1D_x_x[-1]
-                step = numpy.abs(second_coord - first_coord)
-                length = numpy.abs(last_coord - first_coord)
-                n_points_old = len(profile_1D_x_x)
+                        if self.new_length_x > length:
+                            difference = self.new_length_x - length
 
-                if self.modify_x == 2:
-                    profile_1D_x_x_temp = profile_1D_x_x
-                    profile_1D_x_y_temp = profile_1D_x_y
-
-                    if self.new_length_x > length:
-                        difference = self.new_length_x - length
-
-                        n_added_points = int(difference/step)
-                        if difference % step == 0:
-                            n_added_points += 1
-                        if n_added_points % 2 != 0:
-                            n_added_points += 1
+                            n_added_points = int(difference/step)
+                            if difference % step == 0:
+                                n_added_points += 1
+                            if n_added_points % 2 != 0:
+                                n_added_points += 1
 
 
-                        profile_1D_x_x = numpy.arange(n_added_points + n_points_old) * step
-                        profile_1D_x_y = numpy.ones(n_added_points + n_points_old) * self.filler_value_x * 1e-9 * self.si_to_user_units
-                        profile_1D_x_y[int(n_added_points/2) : n_points_old + int(n_added_points/2)] = profile_1D_x_y_temp
-                    elif self.new_length_x < length:
-                        difference = length - self.new_length_x
+                            profile_1D_x_x = numpy.arange(n_added_points + n_points_old) * step
+                            profile_1D_x_y = numpy.ones(n_added_points + n_points_old) * self.filler_value_x * 1e-9 * self.si_to_user_units
+                            profile_1D_x_y[int(n_added_points/2) : n_points_old + int(n_added_points/2)] = profile_1D_x_y_temp
+                        elif self.new_length_x < length:
+                            difference = length - self.new_length_x
 
-                        n_removed_points = int(difference/step)
-                        if difference % step == 0:
-                            n_removed_points -= 1
-                        if n_removed_points % 2 != 0:
-                            n_removed_points -= 1
+                            n_removed_points = int(difference/step)
+                            if difference % step == 0:
+                                n_removed_points -= 1
+                            if n_removed_points % 2 != 0:
+                                n_removed_points -= 1
 
-                        if n_removed_points >= 2:
-                            profile_1D_x_x = profile_1D_x_x_temp[0 : (n_points_old - n_removed_points)]
-                            profile_1D_x_y = profile_1D_x_y_temp[(int(n_removed_points/2) - 1) : (n_points_old - int(n_removed_points/2) - 1)]
+                            if n_removed_points >= 2:
+                                profile_1D_x_x = profile_1D_x_x_temp[0 : (n_points_old - n_removed_points)]
+                                profile_1D_x_y = profile_1D_x_y_temp[(int(n_removed_points/2) - 1) : (n_points_old - int(n_removed_points/2) - 1)]
 
+                            else:
+                                profile_1D_x_x = profile_1D_x_x_temp
+                                profile_1D_x_y = profile_1D_x_y_temp
                         else:
                             profile_1D_x_x = profile_1D_x_x_temp
                             profile_1D_x_y = profile_1D_x_y_temp
-                    else:
+
+                    elif self.modify_x == 1:
+                        scale_factor_x = self.new_length_x/length
+                        profile_1D_x_x *= scale_factor_x
+
+                    if self.center_x:
+                        first_coord = profile_1D_x_x[0]
+                        last_coord = profile_1D_x_x[-1]
+                        length = numpy.abs(last_coord - first_coord)
+
+                        profile_1D_x_x_temp = numpy.linspace(-length/2, length/2, len(profile_1D_x_x))
                         profile_1D_x_x = profile_1D_x_x_temp
-                        profile_1D_x_y = profile_1D_x_y_temp
-
-                elif self.modify_x == 1:
-                    scale_factor_x = self.new_length_x/length
-                    profile_1D_x_x *= scale_factor_x
-
-                if self.center_x:
-                    first_coord = profile_1D_x_x[0]
-                    last_coord = profile_1D_x_x[-1]
-                    length = numpy.abs(last_coord - first_coord)
-
-                    profile_1D_x_x_temp = numpy.linspace(-length/2, length/2, len(profile_1D_x_x))
-                    profile_1D_x_x = profile_1D_x_x_temp
 
 
-                if self.renormalize_x == 0:
-                    rms_x = None
-                else:
-                    if self.error_type_x == profiles_simulation.FIGURE_ERROR:
-                        rms_x = self.rms_x * 1e-7 # from nm to cm
+                    if self.renormalize_x == 0:
+                        rms_x = None
                     else:
-                        rms_x = self.rms_x * 1e-6 # from urad to rad
+                        if self.error_type_x == profiles_simulation.FIGURE_ERROR:
+                            rms_x *= 1e-7 # from nm to cm
+                        else:
+                            rms_x *= 1e-6 # from urad to rad
 
-            else:
-                profile_1D_x_x = None
-                profile_1D_x_y = None
-
-                if self.kind_of_profile_x == 0: combination += "F"
-                else: combination += "G"
-
-                if self.error_type_x == profiles_simulation.FIGURE_ERROR:
-                    rms_x = self.rms_x * 1e-7 # from nm to cm
                 else:
-                    rms_x = self.rms_x * 1e-6 # from urad to rad
+                    profile_1D_x_x = None
+                    profile_1D_x_y = None
 
-            xx, yy, zz = profiles_simulation.simulate_profile_2D(combination = combination,
-                                                                 mirror_length = self.dimension_y * self.workspace_units_to_cm, # to cm
-                                                                 step_l = self.step_y * self.workspace_units_to_cm, # to cm
-                                                                 random_seed_l = self.montecarlo_seed_y,
-                                                                 error_type_l = self.error_type_y,
-                                                                 rms_l = rms_y,
-                                                                 power_law_exponent_beta_l = self.power_law_exponent_beta_y,
-                                                                 correlation_length_l = self.correlation_length_y * self.workspace_units_to_cm, # to cm
-                                                                 x_l = profile_1D_y_x,
-                                                                 y_l = profile_1D_y_y,
-                                                                 mirror_width = self.dimension_x * self.workspace_units_to_cm, # to cm
-                                                                 step_w = self.step_x * self.workspace_units_to_cm,
-                                                                 random_seed_w = self.montecarlo_seed_x,
-                                                                 error_type_w = self.error_type_x,
-                                                                 rms_w = rms_x,
-                                                                 power_law_exponent_beta_w = self.power_law_exponent_beta_x,
-                                                                 correlation_length_w = self.correlation_length_x * self.workspace_units_to_cm, # to cm
-                                                                 x_w = profile_1D_x_x,
-                                                                 y_w = profile_1D_x_y)
+                    if self.kind_of_profile_x == 0: combination += "F"
+                    else: combination += "G"
 
-            self.xx = xx / self.workspace_units_to_cm # to user units
-            self.yy = yy / self.workspace_units_to_cm # to user units
-            self.zz = zz / self.workspace_units_to_cm # to user units
+                    if self.error_type_x == profiles_simulation.FIGURE_ERROR:
+                        rms_x *= 1e-7 # from nm to cm
+                    else:
+                        rms_x *= 1e-6 # from urad to rad
+
+                xx, yy, zz = profiles_simulation.simulate_profile_2D(combination = combination,
+                                                                     mirror_length = self.dimension_y * self.workspace_units_to_cm, # to cm
+                                                                     step_l = self.step_y * self.workspace_units_to_cm, # to cm
+                                                                     random_seed_l = self.montecarlo_seed_y,
+                                                                     error_type_l = self.error_type_y,
+                                                                     rms_l = rms_y,
+                                                                     power_law_exponent_beta_l = self.power_law_exponent_beta_y,
+                                                                     correlation_length_l = self.correlation_length_y * self.workspace_units_to_cm, # to cm
+                                                                     x_l = profile_1D_y_x,
+                                                                     y_l = profile_1D_y_y,
+                                                                     mirror_width = self.dimension_x * self.workspace_units_to_cm, # to cm
+                                                                     step_w = self.step_x * self.workspace_units_to_cm,
+                                                                     random_seed_w = self.montecarlo_seed_x,
+                                                                     error_type_w = self.error_type_x,
+                                                                     rms_w = rms_x,
+                                                                     power_law_exponent_beta_w = self.power_law_exponent_beta_x,
+                                                                     correlation_length_w = self.correlation_length_x * self.workspace_units_to_cm, # to cm
+                                                                     x_w = profile_1D_x_x,
+                                                                     y_w = profile_1D_x_y)
+
+                self.xx.append(xx / self.workspace_units_to_cm) # to user units
+                self.yy.append(yy / self.workspace_units_to_cm) # to user units
+                self.zz.append(zz / self.workspace_units_to_cm) # to user units
 
             self.axis.clear()
 
-            x_to_plot, y_to_plot = numpy.meshgrid(self.xx, self.yy)
-            z_to_plot = zz * 1e7
+            x_to_plot, y_to_plot = numpy.meshgrid(self.xx[0], self.yy[0])
+            z_to_plot = self.zz[0] * 1e7
 
             self.axis.plot_surface(x_to_plot, y_to_plot, z_to_plot,
                                    rstride=1, cstride=1, cmap=cm.autumn, linewidth=0.5, antialiased=True)
 
-            sloperms = profiles_simulation.slopes(zz.T, xx, yy, return_only_rms=1)
+            sloperms = profiles_simulation.slopes(self.zz[0].T, self.xx[0], self.yy[0], return_only_rms=1)
 
-            title = ' Slope error rms in X direction: %f $\mu$rad' % (sloperms[0]*1e6) + '\n' + \
+            title = ' First Profile: \n' + \
+                    ' Slope error rms in X direction: %f $\mu$rad' % (sloperms[0]*1e6) + '\n' + \
                     ' Slope error rms in Y direction: %f $\mu$rad' % (sloperms[1]*1e6) + '\n' + \
-                    ' Figure error rms in X direction: %f nm' % (round(zz[0, :].std()*1e7, 6)) + '\n' + \
-                    ' Figure error rms in Y direction: %f nm' % (round(zz[:, 0].std()*1e7, 6))
+                    ' Figure error rms in X direction: %f nm' % (round(self.zz[0][0, :].std()*1e7, 6)) + '\n' + \
+                    ' Figure error rms in Y direction: %f nm' % (round(self.zz[0][:, 0].std()*1e7, 6))
 
             self.axis.set_xlabel("X [" + self.workspace_units_label + "]")
             self.axis.set_ylabel("Y [" + self.workspace_units_label + "]")
@@ -726,21 +723,34 @@ class OWheight_profile_simulator(OWWidget):
 
                 sys.stdout = EmittingStream(textWritten=self.writeStdOut)
 
-                ST.write_shadow_surface(self.zz, self.xx, self.yy, outFile=congruence.checkFileName(self.heigth_profile_file_name))
+                height_profile_file_names = []
+                profile_number = 0
+
+                heigth_profile_file_name = congruence.checkFileName(self.heigth_profile_file_name)
+
+                for zz, xx, yy in zip(self.zz, self.xx, self.yy):
+                    profile_number += 1
+
+                    outFile = heigth_profile_file_name + "_S_" + str(profile_number) + ".dat"
+
+                    ST.write_shadow_surface(zz, xx, yy, outFile=outFile)
+
+                    height_profile_file_names.append(outFile)
+
                 if not not_interactive_mode:
                     QMessageBox.information(self, "QMessageBox.information()",
-                                            "Height Profile file " + self.heigth_profile_file_name + " written on disk",
+                                            "Height Profile files written on disk",
                                             QMessageBox.Ok)
 
                 dimension_x = self.dimension_x
                 dimension_y = self.dimension_y
 
                 if self.kind_of_profile_x == 2: #user defined
-                    dimension_x = (self.xx[-1] - self.xx[0])
+                    dimension_x = (self.xx[0][-1] - self.xx[0][0])
                 if self.kind_of_profile_y == 2: #user defined
-                    dimension_y = (self.yy[-1] - self.yy[0])
+                    dimension_y = (self.yy[0][-1] - self.yy[0][0])
 
-                self.send("PreProcessor_Data", ShadowPreProcessorData(error_profile_data_file=self.heigth_profile_file_name,
+                self.send("PreProcessor_Data", ShadowPreProcessorData(error_profile_data_file=height_profile_file_names,
                                                                       error_profile_x_dim=dimension_x,
                                                                       error_profile_y_dim=dimension_y))
             except Exception as exception:
@@ -761,12 +771,8 @@ class OWheight_profile_simulator(OWWidget):
             self.step_y = congruence.checkStrictlyPositiveNumber(self.step_y, "Step Y")
             if self.kind_of_profile_y == 0: self.power_law_exponent_beta_y = congruence.checkPositiveNumber(self.power_law_exponent_beta_y, "Beta Value Y")
             if self.kind_of_profile_y == 1: self.correlation_length_y = congruence.checkStrictlyPositiveNumber(self.correlation_length_y, "Correlation Length Y")
-            self.rms_y_from = congruence.checkPositiveNumber(self.rms_y_from, "Rms Y From")
-            self.rms_y_to = congruence.checkPositiveNumber(self.rms_y_to, "Rms Y To")
-            self.rms_y_step = congruence.checkPositiveNumber(self.rms_y_step, "Rms Y Step")
-            congruence.checkGreaterThan(self.rms_x_to, self.rms_y_from, "Rms Y To", "Rms Y From")
-            congruence.checkLessOrEqualThan(self.rms_y_step, self.rms_x_to-self.rms_y_from, "Rms Y Step", "Range of Rms Values")
-            
+            self.rms_y = congruence.checkPositiveNumber(self.rms_y, "Rms Y")
+
             self.montecarlo_seed_y = congruence.checkPositiveNumber(self.montecarlo_seed_y, "Monte Carlo initial seed y")
         else:
             congruence.checkFile(self.heigth_profile_1D_file_name_y)
@@ -775,12 +781,7 @@ class OWheight_profile_simulator(OWWidget):
             if self.modify_y > 0:
                 self.new_length_y = congruence.checkStrictlyPositiveNumber(self.new_length_y, "New Length")
             if self.renormalize_y == 1:
-                self.rms_y_from = congruence.checkPositiveNumber(self.rms_y_from, "Rms Y From")
-                self.rms_y_to = congruence.checkPositiveNumber(self.rms_y_to, "Rms Y To")
-                self.rms_y_step = congruence.checkPositiveNumber(self.rms_y_step, "Rms Y Step")
-                congruence.checkGreaterThan(self.rms_x_to, self.rms_y_from, "Rms Y To", "Rms Y From")
-                congruence.checkLessOrEqualThan(self.rms_y_step, self.rms_x_to-self.rms_y_from, "Rms Y Step", "Range of Rms Values")
-
+                self.rms_y = congruence.checkPositiveNumber(self.rms_y, "Rms Y")
 
         if self.kind_of_profile_x < 2:
             self.dimension_x = congruence.checkStrictlyPositiveNumber(self.dimension_x, "Dimension X")

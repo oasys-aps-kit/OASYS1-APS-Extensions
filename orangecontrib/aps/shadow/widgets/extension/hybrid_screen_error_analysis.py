@@ -777,14 +777,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         else:
             h_title = "Profile #" + str(profile)
 
-        hex_r = hex(min(255, 128 + profile*10))[2:].upper()
-        hex_g = hex(min(255, 20 + profile*15))[2:].upper()
-        hex_b = hex(min(255, profile*10))[2:].upper()
-        if len(hex_r) == 1: hex_r = "0" + hex_r
-        if len(hex_g) == 1: hex_g = "0" + hex_g
-        if len(hex_b) == 1: hex_b = "0" + hex_b
-
-        color="#" + hex_r + hex_g + hex_b
+        color="#000000"
 
         if self.plot_canvas[plot_canvas_index] is None:
             self.plot_canvas[plot_canvas_index] = oasysgui.plotWindow(parent=None,
