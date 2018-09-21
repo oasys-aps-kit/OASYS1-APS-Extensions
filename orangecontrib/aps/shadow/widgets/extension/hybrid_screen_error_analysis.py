@@ -140,10 +140,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         self.files_area = oasysgui.textArea(height=120, width=360)
         self.files_area.setReadOnly(True)
 
-        text = ""
-        for file in self.ghy_files:
-            text += file + "\n"
-        self.files_area.setText(text)
+        self.refresh_files_text_area()
 
         box_files.layout().addWidget(self.files_area)
 
@@ -217,10 +214,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                 options=QFileDialog.Options())
         if files:
             self.ghy_files = files
-            text = ""
-            for file in self.ghy_files:
-                text += file + "\n"
-            self.files_area.setText(text)
+
+            self.refresh_files_text_area()
 
     def initializeTabs(self):
         self.tabs.clear()
@@ -897,11 +892,13 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                 else:
                     raise ValueError("Error Profile Data File: format not recognized")
 
-                text = ""
-                for file in self.ghy_files:
-                    text += file + "\n"
-                self.files_area.setText(text)
+                self.refresh_files_text_area()
 
+    def refresh_files_text_area(self):
+        text = ""
+        for file in self.ghy_files:
+            text += file + "\n"
+        self.files_area.setText(text)
 
 
 from matplotlib import pyplot as plt

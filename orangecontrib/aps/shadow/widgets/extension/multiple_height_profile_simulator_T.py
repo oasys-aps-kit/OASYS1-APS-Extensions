@@ -29,10 +29,10 @@ except:
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
 
 class OWheight_profile_simulator(OWWidget):
-    name = "Multiple Height Profile Simulator"
+    name = "Multiple Height Profile Simulator (T)"
     id = "height_profile_simulator"
     description = "Calculation of mirror surface height profile"
-    icon = "icons/simulator.png"
+    icon = "icons/simulator_T.png"
     author = "Luca Rebuffi"
     maintainer_email = "srio@esrf.eu; luca.rebuffi@elettra.eu"
     priority = 2
@@ -78,10 +78,16 @@ class OWheight_profile_simulator(OWWidget):
     error_type_x = Setting(profiles_simulation.FIGURE_ERROR)
     error_type_y = Setting(profiles_simulation.FIGURE_ERROR)
 
-    rms_x = Setting(0.1)
+    rms_x_from = Setting(0.1)
+    rms_x_to = Setting(1.0)
+    rms_x_step = Setting(0.1)
+
     montecarlo_seed_x = Setting(8787)
 
-    rms_y = Setting(1)
+    rms_y_from = Setting(1)
+    rms_y_to = Setting(1.0)
+    rms_y_step = Setting(0.1)
+
     montecarlo_seed_y = Setting(8788)
 
     heigth_profile_1D_file_name_x= Setting("mirror_1D_x.dat")
@@ -217,7 +223,13 @@ class OWheight_profile_simulator(OWWidget):
                      items=["Figure Error (nm)", "Slope Error (" + "\u03BC" + "rad)"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y", "Rms Value",
+        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y_from", "Rms Value From",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y_to", "Rms Value To",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_y_box_1, self, "rms_y_step", "Rms Value Step",
                            labelWidth=260, valueType=float, orientation="horizontal")
 
         self.kind_of_profile_y_box_2 = oasysgui.widgetBox(input_box_l, "", addSpace=False, orientation="vertical", height=390)
@@ -248,17 +260,16 @@ class OWheight_profile_simulator(OWWidget):
         gui.comboBox(self.kind_of_profile_y_box_2, self, "modify_y", label="Modify Length?", labelWidth=150,
                      items=["No", "Rescale to new length", "Fit to new length (fill or cut)"], callback=self.set_ModifyY, sendSelectedValue=False, orientation="horizontal")
 
-        self.modify_box_2_1 = oasysgui.widgetBox(self.kind_of_profile_y_box_2, "", addSpace=False, orientation="vertical", height=70)
+        self.modify_box_2_1 = oasysgui.widgetBox(self.kind_of_profile_y_box_2, "", addSpace=False, orientation="vertical", height=60)
 
-        self.modify_box_2_2 = oasysgui.widgetBox(self.kind_of_profile_y_box_2, "", addSpace=False, orientation="vertical", height=70)
+        self.modify_box_2_2 = oasysgui.widgetBox(self.kind_of_profile_y_box_2, "", addSpace=False, orientation="vertical", height=60)
         self.le_new_length_y_1 = oasysgui.lineEdit(self.modify_box_2_2, self, "new_length_y", "New Length", labelWidth=300, valueType=float, orientation="horizontal")
 
-        self.modify_box_2_3 = oasysgui.widgetBox(self.kind_of_profile_y_box_2, "", addSpace=False, orientation="vertical", height=70)
+        self.modify_box_2_3 = oasysgui.widgetBox(self.kind_of_profile_y_box_2, "", addSpace=False, orientation="vertical", height=60)
         self.le_new_length_y_2 = oasysgui.lineEdit(self.modify_box_2_3, self, "new_length_y", "New Length", labelWidth=300, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(self.modify_box_2_3, self, "filler_value_y", "Filler Value (if new length > profile length) [nm]", labelWidth=300, valueType=float, orientation="horizontal")
 
         self.set_ModifyY()
-
 
         gui.comboBox(self.kind_of_profile_y_box_2, self, "renormalize_y", label="Renormalize to different RMS", labelWidth=260,
                      items=["No", "Yes"], callback=self.set_KindOfProfileY, sendSelectedValue=False, orientation="horizontal")
@@ -269,7 +280,13 @@ class OWheight_profile_simulator(OWWidget):
                      items=["Figure Error (nm)", "Slope Error (" + "\u03BC" + "rad)"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y", "Rms Value",
+        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y_from", "Rms Value From",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y_to", "Rms Value To",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_y_box_2_1, self, "rms_y_step", "Rms Value Step",
                            labelWidth=260, valueType=float, orientation="horizontal")
 
         self.set_KindOfProfileY()
@@ -310,7 +327,13 @@ class OWheight_profile_simulator(OWWidget):
                      items=["Figure Error (nm)", "Slope Error (" + "\u03BC" + "rad)"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_x_box_1, self, "rms_x", "Rms Value",
+        oasysgui.lineEdit(self.kind_of_profile_x_box_1, self, "rms_x_from", "Rms Value From",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_x_box_1, self, "rms_x_to", "Rms Value To",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_x_box_1, self, "rms_x_step", "Rms Value Step",
                            labelWidth=260, valueType=float, orientation="horizontal")
 
         ##----------------------------------
@@ -343,12 +366,12 @@ class OWheight_profile_simulator(OWWidget):
         gui.comboBox(self.kind_of_profile_x_box_2, self, "modify_x", label="Modify Length?", labelWidth=150,
                      items=["No", "Rescale to new length", "Fit to new length (fill or cut)"], callback=self.set_ModifyX, sendSelectedValue=False, orientation="horizontal")
 
-        self.modify_box_1_1 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical", height=70)
+        self.modify_box_1_1 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical", height=60)
 
-        self.modify_box_1_2 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical", height=70)
+        self.modify_box_1_2 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical", height=60)
         self.le_new_length_x_1 = oasysgui.lineEdit(self.modify_box_1_2, self, "new_length_x", "New Length", labelWidth=300, valueType=float, orientation="horizontal")
 
-        self.modify_box_1_3 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical", height=70)
+        self.modify_box_1_3 = oasysgui.widgetBox(self.kind_of_profile_x_box_2, "", addSpace=False, orientation="vertical", height=60)
         self.le_new_length_x_2 = oasysgui.lineEdit(self.modify_box_1_3, self, "new_length_x", "New Length", labelWidth=300, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(self.modify_box_1_3, self, "filler_value_x", "Filler Value (if new length > profile length) [nm]", labelWidth=300, valueType=float, orientation="horizontal")
 
@@ -363,7 +386,13 @@ class OWheight_profile_simulator(OWWidget):
                      items=["Figure Error (nm)", "Slope Error (" + "\u03BC" + "rad)"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(self.kind_of_profile_x_box_2_1, self, "rms_x", "Rms Value",
+        oasysgui.lineEdit(self.kind_of_profile_x_box_2_1, self, "rms_x_from", "Rms Value From",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_x_box_2_1, self, "rms_x_to", "Rms Value To",
+                           labelWidth=260, valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.kind_of_profile_x_box_2_1, self, "rms_x_step", "Rms Value Step",
                            labelWidth=260, valueType=float, orientation="horizontal")
 
         self.set_KindOfProfileX()
@@ -732,7 +761,12 @@ class OWheight_profile_simulator(OWWidget):
             self.step_y = congruence.checkStrictlyPositiveNumber(self.step_y, "Step Y")
             if self.kind_of_profile_y == 0: self.power_law_exponent_beta_y = congruence.checkPositiveNumber(self.power_law_exponent_beta_y, "Beta Value Y")
             if self.kind_of_profile_y == 1: self.correlation_length_y = congruence.checkStrictlyPositiveNumber(self.correlation_length_y, "Correlation Length Y")
-            self.rms_y = congruence.checkPositiveNumber(self.rms_y, "Rms Y")
+            self.rms_y_from = congruence.checkPositiveNumber(self.rms_y_from, "Rms Y From")
+            self.rms_y_to = congruence.checkPositiveNumber(self.rms_y_to, "Rms Y To")
+            self.rms_y_step = congruence.checkPositiveNumber(self.rms_y_step, "Rms Y Step")
+            congruence.checkGreaterThan(self.rms_x_to, self.rms_y_from, "Rms Y To", "Rms Y From")
+            congruence.checkLessOrEqualThan(self.rms_y_step, self.rms_x_to-self.rms_y_from, "Rms Y Step", "Range of Rms Values")
+            
             self.montecarlo_seed_y = congruence.checkPositiveNumber(self.montecarlo_seed_y, "Monte Carlo initial seed y")
         else:
             congruence.checkFile(self.heigth_profile_1D_file_name_y)
@@ -741,14 +775,24 @@ class OWheight_profile_simulator(OWWidget):
             if self.modify_y > 0:
                 self.new_length_y = congruence.checkStrictlyPositiveNumber(self.new_length_y, "New Length")
             if self.renormalize_y == 1:
-                self.rms_y = congruence.checkPositiveNumber(self.rms_y, "Rms Y")
+                self.rms_y_from = congruence.checkPositiveNumber(self.rms_y_from, "Rms Y From")
+                self.rms_y_to = congruence.checkPositiveNumber(self.rms_y_to, "Rms Y To")
+                self.rms_y_step = congruence.checkPositiveNumber(self.rms_y_step, "Rms Y Step")
+                congruence.checkGreaterThan(self.rms_x_to, self.rms_y_from, "Rms Y To", "Rms Y From")
+                congruence.checkLessOrEqualThan(self.rms_y_step, self.rms_x_to-self.rms_y_from, "Rms Y Step", "Range of Rms Values")
+
 
         if self.kind_of_profile_x < 2:
             self.dimension_x = congruence.checkStrictlyPositiveNumber(self.dimension_x, "Dimension X")
             self.step_x = congruence.checkStrictlyPositiveNumber(self.step_x, "Step X")
             if self.kind_of_profile_x == 0: self.power_law_exponent_beta_x = congruence.checkPositiveNumber(self.power_law_exponent_beta_x, "Beta Value X")
             if self.kind_of_profile_x == 1: self.correlation_length_x = congruence.checkStrictlyPositiveNumber(self.correlation_length_x, "Correlation Length X")
-            self.rms_x = congruence.checkPositiveNumber(self.rms_x, "Rms X")
+            self.rms_x_from = congruence.checkPositiveNumber(self.rms_x_from, "Rms X From")
+            self.rms_x_to = congruence.checkPositiveNumber(self.rms_x_to, "Rms X To")
+            self.rms_x_step = congruence.checkPositiveNumber(self.rms_x_step, "Rms X Step")
+            congruence.checkGreaterThan(self.rms_x_to, self.rms_x_from, "Rms X To", "Rms X From")
+            congruence.checkLessOrEqualThan(self.rms_x_step, self.rms_x_to-self.rms_x_from, "Rms X Step", "Range of Rms Values")
+
             self.montecarlo_seed_x = congruence.checkPositiveNumber(self.montecarlo_seed_x, "Monte Carlo initial seed X")
         else:
             congruence.checkFile(self.heigth_profile_1D_file_name_x)
@@ -757,7 +801,11 @@ class OWheight_profile_simulator(OWWidget):
             if self.modify_x > 0:
                 self.new_length_x = congruence.checkStrictlyPositiveNumber(self.new_length_x, "New Length")
             if self.renormalize_x == 1:
-                self.rms_x = congruence.checkPositiveNumber(self.rms_x, "Rms X")
+                self.rms_x_from = congruence.checkPositiveNumber(self.rms_x_from, "Rms X From")
+                self.rms_x_to = congruence.checkPositiveNumber(self.rms_x_to, "Rms X To")
+                self.rms_x_step = congruence.checkPositiveNumber(self.rms_x_step, "Rms X Step")
+                congruence.checkGreaterThan(self.rms_x_to, self.rms_x_from, "Rms X To", "Rms X From")
+                congruence.checkLessOrEqualThan(self.rms_x_step, self.rms_x_to-self.rms_x_from, "Rms X Step", "Range of Rms Values")
 
         congruence.checkDir(self.heigth_profile_file_name)
 
