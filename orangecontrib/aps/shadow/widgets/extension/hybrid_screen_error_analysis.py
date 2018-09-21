@@ -807,9 +807,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         bins_stats = ticket['bin_center']
 
 
-        sigma = numpy.std(beam._beam.rays[:, col-1])*factor
-        peak_intensity = numpy.average(histogram_stats[int(max(0, len(histogram_stats)*0.5-10)) :
-                                                       int(min(len(histogram_stats), len(histogram_stats)*0.5 + 10))])
+        sigma =  numpy.average(ticket['histogram_sigma'])
+        peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
         if profile == 0:
             h_title = "Reference"
