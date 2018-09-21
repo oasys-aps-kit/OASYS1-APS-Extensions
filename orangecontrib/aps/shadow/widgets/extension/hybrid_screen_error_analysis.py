@@ -24,12 +24,16 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 
 class HistoData(object):
+    histogram = None
+    bins = None
     offset = 0.0
     xrange = None
     sigma = 0.0
     peak_intensity = 0.0
 
-    def __init__(self, offset=0.0, xrange=None, sigma=0.0, peak_intensity=0.0):
+    def __init__(self, histogram=None, bins=None, offset=0.0, xrange=None, sigma=0.0, peak_intensity=0.0):
+        self.histogram = histogram
+        self.bins = bins
         self.offset = offset
         self.xrange = xrange
         self.sigma = sigma
@@ -70,7 +74,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     ghy_npeak = Setting(10)
     ghy_fftnpts = Setting(1e6)
 
-    file_to_write_out = Setting(0)
+    file_to_write_out = 0
 
     ghy_automatic = Setting(1)
 
@@ -84,6 +88,15 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
     IMAGE_WIDTH = 865
     IMAGE_HEIGHT = 605
+
+    current_histo_data_x_ff = None
+    current_histo_data_x_nf = None
+    current_histo_data_z_ff = None
+    current_histo_data_z_nf = None
+    current_stats_x_ff = None
+    current_stats_x_nf = None
+    current_stats_z_ff = None
+    current_stats_z_nf = None
 
     def __init__(self):
         super().__init__()
@@ -189,12 +202,9 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         self.initializeTabs()
 
-        adv_other_box = oasysgui.widgetBox(tab_bas, "Optional file output", addSpace=False, orientation="vertical")
+        adv_other_box = oasysgui.widgetBox(tab_bas, "Export Data", addSpace=False, orientation="vertical")
 
-        gui.comboBox(adv_other_box, self, "file_to_write_out", label="Files to write out", labelWidth=220,
-                     items=["None", "Debug (star.xx)"],
-                     sendSelectedValue=False,
-                     orientation="horizontal")
+        gui.button(adv_other_box, self, "Export Error Analysis", callback=self.export_error_analysis)
 
         self.shadow_output = oasysgui.textArea(height=590, width=800)
 
@@ -403,6 +413,15 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
                     profile = 0
 
+                    self.current_histo_data_x_ff = []
+                    self.current_histo_data_x_nf = []
+                    self.current_histo_data_z_ff = []
+                    self.current_histo_data_z_nf = []
+                    self.current_stats_x_ff = []
+                    self.current_stats_x_nf = []
+                    self.current_stats_z_ff = []
+                    self.current_stats_z_nf = []
+
                     histo_data_x_ff, \
                     histo_data_z_ff, \
                     histo_data_x_nf, \
@@ -415,6 +434,11 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                         histo_data_x_nf=HistoData(),
                                                         histo_data_z_nf=HistoData(),
                                                         profile=profile)
+
+                    if not histo_data_x_ff.bins is None: self.current_histo_data_x_ff.append([histo_data_x_ff.bins, histo_data_x_ff.histogram])
+                    if not histo_data_z_ff.bins is None: self.current_histo_data_z_ff.append([histo_data_z_ff.bins, histo_data_z_ff.histogram])
+                    if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.append([histo_data_x_nf.bins, histo_data_x_nf.histogram])
+                    if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.append([histo_data_z_nf.bins, histo_data_z_nf.histogram])
 
                     stats_x_ff = [[histo_data_x_ff.sigma], [histo_data_x_ff.peak_intensity]]
                     stats_z_ff = [[histo_data_z_ff.sigma], [histo_data_z_ff.peak_intensity]]
@@ -458,6 +482,12 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                             histo_data_x_nf,
                                                             histo_data_z_nf,
                                                             profile)
+
+                        if not histo_data_x_ff.bins is None: self.current_histo_data_x_ff.append([histo_data_x_ff.bins, histo_data_x_ff.histogram])
+                        if not histo_data_z_ff.bins is None: self.current_histo_data_z_ff.append([histo_data_z_ff.bins, histo_data_z_ff.histogram])
+                        if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.append([histo_data_x_nf.bins, histo_data_x_nf.histogram])
+                        if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.append([histo_data_z_nf.bins, histo_data_z_nf.histogram])
+
                         stats_x_ff[0].append(histo_data_x_ff.sigma)
                         stats_z_ff[0].append(histo_data_z_ff.sigma)
                         stats_x_nf[0].append(histo_data_x_nf.sigma)
@@ -466,6 +496,11 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                         stats_z_ff[1].append(histo_data_z_ff.peak_intensity)
                         stats_x_nf[1].append(histo_data_x_nf.peak_intensity)
                         stats_z_nf[1].append(histo_data_z_nf.peak_intensity)
+
+                    self.current_stats_x_ff = stats_x_ff
+                    self.current_stats_z_ff = stats_z_ff
+                    self.current_stats_x_nf = stats_x_nf
+                    self.current_stats_z_nf = stats_z_nf
 
                     self.add_empty_curves(do_nf,
                                           do_plot_x,
@@ -769,8 +804,13 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         histogram = ticket['histogram_path']
         bins = ticket['bin_path']*factor
 
-        sigma = numpy.average(ticket['histogram_sigma'])
-        peak_intensity = numpy.max(histogram)
+        histogram_stats = ticket['histogram']
+        bins_stats = ticket['bin_center']
+
+
+        sigma = numpy.std(beam._beam.rays[:, col-1])*factor
+        peak_intensity = numpy.average(histogram_stats[int(max(0, len(histogram_stats)*0.5-10)) :
+                                                       int(min(len(histogram_stats), len(histogram_stats)*0.5 + 10))])
 
         if profile == 0:
             h_title = "Reference"
@@ -840,7 +880,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         self.progressBarSet(progressBarValue)
 
-        return HistoData(offset, xrange, sigma, peak_intensity)
+        return HistoData(histogram_stats, bins_stats, offset, xrange, sigma, peak_intensity)
 
     def check_fields(self):
         if self.focal_length_calc == 1:
@@ -892,6 +932,65 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         for file in self.ghy_files:
             text += file + "\n"
         self.files_area.setText(text)
+
+    def export_error_analysis(self):
+
+        output_folder = QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
+
+        if output_folder:
+            if len(self.current_histo_data_x_ff) > 0:
+                self.write_histo_and_stats_file(histo_data=self.current_histo_data_x_ff,
+                                                stats=self.current_stats_x_ff,
+                                                suffix="_S_FF")
+
+            if len(self.current_histo_data_x_nf) > 0:
+                self.write_histo_and_stats_file(histo_data=self.current_histo_data_x_nf,
+                                                stats=self.current_stats_x_nf,
+                                                suffix="_S_NF")
+
+            if len(self.current_histo_data_z_ff) > 0:
+                self.write_histo_and_stats_file(histo_data=self.current_histo_data_z_ff,
+                                                stats=self.current_stats_z_ff,
+                                                suffix="_T_FF")
+
+            if len(self.current_histo_data_z_nf) > 0:
+                self.write_histo_and_stats_file(histo_data=self.current_histo_data_z_nf.bins,
+                                                stats=self.current_stats_z_nf,
+                                                suffix="_T_NF")
+
+            QMessageBox.information(self, "Export Error Analysis Data", "Data saved into directory: " + output_folder, QMessageBox.Ok)
+
+
+    def write_histo_and_stats_file(self, histo_data, stats, suffix="_T_FF"):
+
+        profile_number = 0
+
+        for data in histo_data:
+            positions = data[0][:]
+            intensities = data[1][:]
+
+            file = open("histogram_profile_" + str(profile_number) + suffix + ".dat", "w")
+
+            for position, intensity in zip(positions, intensities):
+                file.write(str(position) + "   " + str(intensity) + "\n")
+
+            file.flush()
+            file.close()
+
+            profile_number += 1
+
+        file_sigma = open("sigma" + suffix + ".dat", "w")
+        file_peak_intensity = open("peak_intensity" + suffix + ".dat", "w")
+
+
+        for profile_number, sigma, peak_intensity in zip(numpy.arange(0, len(stats[0])),
+                                                         numpy.array(stats[0][:]),
+                                                         numpy.array(stats[1][:])/stats[1][0]):
+            file_sigma.write(str(profile_number) + "   " + str(sigma) + "\n")
+            file_peak_intensity.write(str(profile_number) + "   " + str(peak_intensity) + "\n")
+
+        file_sigma.flush()
+        file_peak_intensity.close()
 
 
 from matplotlib import pyplot as plt
@@ -975,7 +1074,3 @@ class StatsPlotWindow2(QWidget):
 
         self.ax2.plot(x, y2, "r.-")
         self.ax2.set_ylabel(ylabel2, color="r")
-
-        #self.plotWindow.replot()
-
-        #self.fig.tight_layout()
