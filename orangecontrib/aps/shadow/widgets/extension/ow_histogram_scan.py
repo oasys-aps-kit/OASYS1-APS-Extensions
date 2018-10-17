@@ -33,6 +33,8 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
     want_main_area=1
     plot_canvas=None
+    plot_scan_canvas=None
+
     input_beam=None
 
     image_plane=Setting(0)
@@ -214,6 +216,48 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
+
+
+    def initializeTabs(self):
+
+        number_of_tabs = self.main_tabs.count()
+
+        if self.iterative_mode == 2:
+
+            if number_of_tabs == 2:
+               self.tabs.removeTab(1)
+               self.tabs.removeTab(2)
+        else:
+            number_of_tabs = self.main_tabs.count()
+
+            if number_of_tabs == 4:
+               self.tabs.removeTab(1)
+               self.tabs.removeTab(2)
+
+
+        size = len(self.tab)
+        indexes = range(0, size)
+        for index in indexes:
+            self.tabs.removeTab(size-1-index)
+
+        titles = self.getTitles()
+
+
+        self.tab = []
+        self.plot_canvas = []
+
+        for title in self.getTitles():
+            self.tab.append(oasysgui.createTabPage(self.tabs, title))
+            self.plot_canvas.append(None)
+
+        for tab in self.tab:
+            tab.setFixedHeight(self.IMAGE_HEIGHT)
+            tab.setFixedWidth(self.IMAGE_WIDTH)
+
+        self.tabs.setCurrentIndex(current_tab)
+
+
+
 
     def clearResults(self):
         if ConfirmDialog.confirmed(parent=self):

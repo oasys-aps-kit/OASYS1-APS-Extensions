@@ -20,27 +20,7 @@ from orangecontrib.shadow.widgets.special_elements import hybrid_control
 
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
-
-class HistoData(object):
-    histogram = None
-    bins = None
-    offset = 0.0
-    xrange = None
-    sigma = 0.0
-    peak_intensity = 0.0
-
-    def __init__(self, histogram=None, bins=None, offset=0.0, xrange=None, sigma=0.0, peak_intensity=0.0):
-        self.histogram = histogram
-        self.bins = bins
-        self.offset = offset
-        self.xrange = xrange
-        self.sigma = sigma
-        self.peak_intensity = peak_intensity
-
-    def get_centroid(self):
-        return self.xrange[0] + (self.xrange[1] - self.xrange[0])*0.5
+from orangecontrib.aps.shadow.util.gui import HistoData, StatisticData, DoublePlotWidget, ScanHistoWidget
 
 class HybridScreenErrorAnalysis(AutomaticElement):
 
@@ -416,10 +396,10 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                     self.current_histo_data_x_nf = []
                     self.current_histo_data_z_ff = []
                     self.current_histo_data_z_nf = []
-                    self.current_stats_x_ff = []
-                    self.current_stats_x_nf = []
-                    self.current_stats_z_ff = []
-                    self.current_stats_z_nf = []
+                    self.current_stats_x_ff = None
+                    self.current_stats_x_nf = None
+                    self.current_stats_z_ff = None
+                    self.current_stats_z_nf = None
 
                     histo_data_x_ff, \
                     histo_data_z_ff, \
@@ -439,13 +419,10 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                     if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.append([histo_data_x_nf.bins, histo_data_x_nf.histogram])
                     if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.append([histo_data_z_nf.bins, histo_data_z_nf.histogram])
 
-                    stats_x_ff = [[histo_data_x_ff.sigma], [histo_data_x_ff.peak_intensity]]
-                    stats_z_ff = [[histo_data_z_ff.sigma], [histo_data_z_ff.peak_intensity]]
-                    stats_x_nf = [[histo_data_x_nf.sigma], [histo_data_x_nf.peak_intensity]]
-                    stats_z_nf = [[histo_data_z_nf.sigma], [histo_data_z_nf.peak_intensity]]
-
-
-                    #centroid_x_ff = histo_data_x_ff.get_centroid()
+                    stats_x_ff = StatisticData(histo_data_x_ff)
+                    stats_z_ff = StatisticData(histo_data_z_ff)
+                    stats_x_nf = StatisticData(histo_data_x_nf)
+                    stats_z_nf = StatisticData(histo_data_z_nf)
 
                     input_parameters.ghy_calcType = self.ghy_calcType + 3
 
@@ -487,14 +464,10 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                         if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.append([histo_data_x_nf.bins, histo_data_x_nf.histogram])
                         if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.append([histo_data_z_nf.bins, histo_data_z_nf.histogram])
 
-                        stats_x_ff[0].append(histo_data_x_ff.sigma)
-                        stats_z_ff[0].append(histo_data_z_ff.sigma)
-                        stats_x_nf[0].append(histo_data_x_nf.sigma)
-                        stats_z_nf[0].append(histo_data_z_nf.sigma)
-                        stats_x_ff[1].append(histo_data_x_ff.peak_intensity)
-                        stats_z_ff[1].append(histo_data_z_ff.peak_intensity)
-                        stats_x_nf[1].append(histo_data_x_nf.peak_intensity)
-                        stats_z_nf[1].append(histo_data_z_nf.peak_intensity)
+                        stats_x_ff.add_statistic_data(histo_data_x_ff)
+                        stats_z_ff.add_statistic_data(histo_data_z_ff)
+                        stats_x_nf.add_statistic_data(histo_data_x_nf)
+                        stats_z_nf.add_statistic_data(histo_data_z_nf)
 
                     self.current_stats_x_ff = stats_x_ff
                     self.current_stats_z_ff = stats_z_ff
@@ -523,9 +496,6 @@ class HybridScreenErrorAnalysis(AutomaticElement):
             else:
                 raise Exception("Empty Input Beam")
         except Exception as exception:
-            #self.error_id = self.error_id + 1
-            #self.error(self.error_id, "Exception occurred: " + str(exception))
-
             QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
             if self.IS_DEVELOP: raise exception
@@ -630,109 +600,35 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         if self.ghy_diff_plane == 0:
             if do_plot_x:
-                self.plot_canvas[0].addCurve(numpy.array([histo_data_x_ff.get_centroid()]),
-                                             numpy.zeros(1),
-                                             "Click on curve to highlight it",
-                                             xlabel="", ylabel="",
-                                             symbol='', color='white')
-
-                self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+                self.plot_canvas_stats[0].add_empty_curve(histo_data_x_ff)
 
                 if do_nf:
-                    self.plot_canvas[1].addCurve(numpy.array([histo_data_x_nf.get_centroid()]),
-                                                 numpy.zeros(1),
-                                                 "Click on curve to highlight it",
-                                                 xlabel="", ylabel="",
-                                                 symbol='', color='white')
-
-                    self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+                    self.plot_canvas[1].add_empty_curve(histo_data_x_nf)
         elif self.ghy_diff_plane == 1:
             if do_plot_z:
-                self.plot_canvas[0].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
-                                             numpy.zeros(1),
-                                             "Click on curve to highlight it",
-                                             xlabel="", ylabel="",
-                                             symbol='', color='white')
-
-                self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+                self.plot_canvas[0].add_empty_curve(histo_data_z_ff)
 
                 if do_nf:
-                    self.plot_canvas[1].addCurve(numpy.array([histo_data_z_nf.get_centroid()]),
-                                                 numpy.zeros(1),
-                                                 "Click on curve to highlight it",
-                                                 xlabel="", ylabel="",
-                                                 symbol='', color='white')
-
-                    self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+                    self.plot_canvas[1].add_empty_curve(histo_data_z_nf)
         else:
             if do_plot_x and do_plot_z:
-                self.plot_canvas[0].addCurve(numpy.array([histo_data_x_ff.get_centroid()]),
-                                             numpy.zeros(1),
-                                             "Click on curve to highlight it",
-                                             xlabel="", ylabel="",
-                                             symbol='', color='white')
-
-                self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
-
-                self.plot_canvas[1].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
-                                             numpy.zeros(1),
-                                             "Click on curve to highlight it",
-                                             xlabel="", ylabel="",
-                                             symbol='', color='white')
-
-                self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+                self.plot_canvas[0].add_empty_curve(histo_data_x_ff)
+                self.plot_canvas[1].add_empty_curve(histo_data_z_ff)
 
                 if do_nf:
-                    self.plot_canvas[2].addCurve(numpy.array([histo_data_x_nf.get_centroid()]),
-                                                 numpy.zeros(1),
-                                                 "Click on curve to highlight it",
-                                                 xlabel="", ylabel="",
-                                                 symbol='', color='white')
-
-                    self.plot_canvas[2].setActiveCurve("Click on curve to highlight it")
-
-                    self.plot_canvas[2].addCurve(numpy.array([histo_data_z_nf.get_centroid()]),
-                                                 numpy.zeros(1),
-                                                 "Click on curve to highlight it",
-                                                 xlabel="", ylabel="",
-                                                 symbol='', color='white')
-
-                    self.plot_canvas[2].setActiveCurve("Click on curve to highlight it")
+                    self.plot_canvas[2].add_empty_curve(histo_data_x_nf)
+                    self.plot_canvas[3].add_empty_curve(histo_data_z_nf)
             else:
                 if do_plot_x:
-                    self.plot_canvas[0].addCurve(numpy.array([histo_data_x_ff.get_centroid()]),
-                                                 numpy.zeros(1),
-                                                 "Click on curve to highlight it",
-                                                 xlabel="", ylabel="",
-                                                 symbol='', color='white')
-
-                    self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+                    self.plot_canvas[0].add_empty_curve(histo_data_x_ff)
 
                     if do_nf:
-                        self.plot_canvas[1].addCurve(numpy.array([histo_data_x_nf.get_centroid()]),
-                                                     numpy.zeros(1),
-                                                     "Click on curve to highlight it",
-                                                     xlabel="", ylabel="",
-                                                     symbol='', color='white')
-
-                        self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+                        self.plot_canvas[1].add_empty_curve(histo_data_x_nf)
                 elif do_plot_z:
-                    self.plot_canvas[0].addCurve(numpy.array([histo_data_z_ff.get_centroid()]),
-                                                 numpy.zeros(1),
-                                                 "Click on curve to highlight it",
-                                                 xlabel="", ylabel="",
-                                                 symbol='', color='white')
-
-                    self.plot_canvas[0].setActiveCurve("Click on curve to highlight it")
+                    self.plot_canvas[0].add_empty_curve(histo_data_z_ff)
 
                     if do_nf:
-                        self.plot_canvas[1].addCurve(numpy.array([histo_data_z_nf.get_centroid()]),
-                                                     numpy.zeros(1),
-                                                     "Click on curve to highlight it",
-                                                     xlabel="", ylabel="",
-                                                     symbol='', color='white')
-
-                        self.plot_canvas[1].setActiveCurve("Click on curve to highlight it")
+                        self.plot_canvas[1].add_empty_curve(histo_data_z_nf)
 
     def plot_stats(self, do_nf, do_plot_x, do_plot_z, stats_x_ff, stats_z_ff, stats_x_nf, stats_z_nf):
 
@@ -771,114 +667,38 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
     def plot_stat(self, stats, plot_canvas_index, sigma_um="$\mu$m"):
         if self.plot_canvas_stats[plot_canvas_index] is None:
-            self.plot_canvas_stats[plot_canvas_index] = StatsPlotWindow2(parent=None)
+            self.plot_canvas_stats[plot_canvas_index] = DoublePlotWidget(parent=None)
 
             self.tab[plot_canvas_index][1].layout().addWidget(self.plot_canvas_stats[plot_canvas_index])
 
-        self.plot_canvas_stats[plot_canvas_index].plotCurves(numpy.arange(0, len(stats[0])),
-                                                             stats[0][:],
-                                                             stats[1][:]/stats[1][0],
+        self.plot_canvas_stats[plot_canvas_index].plotCurves(stats.get_default_range(),
+                                                             stats.get_sigmas(),
+                                                             stats.get_relative_intensities(),
                                                              "Statistics",
                                                              "Profiles",
                                                              "Sigma [" + sigma_um + "]",
                                                              "Relative Peak Intensity")
 
     def plot_histo(self, beam, col, nbins=100, progressBarValue=80, plot_canvas_index=0, title="", xtitle="", ytitle="",
-                   profile=1, control=True, offset=0.0, xrange=None):
-
-        factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
-
-        if profile == 0:
-            ticket = beam._beam.histo1(col, xrange=None, nbins=nbins, nolost=1, ref=23)
-
-            fwhm = ticket['fwhm']
-            xrange = ticket['xrange']
-            centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
-            xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
-
-        ticket = beam._beam.histo1(col, xrange=xrange, nbins=nbins, nolost=1, ref=23)
-
-        if not ytitle is None:  ytitle = ytitle + ' weighted by ' + ShadowPlot.get_shadow_label(23)
-
-        histogram = ticket['histogram_path']
-        bins = ticket['bin_path']*factor
-
-        histogram_stats = ticket['histogram']
-        bins_stats = ticket['bin_center']
-
-
-        sigma =  numpy.average(ticket['histogram_sigma'])
-        peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
-
-        if profile == 0:
-            h_title = "Reference"
-        else:
-            h_title = "Profile #" + str(profile)
-
-        color="#000000"
+                   profile=1, offset=0.0, xrange=None):
 
         if self.plot_canvas[plot_canvas_index] is None:
-            self.plot_canvas[plot_canvas_index] = oasysgui.plotWindow(parent=None,
-                                                                      backend=None,
-                                                                      resetzoom=True,
-                                                                      autoScale=False,
-                                                                      logScale=False,
-                                                                      grid=True,
-                                                                      curveStyle=True,
-                                                                      colormap=False,
-                                                                      aspectRatio=False,
-                                                                      yInverted=False,
-                                                                      copy=True,
-                                                                      save=True,
-                                                                      print_=True,
-                                                                      control=control,
-                                                                      position=True,
-                                                                      roi=False,
-                                                                      mask=False,
-                                                                      fit=False)
+            self.plot_canvas[plot_canvas_index] = ScanHistoWidget(self.workspace_units_to_cm)
 
             self.tab[plot_canvas_index][0].layout().addWidget(self.plot_canvas[plot_canvas_index])
 
-        import matplotlib
-        matplotlib.rcParams['axes.formatter.useoffset']='False'
-
-        if profile == 0:
-            offset = int(peak_intensity*0.3)
-
-        self.plot_canvas[plot_canvas_index].addCurve(bins, histogram + offset*profile, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
-
-        self.plot_canvas[plot_canvas_index]._backend.ax.text(xrange[0]*factor*1.05, offset*profile*1.05, h_title)
-
-        if not xtitle is None: self.plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
-        if not ytitle is None: self.plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
-        if not title is None:  self.plot_canvas[plot_canvas_index].setGraphTitle(title)
-
-        for label in self.plot_canvas[plot_canvas_index]._backend.ax.yaxis.get_ticklabels():
-            label.set_color('white')
-            label.set_fontsize(1)
-
-        self.plot_canvas[plot_canvas_index].setActiveCurveColor(color="#00008B")
-
-        self.plot_canvas[plot_canvas_index].setDrawModeEnabled(True, 'rectangle')
-        self.plot_canvas[plot_canvas_index].setInteractiveMode('zoom',color='orange')
-        self.plot_canvas[plot_canvas_index].resetZoom()
-        self.plot_canvas[plot_canvas_index].replot()
-
-        self.plot_canvas[plot_canvas_index].setGraphXLimits(xrange[0]*factor, xrange[1]*factor)
-
-        self.plot_canvas[plot_canvas_index].setActiveCurve(h_title)
-
-        self.plot_canvas[plot_canvas_index].setDefaultPlotLines(True)
-        self.plot_canvas[plot_canvas_index].setDefaultPlotPoints(False)
-
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setFixedHeight(510)
-        self.plot_canvas[plot_canvas_index].getLegendsDockWidget().setVisible(True)
-
-        self.plot_canvas[plot_canvas_index].addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas[plot_canvas_index].getLegendsDockWidget())
+        histo_data = self.plot_canvas[plot_canvas_index].plot_histo(beam=beam,
+                                                                    col=col,
+                                                                    nbins=nbins,
+                                                                    title=title,
+                                                                    ytitle=ytitle,
+                                                                    profile=profile,
+                                                                    offset=offset,
+                                                                    xrange=xrange)
 
         self.progressBarSet(progressBarValue)
 
-        return HistoData(histogram_stats, bins_stats, offset, xrange, sigma, peak_intensity)
+        return histo_data
 
     def check_fields(self):
         if self.focal_length_calc == 1:
@@ -992,86 +812,3 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         file_sigma.flush()
         file_peak_intensity.close()
-
-
-from matplotlib import pyplot as plt
-
-class StatsPlotWindow(QWidget):
-
-    def __init__(self, parent=None):
-        super(QWidget, self).__init__(parent=parent)
-
-        self.fig, self.ax1 = plt.subplots()
-        self.ax2 = self.ax1.twinx()
-
-        layout = QVBoxLayout()
-
-        figure_canvas = FigureCanvas(self.fig)
-        figure_canvas.setFixedWidth(700)
-        figure_canvas.setFixedHeight(520)
-
-        layout.addWidget(NavigationToolbar(figure_canvas, self))
-        layout.addWidget(figure_canvas)
-
-        self.setLayout(layout)
-
-    def plotCurves(self, x, y1, y2, xlabel, ylabel1, ylabel2):
-        self.ax1.clear()
-        self.ax2.clear()
-
-        self.ax1.plot(x, y1, "b.-")
-        self.ax1.set_xlabel(xlabel)
-        self.ax1.set_ylabel(ylabel1, color="b")
-        self.ax2.plot(x, y2, "r.-")
-        self.ax2.set_ylabel(ylabel2, color="r")
-
-        self.fig.tight_layout()
-
-class StatsPlotWindow2(QWidget):
-
-    def __init__(self, parent=None):
-        super(QWidget, self).__init__(parent=parent)
-
-        self.plotWindow = oasysgui.plotWindow(parent=None,
-                                              backend=None,
-                                              resetzoom=False,
-                                              autoScale=False,
-                                              logScale=False,
-                                              grid=True,
-                                              curveStyle=False,
-                                              colormap=False,
-                                              aspectRatio=False,
-                                              yInverted=False,
-                                              copy=False,
-                                              save=True,
-                                              print_=True,
-                                              control=True,
-                                              position=False,
-                                              roi=False,
-                                              mask=False,
-                                              fit=False)
-        self.plotWindow.setFixedWidth(700)
-        self.plotWindow.setFixedHeight(520)
-
-        self.plotWindow.setDefaultPlotLines(True)
-        self.plotWindow.setDefaultPlotPoints(True)
-
-        self.ax2 = self.plotWindow._backend.ax.twinx()
-
-        layout = QVBoxLayout()
-
-        layout.addWidget(self.plotWindow)
-
-        self.setLayout(layout)
-
-    def plotCurves(self, x, y1, y2, title, xlabel, ylabel1, ylabel2):
-        self.plotWindow._backend.ax.clear()
-        self.ax2.clear()
-
-        self.plotWindow.addCurve(x, y1, replace=False, color="b", symbol=".", ylabel=ylabel1, linewidth=1.5)
-        self.plotWindow.setGraphXLabel(xlabel)
-        self.plotWindow.setGraphTitle(title)
-        self.plotWindow._backend.ax.set_ylabel(ylabel1, color="b")
-
-        self.ax2.plot(x, y2, "r.-")
-        self.ax2.set_ylabel(ylabel2, color="r")
