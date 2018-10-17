@@ -9,6 +9,7 @@ from oasys.widgets import gui as oasysgui
 from orangecontrib.shadow.util.shadow_util import ShadowPlot
 
 class HistogramData(object):
+    scan_value = 0.0
     histogram = None
     bins = None
     offset = 0.0
@@ -16,13 +17,14 @@ class HistogramData(object):
     sigma = 0.0
     peak_intensity = 0.0
 
-    def __init__(self, histogram=None, bins=None, offset=0.0, xrange=None, sigma=0.0, peak_intensity=0.0):
+    def __init__(self, histogram=None, bins=None, offset=0.0, xrange=None, sigma=0.0, peak_intensity=0.0, scan_value=0.0):
         self.histogram = histogram
         self.bins = bins
         self.offset = offset
         self.xrange = xrange
         self.sigma = sigma
         self.peak_intensity = peak_intensity
+        self.scan_value = scan_value
 
     def get_centroid(self):
         return self.xrange[0] + (self.xrange[1] - self.xrange[0])*0.5
@@ -31,7 +33,7 @@ class HistogramDataCollection(object):
 
     data = None
 
-    def __init__(self, histo_data=HistogramData()):
+    def __init__(self, histo_data=None):
         super().__init__()
 
         if not histo_data is None:
@@ -39,45 +41,52 @@ class HistogramDataCollection(object):
 
     def add_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.bins], [histo_data.histogram]])
+            self.data = numpy.array([[[histo_data.scan_value]*len(histo_data.bins)], [histo_data.bins], [histo_data.histogram]])
         else:
             self.data = self.data.flatten()
-            self.data = numpy.insert(self.data, [0, int(len(self.data)/2)], [histo_data.bins, histo_data.histogram])
-            self.data = self.data.reshape(2, int(len(self.data)/2))
+            self.data = numpy.insert(self.data, [0, int(len(self.data)/3), int(2*len(self.data)/3)], [[histo_data.scan_value]*len(histo_data.bins), histo_data.bins, histo_data.histogram])
+            self.data = self.data.reshape(3, int(len(self.data)/3))
 
     def replace_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.bins], [histo_data.histogram]])
+            self.data = numpy.array([[[histo_data.scan_value]*len(histo_data.bins)], [histo_data.bins], [histo_data.histogram]])
         else:
-            self.data[0, 0] = histo_data.bins
-            self.data[1, 0] = histo_data.histogram
+            self.data[0, 0] = [histo_data.scan_value]*len(histo_data.bins)
+            self.data[1, 0] = histo_data.bins
+            self.data[2, 0] = histo_data.histogram
 
     def add_histogram_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.bins], [histo_data.histogram]])
+            self.data = numpy.array([[[histo_data.scan_value]*len(histo_data.bins)], [histo_data.bins], [histo_data.histogram]])
         else:
-            self.data = numpy.append(self.data, numpy.array([[histo_data.bins], [histo_data.histogram]]), axis=1)
+            self.data = numpy.append(self.data, numpy.array([[[histo_data.scan_value]*len(histo_data.bins)], [histo_data.bins], [histo_data.histogram]]), axis=1)
+
+    def get_scan_values(self):
+        return self.data[0, :][:, 0]
 
     def get_positions(self):
-        return self.data[0, :]
+        return self.data[1, :]
 
     def get_intensities(self):
-        return self.data[1, :]
+        return self.data[2, :]
 
     def get_histogram_data_number(self):
         return self.data.shape()[1]
 
+    def get_scan_value(self, index):
+        return self.data[0, index][0]
+
     def get_position(self, index):
-        return self.data[0, index]
+        return self.data[1, index]
 
     def get_intensity(self, index):
-        return self.data[1, index]/self.data[1, 0]
+        return self.data[2, index]
 
 class StatisticalDataCollection(object):
 
     data = None
 
-    def __init__(self, histo_data=HistogramData):
+    def __init__(self, histo_data=None):
         super().__init__()
 
         if not histo_data is None:
@@ -85,42 +94,46 @@ class StatisticalDataCollection(object):
 
     def add_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.sigma], [histo_data.peak_intensity]])
+            self.data = numpy.array([[histo_data.scan_value], [histo_data.sigma], [histo_data.peak_intensity]])
         else:
             self.data = self.data.flatten()
-            self.data = numpy.insert(self.data, [0, int(len(self.data)/2)], [histo_data.sigma, histo_data.peak_intensity])
-            self.data = self.data.reshape(2, int(len(self.data)/2))
+            self.data = numpy.insert(self.data, [0, int(len(self.data)/3), int(2*len(self.data)/3)], [histo_data.scan_value, histo_data.sigma, histo_data.peak_intensity])
+            self.data = self.data.reshape(3, int(len(self.data)/3))
 
     def replace_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.sigma], [histo_data.peak_intensity]])
+            self.data = numpy.array([[histo_data.scan_value], [histo_data.sigma], [histo_data.peak_intensity]])
         else:
-            self.data[0, 0] = histo_data.sigma
-            self.data[1, 0] = histo_data.peak_intensity
+            self.data[0, 0] = histo_data.scan_value
+            self.data[1, 0] = histo_data.sigma
+            self.data[2, 0] = histo_data.peak_intensity
 
     def add_statistical_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.sigma], [histo_data.peak_intensity]])
+            self.data = numpy.array([[histo_data.scan_value], [histo_data.sigma], [histo_data.peak_intensity]])
         else:
-            self.data = numpy.append(self.data, numpy.array([[histo_data.sigma], [histo_data.peak_intensity]]), axis=1)
+            self.data = numpy.append(self.data, numpy.array([[histo_data.scan_value], [histo_data.sigma], [histo_data.peak_intensity]]), axis=1)
 
-    def get_sigmas(self):
+    def get_scan_values(self):
         return self.data[0, :]
 
+    def get_sigmas(self):
+        return self.data[1, :]
+
     def get_relative_intensities(self):
-        return self.data[1, :]/self.data[1, 0]
+        return self.data[2, :]/self.data[2, 0]
 
     def get_stats_data_number(self):
         return self.data.shape()[1]
 
-    def get_sigma(self, index):
+    def get_scan_value(self, index):
         return self.data[0, index]
 
-    def get_relative_intensity(self, index):
-        return self.data[1, index]/self.data[1, 0]
+    def get_sigma(self, index):
+        return self.data[1, index]
 
-    def get_default_range(self):
-        return numpy.arange(0, self.data.shape[1])
+    def get_relative_intensity(self, index):
+        return self.data[2, index]/self.data[2, 0]
 
 class ScanHistoWidget(QWidget):
 
@@ -161,13 +174,15 @@ class ScanHistoWidget(QWidget):
                    title="",
                    xtitle="",
                    ytitle="",
-                   profile=0,
+                   histo_index=0,
+                   scan_variable_name="Variable",
+                   scan_variable_value=0,
                    offset=0.0,
                    xrange=None):
 
         factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
 
-        if profile == 0:
+        if histo_index==0:
             ticket = beam._beam.histo1(col, xrange=None, nbins=nbins, nolost=1, ref=23)
 
             fwhm = ticket['fwhm']
@@ -188,22 +203,22 @@ class ScanHistoWidget(QWidget):
         sigma =  numpy.average(ticket['histogram_sigma'])
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
-        if profile == 0:
+        if histo_index==0:
             h_title = "Reference"
         else:
-            h_title = "Profile #" + str(profile)
+            h_title = scan_variable_name + ": " + str(scan_variable_value)
 
         color="#000000"
 
         import matplotlib
         matplotlib.rcParams['axes.formatter.useoffset']='False'
 
-        if profile == 0:
+        if histo_index== 0:
             offset = int(peak_intensity*0.3)
 
-        self.plot_canvas.addCurve(bins, histogram + offset*profile, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
+        self.plot_canvas.addCurve(bins, histogram + offset*histo_index, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
 
-        self.plot_canvas._backend.ax.text(xrange[0]*factor*1.05, offset*profile*1.05, h_title)
+        self.plot_canvas._backend.ax.text(xrange[0]*factor*1.05, offset*histo_index*1.05, h_title)
 
         if not xtitle is None: self.plot_canvas.setGraphXLabel(xtitle)
         if not ytitle is None: self.plot_canvas.setGraphYLabel(ytitle)
@@ -299,11 +314,9 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
                                stats=StatisticalDataCollection(),
                                suffix="",
                                output_folder=""):
-    histogram_number = 0
+    for scan_value, positions, intensities in zip(histo_data.get_scan_values(), histo_data.get_positions(), histo_data.get_intensities()):
 
-    for positions, intensities in zip(histo_data.get_positions(), histo_data.get_intensities()):
-
-        file = open(os.path.join(output_folder, "histogram_" + str(histogram_number) + suffix + ".dat"), "w")
+        file = open(os.path.join(output_folder, "histogram_" + str(scan_value) + suffix + ".dat"), "w")
 
         for position, intensity in zip(positions, intensities):
             file.write(str(position) + "   " + str(intensity) + "\n")
@@ -311,14 +324,12 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
         file.flush()
         file.close()
 
-        histogram_number += 1
-
     file_sigma = open(os.path.join(output_folder, "sigma" + suffix + ".dat"), "w")
     file_peak_intensity = open(os.path.join(output_folder, "relative_intensity" + suffix + ".dat"), "w")
 
-    for histogram_number, sigma, peak_intensity in zip(stats.get_default_range(),
-                                                     stats.get_sigmas(),
-                                                     stats.get_relative_intensities()):
+    for histogram_number, sigma, peak_intensity in zip(stats.get_scan_values(),
+                                                       stats.get_sigmas(),
+                                                       stats.get_relative_intensities()):
         file_sigma.write(str(histogram_number) + "   " + str(sigma) + "\n")
         file_peak_intensity.write(str(histogram_number) + "   " + str(peak_intensity) + "\n")
 
@@ -329,27 +340,43 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
 if __name__=="__main__":
     stats = StatisticalDataCollection()
 
-    stats.add_statistical_data(HistogramData(sigma=1, peak_intensity=10))
-    stats.add_statistical_data(HistogramData(sigma=2, peak_intensity=20))
-    stats.add_statistical_data(HistogramData(sigma=3, peak_intensity=30))
-    stats.add_statistical_data(HistogramData(sigma=4, peak_intensity=40))
+    stats.add_statistical_data(HistogramData(scan_value=1, sigma=1, peak_intensity=10))
+    stats.add_statistical_data(HistogramData(scan_value=2, sigma=2, peak_intensity=20))
+    stats.add_statistical_data(HistogramData(scan_value=3, sigma=3, peak_intensity=30))
+    stats.add_statistical_data(HistogramData(scan_value=4, sigma=4, peak_intensity=40))
 
+    print(stats.get_scan_values())
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
 
-    stats.add_reference_data(HistogramData(sigma=0, peak_intensity=1))
+    stats.add_reference_data(HistogramData(scan_value=0, sigma=0, peak_intensity=1))
 
+    print(stats.get_scan_values())
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
 
-    stats.add_statistical_data(HistogramData(sigma=5, peak_intensity=50))
-    stats.add_statistical_data(HistogramData(sigma=6, peak_intensity=60))
+    stats.add_statistical_data(HistogramData(scan_value=5, sigma=5, peak_intensity=50))
+    stats.add_statistical_data(HistogramData(scan_value=6, sigma=6, peak_intensity=60))
 
+    print(stats.get_scan_values())
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
 
-    stats.replace_reference_data(HistogramData(sigma=0, peak_intensity=2))
+    stats.replace_reference_data(HistogramData(scan_value=0, sigma=0, peak_intensity=2))
 
+    print(stats.get_scan_values())
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
+
+    histos = HistogramDataCollection()
+
+    histos.add_histogram_data(HistogramData(scan_value=1, bins=[1, 2, 3], histogram=[10, 20, 30]))
+    histos.add_histogram_data(HistogramData(scan_value=2, bins=[1, 2, 3], histogram=[10, 20, 30]))
+    histos.add_histogram_data(HistogramData(scan_value=3, bins=[1, 2, 3], histogram=[10, 20, 30]))
+    histos.add_histogram_data(HistogramData(scan_value=4, bins=[1, 2, 3], histogram=[10, 20, 30]))
+
+    print(histos.get_scan_values())
+    print(histos.get_positions())
+    print(histos.get_intensities())
+
 

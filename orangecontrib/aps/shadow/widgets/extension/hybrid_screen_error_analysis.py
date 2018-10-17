@@ -671,7 +671,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
             self.tab[plot_canvas_index][1].layout().addWidget(self.plot_canvas_stats[plot_canvas_index])
 
-        self.plot_canvas_stats[plot_canvas_index].plotCurves(stats.get_default_range(),
+        self.plot_canvas_stats[plot_canvas_index].plotCurves(stats.get_scan_values(),
                                                              stats.get_sigmas(),
                                                              stats.get_relative_intensities(),
                                                              "Statistics",
@@ -692,9 +692,12 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                                     nbins=nbins,
                                                                     title=title,
                                                                     ytitle=ytitle,
-                                                                    profile=profile,
+                                                                    histo_index=profile,
+                                                                    scan_variable_name="Profile #",
+                                                                    scan_variable_value=profile,
                                                                     offset=offset,
                                                                     xrange=xrange)
+        histo_data.scan_value=profile
 
         self.progressBarSet(progressBarValue)
 
