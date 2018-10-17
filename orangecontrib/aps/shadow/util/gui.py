@@ -1,4 +1,4 @@
-import numpy
+import os, numpy
 
 from PyQt5.QtGui import QImage, QPixmap,  QPalette, QFont, QColor, QTextCursor
 from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox, QFileDialog
@@ -8,7 +8,7 @@ from oasys.widgets import gui as oasysgui
 
 from orangecontrib.shadow.util.shadow_util import ShadowPlot
 
-class HistoData(object):
+class HistogramData(object):
     histogram = None
     bins = None
     offset = 0.0
@@ -27,18 +27,63 @@ class HistoData(object):
     def get_centroid(self):
         return self.xrange[0] + (self.xrange[1] - self.xrange[0])*0.5
 
-
-class StatisticData(object):
+class HistogramDataCollection(object):
 
     data = None
 
-    def __init__(self, histo_data=HistoData):
+    def __init__(self, histo_data=HistogramData()):
         super().__init__()
 
         if not histo_data is None:
             self.add_reference_data(histo_data)
 
-    def add_reference_data(self, histo_data=HistoData()):
+    def add_reference_data(self, histo_data=HistogramData()):
+        if self.data is None:
+            self.data = numpy.array([[histo_data.bins], [histo_data.histogram]])
+        else:
+            self.data = self.data.flatten()
+            self.data = numpy.insert(self.data, [0, int(len(self.data)/2)], [histo_data.bins, histo_data.histogram])
+            self.data = self.data.reshape(2, int(len(self.data)/2))
+
+    def replace_reference_data(self, histo_data=HistogramData()):
+        if self.data is None:
+            self.data = numpy.array([[histo_data.bins], [histo_data.histogram]])
+        else:
+            self.data[0, 0] = histo_data.bins
+            self.data[1, 0] = histo_data.histogram
+
+    def add_histogram_data(self, histo_data=HistogramData()):
+        if self.data is None:
+            self.data = numpy.array([[histo_data.bins], [histo_data.histogram]])
+        else:
+            self.data = numpy.append(self.data, numpy.array([[histo_data.bins], [histo_data.histogram]]), axis=1)
+
+    def get_positions(self):
+        return self.data[0, :]
+
+    def get_intensities(self):
+        return self.data[1, :]
+
+    def get_histogram_data_number(self):
+        return self.data.shape()[1]
+
+    def get_position(self, index):
+        return self.data[0, index]
+
+    def get_intensity(self, index):
+        return self.data[1, index]/self.data[1, 0]
+
+class StatisticalDataCollection(object):
+
+    data = None
+
+    def __init__(self, histo_data=HistogramData):
+        super().__init__()
+
+        if not histo_data is None:
+            self.add_reference_data(histo_data)
+
+    def add_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
             self.data = numpy.array([[histo_data.sigma], [histo_data.peak_intensity]])
         else:
@@ -46,14 +91,14 @@ class StatisticData(object):
             self.data = numpy.insert(self.data, [0, int(len(self.data)/2)], [histo_data.sigma, histo_data.peak_intensity])
             self.data = self.data.reshape(2, int(len(self.data)/2))
 
-    def replace_reference_data(self, histo_data=HistoData()):
+    def replace_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
             self.data = numpy.array([[histo_data.sigma], [histo_data.peak_intensity]])
         else:
             self.data[0, 0] = histo_data.sigma
             self.data[1, 0] = histo_data.peak_intensity
 
-    def add_statistic_data(self, histo_data=HistoData()):
+    def add_statistical_data(self, histo_data=HistogramData()):
         if self.data is None:
             self.data = numpy.array([[histo_data.sigma], [histo_data.peak_intensity]])
         else:
@@ -187,7 +232,7 @@ class ScanHistoWidget(QWidget):
 
         self.plot_canvas.addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas.getLegendsDockWidget())
 
-        return HistoData(histogram_stats, bins_stats, offset, xrange, sigma, peak_intensity)
+        return HistogramData(histogram_stats, bins_stats, offset, xrange, sigma, peak_intensity)
 
     def add_empty_curve(self, histo_data):
         self.plot_canvas.addCurve(numpy.array([histo_data.get_centroid()]),
@@ -250,29 +295,61 @@ class DoublePlotWidget(QWidget):
         self.ax2.set_ylabel(ylabel2, color="r")
 
 
+def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
+                               stats=StatisticalDataCollection(),
+                               suffix="",
+                               output_folder=""):
+    histogram_number = 0
+
+    for positions, intensities in zip(histo_data.get_positions(), histo_data.get_intensities()):
+
+        file = open(os.path.join(output_folder, "histogram_" + str(histogram_number) + suffix + ".dat"), "w")
+
+        for position, intensity in zip(positions, intensities):
+            file.write(str(position) + "   " + str(intensity) + "\n")
+
+        file.flush()
+        file.close()
+
+        histogram_number += 1
+
+    file_sigma = open(os.path.join(output_folder, "sigma" + suffix + ".dat"), "w")
+    file_peak_intensity = open(os.path.join(output_folder, "relative_intensity" + suffix + ".dat"), "w")
+
+    for histogram_number, sigma, peak_intensity in zip(stats.get_default_range(),
+                                                     stats.get_sigmas(),
+                                                     stats.get_relative_intensities()):
+        file_sigma.write(str(histogram_number) + "   " + str(sigma) + "\n")
+        file_peak_intensity.write(str(histogram_number) + "   " + str(peak_intensity) + "\n")
+
+    file_sigma.flush()
+    file_peak_intensity.close()
+
+
 if __name__=="__main__":
-    stats = StatisticData()
+    stats = StatisticalDataCollection()
 
-    stats.add_statistic_data(HistoData(sigma=1, peak_intensity=10))
-    stats.add_statistic_data(HistoData(sigma=2, peak_intensity=20))
-    stats.add_statistic_data(HistoData(sigma=3, peak_intensity=30))
-    stats.add_statistic_data(HistoData(sigma=4, peak_intensity=40))
-
-    print(stats.get_sigmas())
-    print(stats.get_relative_intensities())
-
-    stats.add_reference_data(HistoData(sigma=0, peak_intensity=1))
+    stats.add_statistical_data(HistogramData(sigma=1, peak_intensity=10))
+    stats.add_statistical_data(HistogramData(sigma=2, peak_intensity=20))
+    stats.add_statistical_data(HistogramData(sigma=3, peak_intensity=30))
+    stats.add_statistical_data(HistogramData(sigma=4, peak_intensity=40))
 
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
 
-    stats.add_statistic_data(HistoData(sigma=5, peak_intensity=50))
-    stats.add_statistic_data(HistoData(sigma=6, peak_intensity=60))
+    stats.add_reference_data(HistogramData(sigma=0, peak_intensity=1))
 
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
 
-    stats.replace_reference_data(HistoData(sigma=0, peak_intensity=2))
+    stats.add_statistical_data(HistogramData(sigma=5, peak_intensity=50))
+    stats.add_statistical_data(HistogramData(sigma=6, peak_intensity=60))
 
     print(stats.get_sigmas())
     print(stats.get_relative_intensities())
+
+    stats.replace_reference_data(HistogramData(sigma=0, peak_intensity=2))
+
+    print(stats.get_sigmas())
+    print(stats.get_relative_intensities())
+

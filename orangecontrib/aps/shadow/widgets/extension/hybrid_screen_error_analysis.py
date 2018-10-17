@@ -20,7 +20,7 @@ from orangecontrib.shadow.widgets.special_elements import hybrid_control
 
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
 
-from orangecontrib.aps.shadow.util.gui import HistoData, StatisticData, DoublePlotWidget, ScanHistoWidget
+from orangecontrib.aps.shadow.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, ScanHistoWidget, write_histo_and_stats_file
 
 class HybridScreenErrorAnalysis(AutomaticElement):
 
@@ -392,10 +392,10 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
                     profile = 0
 
-                    self.current_histo_data_x_ff = []
-                    self.current_histo_data_x_nf = []
-                    self.current_histo_data_z_ff = []
-                    self.current_histo_data_z_nf = []
+                    self.current_histo_data_x_ff = None
+                    self.current_histo_data_x_nf = None
+                    self.current_histo_data_z_ff = None
+                    self.current_histo_data_z_nf = None
                     self.current_stats_x_ff = None
                     self.current_stats_x_nf = None
                     self.current_stats_z_ff = None
@@ -408,21 +408,21 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                         do_nf=do_nf,
                                                         do_plot_x=do_plot_x,
                                                         do_plot_z=do_plot_z,
-                                                        histo_data_x_ff=HistoData(),
-                                                        histo_data_z_ff=HistoData(),
-                                                        histo_data_x_nf=HistoData(),
-                                                        histo_data_z_nf=HistoData(),
+                                                        histo_data_x_ff=HistogramData(),
+                                                        histo_data_z_ff=HistogramData(),
+                                                        histo_data_x_nf=HistogramData(),
+                                                        histo_data_z_nf=HistogramData(),
                                                         profile=profile)
 
-                    if not histo_data_x_ff.bins is None: self.current_histo_data_x_ff.append([histo_data_x_ff.bins, histo_data_x_ff.histogram])
-                    if not histo_data_z_ff.bins is None: self.current_histo_data_z_ff.append([histo_data_z_ff.bins, histo_data_z_ff.histogram])
-                    if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.append([histo_data_x_nf.bins, histo_data_x_nf.histogram])
-                    if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.append([histo_data_z_nf.bins, histo_data_z_nf.histogram])
+                    if not histo_data_x_ff.bins is None: self.current_histo_data_x_ff = HistogramDataCollection(histo_data_x_ff)
+                    if not histo_data_z_ff.bins is None: self.current_histo_data_z_ff = HistogramDataCollection(histo_data_z_ff)
+                    if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf = HistogramDataCollection(histo_data_x_nf)
+                    if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf = HistogramDataCollection(histo_data_z_nf)
 
-                    stats_x_ff = StatisticData(histo_data_x_ff)
-                    stats_z_ff = StatisticData(histo_data_z_ff)
-                    stats_x_nf = StatisticData(histo_data_x_nf)
-                    stats_z_nf = StatisticData(histo_data_z_nf)
+                    stats_x_ff = StatisticalDataCollection(histo_data_x_ff)
+                    stats_z_ff = StatisticalDataCollection(histo_data_z_ff)
+                    stats_x_nf = StatisticalDataCollection(histo_data_x_nf)
+                    stats_z_nf = StatisticalDataCollection(histo_data_z_nf)
 
                     input_parameters.ghy_calcType = self.ghy_calcType + 3
 
@@ -459,15 +459,15 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                             histo_data_z_nf,
                                                             profile)
 
-                        if not histo_data_x_ff.bins is None: self.current_histo_data_x_ff.append([histo_data_x_ff.bins, histo_data_x_ff.histogram])
-                        if not histo_data_z_ff.bins is None: self.current_histo_data_z_ff.append([histo_data_z_ff.bins, histo_data_z_ff.histogram])
-                        if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.append([histo_data_x_nf.bins, histo_data_x_nf.histogram])
-                        if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.append([histo_data_z_nf.bins, histo_data_z_nf.histogram])
+                        if not histo_data_x_ff.bins is None: self.current_histo_data_x_ff.add_histogram_data(histo_data_x_ff)
+                        if not histo_data_z_ff.bins is None: self.current_histo_data_z_ff.add_histogram_data(histo_data_z_ff)
+                        if not histo_data_x_nf.bins is None: self.current_histo_data_x_nf.add_histogram_data(histo_data_x_nf)
+                        if not histo_data_z_nf.bins is None: self.current_histo_data_z_nf.add_histogram_data(histo_data_z_nf)
 
-                        stats_x_ff.add_statistic_data(histo_data_x_ff)
-                        stats_z_ff.add_statistic_data(histo_data_z_ff)
-                        stats_x_nf.add_statistic_data(histo_data_x_nf)
-                        stats_z_nf.add_statistic_data(histo_data_z_nf)
+                        stats_x_ff.add_statistical_data(histo_data_x_ff)
+                        stats_z_ff.add_statistical_data(histo_data_z_ff)
+                        stats_x_nf.add_statistical_data(histo_data_x_nf)
+                        stats_z_nf.add_statistical_data(histo_data_z_nf)
 
                     self.current_stats_x_ff = stats_x_ff
                     self.current_stats_z_ff = stats_z_ff
@@ -759,56 +759,28 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         output_folder = QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
 
         if output_folder:
-            if len(self.current_histo_data_x_ff) > 0:
-                self.write_histo_and_stats_file(histo_data=self.current_histo_data_x_ff,
-                                                stats=self.current_stats_x_ff,
-                                                suffix="_S_FF")
+            if not self.current_histo_data_x_ff is None:
+                write_histo_and_stats_file(histo_data=self.current_histo_data_x_ff,
+                                           stats=self.current_stats_x_ff,
+                                           suffix="_S_FF",
+                                           output_folder=output_folder)
 
-            if len(self.current_histo_data_x_nf) > 0:
-                self.write_histo_and_stats_file(histo_data=self.current_histo_data_x_nf,
-                                                stats=self.current_stats_x_nf,
-                                                suffix="_S_NF")
+            if not self.current_histo_data_x_nf is None:
+                write_histo_and_stats_file(histo_data=self.current_histo_data_x_nf,
+                                           stats=self.current_stats_x_nf,
+                                           suffix="_S_NF",
+                                           output_folder=output_folder)
 
-            if len(self.current_histo_data_z_ff) > 0:
-                self.write_histo_and_stats_file(histo_data=self.current_histo_data_z_ff,
-                                                stats=self.current_stats_z_ff,
-                                                suffix="_T_FF")
+            if not self.current_histo_data_z_ff is None:
+                write_histo_and_stats_file(histo_data=self.current_histo_data_z_ff,
+                                           stats=self.current_stats_z_ff,
+                                           suffix="_T_FF",
+                                           output_folder=output_folder)
 
-            if len(self.current_histo_data_z_nf) > 0:
-                self.write_histo_and_stats_file(histo_data=self.current_histo_data_z_nf.bins,
-                                                stats=self.current_stats_z_nf,
-                                                suffix="_T_NF")
+            if not self.current_histo_data_z_nf is None:
+                write_histo_and_stats_file(histo_data=self.current_histo_data_z_nf.bins,
+                                           stats=self.current_stats_z_nf,
+                                           suffix="_T_NF",
+                                           output_folder=output_folder)
 
             QMessageBox.information(self, "Export Error Analysis Data", "Data saved into directory: " + output_folder, QMessageBox.Ok)
-
-
-    def write_histo_and_stats_file(self, histo_data, stats, suffix="_T_FF"):
-
-        profile_number = 0
-
-        for data in histo_data:
-            positions = data[0][:]
-            intensities = data[1][:]
-
-            file = open("histogram_profile_" + str(profile_number) + suffix + ".dat", "w")
-
-            for position, intensity in zip(positions, intensities):
-                file.write(str(position) + "   " + str(intensity) + "\n")
-
-            file.flush()
-            file.close()
-
-            profile_number += 1
-
-        file_sigma = open("sigma" + suffix + ".dat", "w")
-        file_peak_intensity = open("peak_intensity" + suffix + ".dat", "w")
-
-
-        for profile_number, sigma, peak_intensity in zip(numpy.arange(0, len(stats[0])),
-                                                         numpy.array(stats[0][:]),
-                                                         numpy.array(stats[1][:])/stats[1][0]):
-            file_sigma.write(str(profile_number) + "   " + str(sigma) + "\n")
-            file_peak_intensity.write(str(profile_number) + "   " + str(peak_intensity) + "\n")
-
-        file_sigma.flush()
-        file_peak_intensity.close()
