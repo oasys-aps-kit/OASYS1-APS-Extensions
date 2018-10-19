@@ -80,6 +80,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     current_stats_z_nf = None
 
     plot_type = Setting(1)
+    plot_type_3D = Setting(0)
+    colormap = Setting(0)
 
     def __init__(self):
         super().__init__()
@@ -178,17 +180,24 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                      sendSelectedValue=False, orientation="horizontal")
 
 
-        box_5 = oasysgui.widgetBox(tab_adv, "Plot Setting", addSpace=True, orientation="vertical", height=70)
+        box_5 = oasysgui.widgetBox(tab_adv, "Plot Setting", addSpace=True, orientation="vertical", height=150)
 
         gui.comboBox(box_5, self, "plot_type", label="Plot Type", labelWidth=310,
                      items=["2D", "3D"],
                      sendSelectedValue=False, orientation="horizontal", callback=self.set_PlotType)
 
+        self.box_pt_1 = oasysgui.widgetBox(box_5, "", addSpace=False, orientation="vertical", height=30)
+        self.box_pt_2 = oasysgui.widgetBox(box_5, "", addSpace=False, orientation="vertical", height=30)
+
+        gui.comboBox(self.box_pt_2, self, "plot_type_3D", label="3D Plot Aspect", labelWidth=310,
+                     items=["Lines", "Surface"],
+                     sendSelectedValue=False, orientation="horizontal")
 
         self.set_DiffPlane()
         self.set_DistanceToImageCalc()
         self.set_CalculationType()
         self.set_NF()
+        self.set_PlotType()
 
         self.initializeTabs()
 
@@ -287,6 +296,9 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
     def set_PlotType(self):
         self.plot_canvas = [None, None, None, None]
+
+        self.box_pt_1.setVisible(self.plot_type==0)
+        self.box_pt_2.setVisible(self.plot_type==1)
 
     def set_DiffPlane(self):
         self.le_nbins_x.setEnabled(self.ghy_diff_plane == 0 or self.ghy_diff_plane == 2)
@@ -703,7 +715,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
             if self.plot_type == 0:
                 self.plot_canvas[plot_canvas_index] = ScanHistoWidget(self.workspace_units_to_cm)
             elif self.plot_type==1:
-                self.plot_canvas[plot_canvas_index] = Scan3DHistoWidget(self.workspace_units_to_cm)
+                self.plot_canvas[plot_canvas_index] = Scan3DHistoWidget(self.workspace_units_to_cm,
+                                                                        type=Scan3DHistoWidget.PlotType.LINES if self.plot_type_3D==0 else Scan3DHistoWidget.PlotType.SURFACE)
 
             self.tab[plot_canvas_index][0].layout().addWidget(self.plot_canvas[plot_canvas_index])
 
