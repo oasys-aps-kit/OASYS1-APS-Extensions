@@ -15,6 +15,9 @@ from orangecontrib.shadow.util.shadow_objects import ShadowBeam
 from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
 from orangecontrib.shadow.widgets.gui import ow_automatic_element
 
+from orangecontrib.aps.shadow.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, \
+    DoublePlotWidget, ScanHistoWidget, Scan3DHistoWidget, write_histo_and_stats_file
+
 class Histogram(ow_automatic_element.AutomaticElement):
 
     name = "Histogram"
@@ -59,6 +62,15 @@ class Histogram(ow_automatic_element.AutomaticElement):
     last_ticket=None
 
     is_conversion_active = Setting(1)
+
+    current_histo_data = None
+    current_stats = None
+    last_histo_data = None
+    histo_index = -1
+
+    plot_type = Setting(1)
+    plot_type_3D = Setting(0)
+    stats_to_plot = Setting(0)
 
     def __init__(self):
         super().__init__()
@@ -187,14 +199,34 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                             "Lost Only"],
                                      sendSelectedValue=False, orientation="horizontal")
 
-        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=100)
+        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=200)
+
+        gui.button(incremental_box, self, "Clear Stored Data", callback=self.clearResults, height=30)
+        gui.separator(incremental_box)
 
         gui.comboBox(incremental_box, self, "iterative_mode", label="Iterative Mode", labelWidth=250,
                                          items=["None", "Accumulating", "Scanning"],
                                          sendSelectedValue=False, orientation="horizontal", callback=self.set_IterativeMode)
 
-        gui.button(incremental_box, self, "Clear", callback=self.clearResults)
+        self.box_scan_empty = oasysgui.widgetBox(incremental_box, "", addSpace=False, orientation="vertical")
+        self.box_scan = oasysgui.widgetBox(incremental_box, "", addSpace=False, orientation="vertical")
 
+        gui.comboBox(self.box_scan, self, "plot_type", label="Plot Type", labelWidth=310,
+                     items=["2D", "3D"],
+                     sendSelectedValue=False, orientation="horizontal", callback=self.set_PlotType)
+
+        self.box_pt_1 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=30)
+        self.box_pt_2 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=30)
+
+        gui.comboBox(self.box_pt_2, self, "plot_type_3D", label="3D Plot Aspect", labelWidth=310,
+                     items=["Lines", "Surface"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        gui.comboBox(self.box_scan, self, "stats_to_plot", label="Stats: Spot Dimension", labelWidth=310,
+                     items=["Sigma", "FWHM"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        self.set_IterativeMode()
 
         histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=90)
 
@@ -206,70 +238,76 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
+        plot_tab_stats = oasysgui.createTabPage(self.main_tabs, "Stats")
         out_tab = oasysgui.createTabPage(self.main_tabs, "Output")
 
         self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
         self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
         self.image_box.setFixedWidth(self.IMAGE_WIDTH)
 
+        self.image_box_stats = gui.widgetBox(plot_tab_stats, "Stats Result", addSpace=True, orientation="vertical")
+        self.image_box_stats.setFixedHeight(self.IMAGE_HEIGHT)
+        self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
+
         self.shadow_output = oasysgui.textArea(height=600, width=600)
 
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
 
-
-    def initializeTabs(self):
-
-        number_of_tabs = self.main_tabs.count()
-
-        if self.iterative_mode == 2:
-
-            if number_of_tabs == 2:
-               self.tabs.removeTab(1)
-               self.tabs.removeTab(2)
-        else:
-            number_of_tabs = self.main_tabs.count()
-
-            if number_of_tabs == 4:
-               self.tabs.removeTab(1)
-               self.tabs.removeTab(2)
-
-
-        size = len(self.tab)
-        indexes = range(0, size)
-        for index in indexes:
-            self.tabs.removeTab(size-1-index)
-
-        titles = self.getTitles()
-
-
-        self.tab = []
-        self.plot_canvas = []
-
-        for title in self.getTitles():
-            self.tab.append(oasysgui.createTabPage(self.tabs, title))
-            self.plot_canvas.append(None)
-
-        for tab in self.tab:
-            tab.setFixedHeight(self.IMAGE_HEIGHT)
-            tab.setFixedWidth(self.IMAGE_WIDTH)
-
-        self.tabs.setCurrentIndex(current_tab)
-
-
-
-
     def clearResults(self):
         if ConfirmDialog.confirmed(parent=self):
-            self.input_beam = ShadowBeam()
-            self.last_ticket = None
-            self.plot_canvas.clear()
-            return True
-        else:
-            return False
+            self.clear_data()
+
+    def clear_data(self):
+        self.input_beam = None
+        self.last_ticket = None
+        self.current_stats = None
+        self.current_histo_data = None
+        self.last_histo_data = None
+
+        self.histo_index = -1
+
+        if not self.plot_canvas is None:
+            self.main_tabs.removeTab(0)
+            self.main_tabs.removeTab(1)
+
+            plot_tab = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
+
+            self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
+            self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
+            self.image_box.setFixedWidth(self.IMAGE_WIDTH)
+
+            plot_tab_stats = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
+
+            self.image_box_stats = gui.widgetBox(plot_tab_stats, "Stats Result", addSpace=True, orientation="vertical")
+            self.image_box_stats.setFixedHeight(self.IMAGE_HEIGHT)
+            self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
+
+            self.main_tabs.insertTab(0, plot_tab_stats, "TEMP")
+            self.main_tabs.setTabText(0, "Stats Result")
+            self.main_tabs.insertTab(0, plot_tab, "TEMP")
+            self.main_tabs.setTabText(0, "Plot Result")
+            self.main_tabs.setCurrentIndex(0)
+
+            self.plot_canvas = None
+            self.plot_canvas_stats = None
 
     def set_IterativeMode(self):
-        pass
+        self.box_scan_empty.setVisible(self.iterative_mode<2)
+        if self.iterative_mode==2:
+            self.box_scan.setVisible(True)
+            self.set_PlotType()
+        else:
+            self.box_scan.setVisible(False)
+
+        self.clear_data()
+
+    def set_PlotType(self):
+        self.plot_canvas = None
+        self.plot_canvas_stats = None
+
+        self.box_pt_1.setVisible(self.plot_type==0)
+        self.box_pt_2.setVisible(self.plot_type==1)
 
     def set_XRange(self):
         self.xrange_box.setVisible(self.x_range == 1)
@@ -281,21 +319,80 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
     def replace_fig(self, beam, var, xrange, title, xtitle, ytitle, xum):
         if self.plot_canvas is None:
-            self.plot_canvas = ShadowPlot.DetailedHistoWidget(y_scale_factor=1.14)
+            if self.iterative_mode < 2:
+                self.plot_canvas = ShadowPlot.DetailedHistoWidget(y_scale_factor=1.14)
+            else:
+                if self.plot_type == 0:
+                    self.plot_canvas = ScanHistoWidget(self.workspace_units_to_cm)
+                elif self.plot_type==1:
+                    self.plot_canvas = Scan3DHistoWidget(self.workspace_units_to_cm,
+                                                         type=Scan3DHistoWidget.PlotType.LINES if self.plot_type_3D==0 else Scan3DHistoWidget.PlotType.SURFACE)
+
+                self.plot_canvas_stats = DoublePlotWidget(parent=None)
+                self.image_box_stats.layout().addWidget(self.plot_canvas_stats)
+
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            if self.iterative_mode == 1:
-                self.last_ticket = self.plot_canvas.plot_histo(beam, var, self.rays, xrange, self.weight_column_index, title, xtitle, ytitle, nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm, ticket_to_add=self.last_ticket)
-            else:
+            if self.iterative_mode==0:
                 self.last_ticket = None
-                self.plot_canvas.plot_histo(beam, var, self.rays, xrange, self.weight_column_index, title, xtitle, ytitle, nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
+                self.current_histo_data = None
+                self.current_stats = None
+                self.last_histo_data = None
+                self.histo_index = -1
+                self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange, self.weight_column_index, title, xtitle, ytitle, nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
 
-        except Exception:
-            raise Exception("Data not plottable: No good rays or bad content")
+            elif self.iterative_mode == 1:
+                self.current_histo_data = None
+                self.current_stats = None
+                self.last_histo_data = None
+                self.histo_index = -1
+                self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange, self.weight_column_index, title, xtitle, ytitle, nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm, ticket_to_add=self.last_ticket)
+            else:
+                if not beam.scanned_variable_data is None:
+                    self.last_ticket = None
+                    self.histo_index += 1
+                    histo_data = self.plot_canvas.plot_histo(beam=beam,
+                                                             col=var,
+                                                             nbins=self.number_of_bins,
+                                                             title=title,
+                                                             xtitle=xtitle,
+                                                             ytitle=ytitle,
+                                                             histo_index=self.histo_index,
+                                                             scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                             scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
+                                                             offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
+                                                             xrange=xrange)
+                    histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
+
+                    if not histo_data.bins is None:
+                        if self.current_histo_data is None:
+                            self.current_histo_data = HistogramDataCollection(histo_data)
+                        else:
+                            self.current_histo_data.add_histogram_data(histo_data)
+
+                    if self.current_stats is None:
+                        self.current_stats = StatisticalDataCollection(histo_data)
+                    else:
+                        self.current_stats.add_statistical_data(histo_data)
+
+                    self.last_histo_data = histo_data
+
+                    self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
+                                                      self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
+                                                      self.current_stats.get_relative_intensities(),
+                                                      "Statistics",
+                                                      beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                      "Sigma " if self.stats_to_plot==0 else "FWHM " + xum,
+                                                      "Relative Peak Intensity")
+
+
+        except Exception as e:
+            if self.IS_DEVELOP: raise e
+            else: raise Exception("Data not plottable: No good rays or bad content")
 
     def plot_histo(self, var_x, title, xtitle, ytitle, xum):
-        beam_to_plot = self.input_beam._beam
+        beam_to_plot = self.input_beam
 
         if self.image_plane == 1:
             new_shadow_beam = self.input_beam.duplicate(history=False)
@@ -317,9 +414,9 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
             self.retrace_beam(new_shadow_beam, dist)
 
-            beam_to_plot = new_shadow_beam._beam
+            beam_to_plot = new_shadow_beam
 
-        xrange = self.get_range(beam_to_plot, var_x)
+        xrange = self.get_range(beam_to_plot._beam, var_x)
 
         self.replace_fig(beam_to_plot, var_x, xrange, title, xtitle, ytitle, xum)
 

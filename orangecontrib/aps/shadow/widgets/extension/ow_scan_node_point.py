@@ -35,9 +35,12 @@ class ScanLoopPoint(widget.OWWidget):
     run_loop = True
 
     variable_name = Setting("<variable name>")
+    variable_display_name = Setting("<variable display name>")
     variable_value_from = Setting(0.0)
     variable_value_to = Setting(0.0)
     variable_value_step = 0.0
+
+    variable_um = Setting("<u.m.>")
     
     current_variable_value = None
 
@@ -55,7 +58,7 @@ class ScanLoopPoint(widget.OWWidget):
         self.addAction(self.runaction)
 
         self.setFixedWidth(400)
-        self.setFixedHeight(315)
+        self.setFixedHeight(365)
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
 
@@ -71,13 +74,16 @@ class ScanLoopPoint(widget.OWWidget):
         palette.setColor(QtGui.QPalette.ButtonText, QtGui.QColor('red'))
         stop_button.setPalette(palette) # assign new palette
 
-        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=380, height=230)
+        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=380, height=280)
 
         oasysgui.lineEdit(left_box_1, self, "variable_name", "Variable Name", labelWidth=100, valueType=str, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "variable_value_from", "Value From", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "variable_value_to", "Value to", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_1, self, "variable_display_name", "Variable Display Name", labelWidth=100, valueType=str, orientation="horizontal")
+        oasysgui.lineEdit(left_box_1, self, "variable_um", "Variable Units", labelWidth=250, valueType=str, orientation="horizontal")
 
-        oasysgui.lineEdit(left_box_1, self, "number_of_new_objects", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(left_box_1, self, "variable_value_from", "Value From", labelWidth=250, valueType=float, orientation="horizontal", callback=self.calculate_step)
+        oasysgui.lineEdit(left_box_1, self, "variable_value_to", "Value to", labelWidth=250, valueType=float, orientation="horizontal", callback=self.calculate_step)
+        oasysgui.lineEdit(left_box_1, self, "number_of_new_objects", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal", callback=self.calculate_step)
+
 
         self.le_variable_value_step = oasysgui.lineEdit(left_box_1, self, "variable_value_step", "Step Value", labelWidth=250, valueType=float, orientation="horizontal")
         self.le_variable_value_step.setReadOnly(True)
@@ -113,17 +119,21 @@ class ScanLoopPoint(widget.OWWidget):
 
         gui.rubber(self.controlArea)
 
+    def calculate_step(self):
+        self.variable_value_step = round((self.variable_value_to - self.variable_value_from) / self.number_of_new_objects, 8)
+
     def startLoop(self):
 
         self.current_new_object = 1
-        self.variable_value_step = (self.variable_value_to - self.variable_value_from) / self.number_of_new_objects
-        self.current_variable_value = self.variable_value_from
-
+        self.current_variable_value = round(self.variable_value_from, 8)
+        self.calculate_step()
         self.start_button.setEnabled(False)
 
         self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.current_new_object) + " of " + str(self.number_of_new_objects))
-        self.send("Trigger", TriggerOut(new_object=True, additional_parameters={"variable_name" : self.variable_name, 
-                                                                                "variable_value": self.current_variable_value}))
+        self.send("Trigger", TriggerOut(new_object=True, additional_parameters={"variable_name" : self.variable_name,
+                                                                                "variable_display_name" : self.variable_display_name,
+                                                                                "variable_value": self.current_variable_value,
+                                                                                "variable_um": self.variable_um}))
     def stopLoop(self):
         if ConfirmDialog.confirmed(parent=self, message="Confirm Interruption of the Loop?"):
             self.run_loop = False
@@ -144,26 +154,27 @@ class ScanLoopPoint(widget.OWWidget):
                     if self.current_new_object <= self.number_of_new_objects:
                         if self.current_variable_value is None:
                             self.current_new_object = 1
-                            self.variable_value_step = (self.variable_value_to - self.variable_value_from) / self.number_of_new_objects
-                            self.current_variable_value = self.variable_value_from
+                            self.calculate_step()
+                            self.current_variable_value = round(self.variable_value_from, 8)
                         else:
                             self.current_new_object += 1
-                            self.current_variable_value += self.variable_value_step
+                            self.current_variable_value = round(self.current_variable_value + self.variable_value_step, 8)
+
                         self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.current_new_object) + " of " + str(self.number_of_new_objects))
                         self.start_button.setEnabled(False)
                         self.send("Trigger", TriggerOut(new_object=True, additional_parameters={"variable_name" : self.variable_name,
-                                                                                                "variable_value": self.current_variable_value}))
+                                                                                                "variable_display_name" : self.variable_display_name,
+                                                                                                "variable_value": self.current_variable_value,
+                                                                                                "variable_um": self.variable_um}))
                     else:
                         self.current_new_object = 0
                         self.current_variable_value = None
-                        self.variable_value_step = 0.0
                         self.start_button.setEnabled(True)
                         self.setStatusMessage("")
                         self.send("Trigger", TriggerOut(new_object=False))
         else:
             self.current_new_object = 0
             self.current_variable_value = None
-            self.variable_value_step = 0.0
             self.start_button.setEnabled(True)
             self.send("Trigger", TriggerOut(new_object=False))
             self.setStatusMessage("")
