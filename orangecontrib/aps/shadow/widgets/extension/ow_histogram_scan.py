@@ -1,4 +1,5 @@
 import sys
+import os
 import time
 import copy
 import numpy
@@ -199,7 +200,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                             "Lost Only"],
                                      sendSelectedValue=False, orientation="horizontal")
 
-        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=200)
+        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=250)
 
         gui.button(incremental_box, self, "Clear Stored Data", callback=self.clearResults, height=30)
         gui.separator(incremental_box)
@@ -225,6 +226,8 @@ class Histogram(ow_automatic_element.AutomaticElement):
         gui.comboBox(self.box_scan, self, "stats_to_plot", label="Stats: Spot Dimension", labelWidth=310,
                      items=["Sigma", "FWHM"],
                      sendSelectedValue=False, orientation="horizontal")
+
+        gui.button(self.box_scan, self, "Export Scanning Results & Stats", callback=self.export_scanning_stats_analysis, height=30)
 
         self.set_IterativeMode()
 
@@ -563,3 +566,17 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
     def getConversionActive(self):
         return self.is_conversion_active==1
+
+    def export_scanning_stats_analysis(self):
+
+        output_folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
+
+        if output_folder:
+            if not self.current_histo_data is None:
+                write_histo_and_stats_file(histo_data=self.current_histo_data,
+                                           stats=self.current_stats,
+                                           suffix="",
+                                           output_folder=output_folder)
+
+
+            QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
