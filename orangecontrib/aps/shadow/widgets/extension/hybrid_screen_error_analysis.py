@@ -20,7 +20,8 @@ from orangecontrib.shadow.widgets.special_elements import hybrid_control
 
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
 
-from orangecontrib.aps.shadow.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, ScanHistoWidget, write_histo_and_stats_file
+from orangecontrib.aps.shadow.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, \
+    DoublePlotWidget, ScanHistoWidget, Scan3DHistoWidget, write_histo_and_stats_file
 
 class HybridScreenErrorAnalysis(AutomaticElement):
 
@@ -77,6 +78,8 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     current_stats_x_nf = None
     current_stats_z_ff = None
     current_stats_z_nf = None
+
+    plot_type = Setting(1)
 
     def __init__(self):
         super().__init__()
@@ -173,6 +176,14 @@ class HybridScreenErrorAnalysis(AutomaticElement):
         gui.comboBox(box_4, self, "ghy_automatic", label="Analize geometry to avoid unuseful calculations", labelWidth=310,
                      items=["No", "Yes"],
                      sendSelectedValue=False, orientation="horizontal")
+
+
+        box_5 = oasysgui.widgetBox(tab_adv, "Plot Setting", addSpace=True, orientation="vertical", height=70)
+
+        gui.comboBox(box_5, self, "plot_type", label="Plot Type", labelWidth=310,
+                     items=["2D", "3D"],
+                     sendSelectedValue=False, orientation="horizontal", callback=self.set_PlotType)
+
 
         self.set_DiffPlane()
         self.set_DistanceToImageCalc()
@@ -273,6 +284,9 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
                 if self.is_automatic_run:
                     self.run_hybrid()
+
+    def set_PlotType(self):
+        self.plot_canvas = [None, None, None, None]
 
     def set_DiffPlane(self):
         self.le_nbins_x.setEnabled(self.ghy_diff_plane == 0 or self.ghy_diff_plane == 2)
@@ -435,7 +449,10 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                         shadow_oe._oe.F_RIPPLE = 1
                         shadow_oe._oe.F_G_S = 2
 
-                        shadow_oe._oe.FILE_RIP = bytes(congruence.checkFile(file), 'utf-8')
+                        file = congruence.checkFile(file)
+                        ShadowCongruence.checkErrorProfileFile(file)
+
+                        shadow_oe._oe.FILE_RIP = bytes(file, 'utf-8')
 
                         input_parameters.shadow_beam = shadow_beam
 
@@ -683,7 +700,10 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                    profile=1, offset=0.0, xrange=None):
 
         if self.plot_canvas[plot_canvas_index] is None:
-            self.plot_canvas[plot_canvas_index] = ScanHistoWidget(self.workspace_units_to_cm)
+            if self.plot_type == 0:
+                self.plot_canvas[plot_canvas_index] = ScanHistoWidget(self.workspace_units_to_cm)
+            elif self.plot_type==1:
+                self.plot_canvas[plot_canvas_index] = Scan3DHistoWidget(self.workspace_units_to_cm)
 
             self.tab[plot_canvas_index][0].layout().addWidget(self.plot_canvas[plot_canvas_index])
 
@@ -691,6 +711,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
                                                                     col=col,
                                                                     nbins=nbins,
                                                                     title=title,
+                                                                    xtitle=xtitle,
                                                                     ytitle=ytitle,
                                                                     histo_index=profile,
                                                                     scan_variable_name="Profile #",

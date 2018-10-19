@@ -1,12 +1,23 @@
-import os, numpy
+import sys, os, numpy
 
 from PyQt5.QtGui import QImage, QPixmap,  QPalette, QFont, QColor, QTextCursor
-from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox, QFileDialog
 from PyQt5.QtCore import Qt
+
+from matplotlib import cm
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
+from matplotlib.collections import PolyCollection, LineCollection
+from matplotlib.colors import colorConverter
 
 from oasys.widgets import gui as oasysgui
 
 from orangecontrib.shadow.util.shadow_util import ShadowPlot
+
+try:
+    from mpl_toolkits.mplot3d import Axes3D  # mandatory to load 3D plot
+except:
+    pass
 
 class HistogramData(object):
     scan_value = 0.0
@@ -134,6 +145,171 @@ class StatisticalDataCollection(object):
 
     def get_relative_intensity(self, index):
         return self.data[2, index]/self.data[2, 0]
+
+
+class Scan3DHistoWidget(QWidget):
+    class PlotType:
+        LINES = 0
+        SURFACE = 1
+
+    def __init__(self, workspace_units_to_cm, image_height=645, image_width=860, type=PlotType.LINES):
+        super(Scan3DHistoWidget, self).__init__()
+
+        self.workspace_units_to_cm=workspace_units_to_cm
+
+        self.figure = Figure(figsize=(image_height, image_width))
+        self.figure.patch.set_facecolor('white')
+
+        self.axis = self.figure.add_subplot(111, projection='3d')
+        self.axis.set_title("")
+        self.axis.clear()
+
+        self.plot_canvas = FigureCanvasQTAgg(self.figure)
+
+        layout = QVBoxLayout()
+
+        layout.addWidget(self.plot_canvas)
+
+        self.setLayout(layout)
+
+        self.xx = None
+        self.yy = None
+        self.zz = None
+
+        self.title = ""
+        self.xlabel = ""
+        self.ylabel = ""
+        self.zlabel = ""
+
+        self.__type=type
+        self.__cc = lambda arg: colorConverter.to_rgba(arg, alpha=0.5)
+
+
+
+    def reset_plot(self):
+        self.xx = None
+        self.yy = None
+        self.zz = None
+        self.axis.set_title("")
+        self.axis.clear()
+
+    def set_labels(self, title, xlabel, ylabel, zlabel):
+        self.title = title
+        self.xlabel = xlabel
+        self.ylabel = ylabel
+        self.zlabel = zlabel
+
+    def restore_labels(self):
+        self.axis.set_title(self.title)
+        self.axis.set_xlabel(self.xlabel)
+        self.axis.set_ylabel(self.ylabel)
+        self.axis.set_zlabel(self.zlabel)
+
+    def set_xrange(self, xrange):
+            self.xx = xrange
+
+    def plot_histo(self,
+                   beam,
+                   col,
+                   nbins=100,
+                   title="",
+                   xtitle="",
+                   ytitle="",
+                   histo_index=0,
+                   scan_variable_name="Variable",
+                   scan_variable_value=0,
+                   offset=0.0,
+                   xrange=None):
+        factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
+
+        if histo_index==0:
+            ticket = beam._beam.histo1(col, xrange=None, nbins=nbins, nolost=1, ref=23)
+
+            fwhm = ticket['fwhm']
+            xrange = ticket['xrange']
+            centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
+            xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
+
+        ticket = beam._beam.histo1(col, xrange=xrange, nbins=nbins, nolost=1, ref=23)
+
+        if not ytitle is None:  ytitle = ytitle + ' weighted by ' + ShadowPlot.get_shadow_label(23)
+
+        histogram = ticket['histogram_path']
+        bins = ticket['bin_path']*factor
+
+        histogram_stats = ticket['histogram']
+        bins_stats = ticket['bin_center']
+
+        sigma =  numpy.average(ticket['histogram_sigma'])
+        peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
+
+        if histo_index==0:
+            h_title = "Reference"
+        else:
+            h_title = scan_variable_name + ": " + str(scan_variable_value)
+
+        import matplotlib
+        matplotlib.rcParams['axes.formatter.useoffset']='False'
+
+        self.set_xrange(bins)
+        self.set_labels(title=title, xlabel=xtitle, ylabel=scan_variable_name, zlabel=ytitle)
+
+        self.add_histo(scan_variable_value, histogram)
+
+        return HistogramData(histogram_stats, bins_stats, 0.0, xrange, sigma, peak_intensity)
+
+    def add_histo(self, scan_value, intensities):
+            if self.xx is None: raise ValueError("Initialize X range first")
+            if self.xx.shape != intensities.shape: raise ValueError("Given Histogram has a different binning")
+
+            self.yy = numpy.array([scan_value]) if self.yy is None else numpy.append(self.yy, scan_value)
+
+            if self.zz is None:
+                self.zz = numpy.array([intensities])
+            else:
+                self.zz = numpy.append(self.zz, intensities)
+
+            self.axis.clear()
+
+            self.restore_labels()
+
+            x_to_plot, y_to_plot = numpy.meshgrid(self.xx, self.yy)
+            zz_to_plot = self.zz.reshape(len(self.yy), len(self.xx))
+
+            if self.__type==Scan3DHistoWidget.PlotType.SURFACE:
+                self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
+                                       rstride=1, cstride=1, cmap=cm.autumn, linewidth=0.5, antialiased=True)
+            elif self.__type==Scan3DHistoWidget.PlotType.LINES:
+
+                verts = []
+                for i in range(len(self.yy)):
+                    verts.append(list(zip(x_to_plot[i], zz_to_plot[i, :])))
+
+                lines = LineCollection(verts, colors=[self.__cc('black')])
+
+                self.axis.add_collection3d(lines, zs=self.yy, zdir='y')
+                
+                xmin = numpy.floor(numpy.min(self.xx))
+                xmax = numpy.ceil(numpy.max(self.xx))
+                ymin = numpy.floor(numpy.min(self.yy))
+                ymax = numpy.ceil(numpy.max(self.yy))
+                zmin = numpy.floor(numpy.min(self.zz))
+                zmax = numpy.ceil(numpy.max(self.zz))
+
+                self.axis.set_xlim(xmin,xmax)
+                self.axis.set_ylim(ymin,ymax)
+                self.axis.set_zlim(zmin,zmax)
+
+            self.axis.mouse_init()
+
+            try:
+                self.plot_canvas.draw()
+            except:
+                pass
+
+    def add_empty_curve(self, histo_data):
+        pass
+
 
 class ScanHistoWidget(QWidget):
 
@@ -337,46 +513,76 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
     file_peak_intensity.close()
 
 
+
 if __name__=="__main__":
-    stats = StatisticalDataCollection()
 
-    stats.add_statistical_data(HistogramData(scan_value=1, sigma=1, peak_intensity=10))
-    stats.add_statistical_data(HistogramData(scan_value=2, sigma=2, peak_intensity=20))
-    stats.add_statistical_data(HistogramData(scan_value=3, sigma=3, peak_intensity=30))
-    stats.add_statistical_data(HistogramData(scan_value=4, sigma=4, peak_intensity=40))
+    if False:
+        stats = StatisticalDataCollection()
 
-    print(stats.get_scan_values())
-    print(stats.get_sigmas())
-    print(stats.get_relative_intensities())
+        stats.add_statistical_data(HistogramData(scan_value=1, sigma=1, peak_intensity=10))
+        stats.add_statistical_data(HistogramData(scan_value=2, sigma=2, peak_intensity=20))
+        stats.add_statistical_data(HistogramData(scan_value=3, sigma=3, peak_intensity=30))
+        stats.add_statistical_data(HistogramData(scan_value=4, sigma=4, peak_intensity=40))
 
-    stats.add_reference_data(HistogramData(scan_value=0, sigma=0, peak_intensity=1))
+        print(stats.get_scan_values())
+        print(stats.get_sigmas())
+        print(stats.get_relative_intensities())
 
-    print(stats.get_scan_values())
-    print(stats.get_sigmas())
-    print(stats.get_relative_intensities())
+        stats.add_reference_data(HistogramData(scan_value=0, sigma=0, peak_intensity=1))
 
-    stats.add_statistical_data(HistogramData(scan_value=5, sigma=5, peak_intensity=50))
-    stats.add_statistical_data(HistogramData(scan_value=6, sigma=6, peak_intensity=60))
+        print(stats.get_scan_values())
+        print(stats.get_sigmas())
+        print(stats.get_relative_intensities())
 
-    print(stats.get_scan_values())
-    print(stats.get_sigmas())
-    print(stats.get_relative_intensities())
+        stats.add_statistical_data(HistogramData(scan_value=5, sigma=5, peak_intensity=50))
+        stats.add_statistical_data(HistogramData(scan_value=6, sigma=6, peak_intensity=60))
 
-    stats.replace_reference_data(HistogramData(scan_value=0, sigma=0, peak_intensity=2))
+        print(stats.get_scan_values())
+        print(stats.get_sigmas())
+        print(stats.get_relative_intensities())
 
-    print(stats.get_scan_values())
-    print(stats.get_sigmas())
-    print(stats.get_relative_intensities())
+        stats.replace_reference_data(HistogramData(scan_value=0, sigma=0, peak_intensity=2))
 
-    histos = HistogramDataCollection()
+        print(stats.get_scan_values())
+        print(stats.get_sigmas())
+        print(stats.get_relative_intensities())
 
-    histos.add_histogram_data(HistogramData(scan_value=1, bins=[1, 2, 3], histogram=[10, 20, 30]))
-    histos.add_histogram_data(HistogramData(scan_value=2, bins=[1, 2, 3], histogram=[10, 20, 30]))
-    histos.add_histogram_data(HistogramData(scan_value=3, bins=[1, 2, 3], histogram=[10, 20, 30]))
-    histos.add_histogram_data(HistogramData(scan_value=4, bins=[1, 2, 3], histogram=[10, 20, 30]))
+        histos = HistogramDataCollection()
 
-    print(histos.get_scan_values())
-    print(histos.get_positions())
-    print(histos.get_intensities())
+        histos.add_histogram_data(HistogramData(scan_value=1, bins=[1, 2, 3], histogram=[10, 20, 30]))
+        histos.add_histogram_data(HistogramData(scan_value=2, bins=[1, 2, 3], histogram=[10, 20, 30]))
+        histos.add_histogram_data(HistogramData(scan_value=3, bins=[1, 2, 3], histogram=[10, 20, 30]))
+        histos.add_histogram_data(HistogramData(scan_value=4, bins=[1, 2, 3], histogram=[10, 20, 30]))
 
+        print(histos.get_scan_values())
+        print(histos.get_positions())
+        print(histos.get_intensities())
 
+    if True:
+
+        app = QApplication(sys.argv)
+
+        window = Scan3DHistoWidget(workspace_units_to_cm=0.1, type=Scan3DHistoWidget.PlotType.LINES)
+        window.setFixedWidth(700)
+        window.setFixedHeight(700)
+
+        xrange = numpy.arange(-5, 5, 0.1)
+
+        y_values = numpy.arange(10, 30, 0.5)
+
+        window.set_xrange(xrange)
+        window.set_labels("Prova", "X", "Y", "Z")
+
+        import time
+
+        for y in y_values:
+            z = numpy.random.normal(size=10000)
+            histo, bins = numpy.histogram(z, xrange)
+            histo = numpy.append(histo, 0)
+
+            window.add_histo(y, histo)
+
+            #time.sleep(1)
+
+            window.show()
+        app.exec()
