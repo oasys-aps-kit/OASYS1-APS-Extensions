@@ -386,7 +386,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                                       self.current_stats.get_relative_intensities(),
                                                       "Statistics",
                                                       beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
-                                                      "Sigma " if self.stats_to_plot==0 else "FWHM " + xum,
+                                                      "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
                                                       "Relative Peak Intensity")
 
 

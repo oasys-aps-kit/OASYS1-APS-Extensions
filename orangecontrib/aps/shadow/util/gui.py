@@ -259,7 +259,8 @@ class Scan3DHistoWidget(QWidget):
         bins_stats = ticket['bin_center']
 
         fwhm = ticket['fwhm']*factor
-        sigma =  numpy.average(ticket['histogram_sigma'])*factor
+        sigma = get_sigma(histogram_stats, bins_stats)*factor
+
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
         rcParams['axes.formatter.useoffset']='False'
@@ -334,7 +335,7 @@ class ScanHistoWidget(QWidget):
         self.plot_canvas = oasysgui.plotWindow(parent=None,
                                                backend=None,
                                                resetzoom=True,
-                                               autoScale=False,
+                                               autoScale=True,
                                                logScale=False,
                                                grid=True,
                                                curveStyle=True,
@@ -348,7 +349,7 @@ class ScanHistoWidget(QWidget):
                                                position=True,
                                                roi=False,
                                                mask=False,
-                                               fit=False)
+                                               fit=True)
 
         layout = QVBoxLayout()
 
@@ -392,7 +393,8 @@ class ScanHistoWidget(QWidget):
         bins_stats = ticket['bin_center']
 
         fwhm = ticket['fwhm']*factor
-        sigma =  numpy.average(ticket['histogram_sigma'])*factor
+        sigma = get_sigma(histogram_stats, bins_stats)*factor
+
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
         if histo_index==0:
@@ -457,24 +459,7 @@ class DoublePlotWidget(QWidget):
     def __init__(self, parent=None):
         super(QWidget, self).__init__(parent=parent)
 
-        self.plot_canvas = oasysgui.plotWindow(parent=None,
-                                               backend=None,
-                                               resetzoom=False,
-                                               autoScale=False,
-                                               logScale=False,
-                                               grid=True,
-                                               curveStyle=False,
-                                               colormap=False,
-                                               aspectRatio=False,
-                                               yInverted=False,
-                                               copy=False,
-                                               save=True,
-                                               print_=True,
-                                               control=True,
-                                               position=False,
-                                               roi=False,
-                                               mask=False,
-                                               fit=False)
+        self.plot_canvas = oasysgui.plotWindow(roi=False, control=False, position=True, logScale=False)
         self.plot_canvas.setFixedWidth(700)
         self.plot_canvas.setFixedHeight(520)
 
@@ -536,7 +521,11 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
     file_sigma.close()
     file_peak_intensity.close()
 
+def get_sigma(histogram, bins):
+    total = numpy.sum(histogram)
+    average = numpy.sum(histogram*bins)/total
 
+    return numpy.sqrt(numpy.sum(histogram*((bins-average)**2))/total)
 
 if __name__=="__main__":
 
