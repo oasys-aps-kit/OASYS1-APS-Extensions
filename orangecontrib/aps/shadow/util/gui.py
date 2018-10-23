@@ -8,7 +8,7 @@ from matplotlib import cm, rcParams
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.collections import PolyCollection, LineCollection
-from matplotlib.colors import colorConverter
+from matplotlib.colors import colorConverter, ListedColormap
 
 from oasys.widgets import gui as oasysgui
 
@@ -158,15 +158,39 @@ class StatisticalDataCollection(object):
         return self.data[3, index]/self.data[3, 0]
 
 
-class Scan3DHistoWidget(QWidget):
+class AbstractScanHistoWidget(QWidget):
+
+    def __init__(self, workspace_units_to_cm):
+        super(AbstractScanHistoWidget, self).__init__()
+
+        self.workspace_units_to_cm=workspace_units_to_cm
+
+    def plot_histo(self,
+                   beam,
+                   col,
+                   nbins=100,
+                   title="",
+                   xtitle="",
+                   ytitle="",
+                   histo_index=0,
+                   scan_variable_name="Variable",
+                   scan_variable_value=0,
+                   offset=0.0,
+                   xrange=None,
+                   show_reference=True,
+                   add_labels=True,
+                   has_colormap=True,
+                   colormap=cm.rainbow):
+        raise NotImplementedError("this methid is abstract")
+
+
+class Scan3DHistoWidget(AbstractScanHistoWidget):
     class PlotType:
         LINES = 0
         SURFACE = 1
 
     def __init__(self, workspace_units_to_cm, image_height=645, image_width=860, type=PlotType.LINES):
-        super(Scan3DHistoWidget, self).__init__()
-
-        self.workspace_units_to_cm=workspace_units_to_cm
+        super(Scan3DHistoWidget, self).__init__(workspace_units_to_cm)
 
         self.figure = Figure(figsize=(image_height, image_width))
         self.figure.patch.set_facecolor('white')
@@ -174,6 +198,8 @@ class Scan3DHistoWidget(QWidget):
         self.axis = self.figure.add_subplot(111, projection='3d')
         self.axis.set_title("")
         self.axis.clear()
+
+        self.colorbar = None
 
         self.plot_canvas = FigureCanvasQTAgg(self.figure)
 
@@ -224,6 +250,7 @@ class Scan3DHistoWidget(QWidget):
     def set_xrange(self, xrange):
             self.xx = xrange
 
+
     def plot_histo(self,
                    beam,
                    col,
@@ -233,9 +260,13 @@ class Scan3DHistoWidget(QWidget):
                    ytitle="",
                    histo_index=0,
                    scan_variable_name="Variable",
-                   scan_variable_value=0.0,
+                   scan_variable_value=0,
                    offset=0.0,
-                   xrange=None):
+                   xrange=None,
+                   show_reference=True,
+                   add_labels=True,
+                   has_colormap=True,
+                   colormap=cm.rainbow):
         factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
 
         if histo_index==0 and xrange is None:
@@ -268,11 +299,11 @@ class Scan3DHistoWidget(QWidget):
         self.set_xrange(bins)
         self.set_labels(title=title, xlabel=xtitle, ylabel=scan_variable_name, zlabel=ytitle)
 
-        self.add_histo(scan_variable_value, histogram)
+        self.add_histo(scan_variable_value, histogram, has_colormap, colormap, histo_index)
 
         return HistogramData(histogram_stats, bins_stats, 0.0, xrange, fwhm, sigma, peak_intensity)
 
-    def add_histo(self, scan_value, intensities):
+    def add_histo(self, scan_value, intensities, has_colormap, colormap, histo_index):
             if self.xx is None: raise ValueError("Initialize X range first")
             if self.xx.shape != intensities.shape: raise ValueError("Given Histogram has a different binning")
 
@@ -291,18 +322,20 @@ class Scan3DHistoWidget(QWidget):
             zz_to_plot = self.zz.reshape(len(self.yy), len(self.xx))
 
             if self.__type==Scan3DHistoWidget.PlotType.SURFACE:
-                self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
-                                       rstride=1, cstride=1, cmap=cm.autumn, linewidth=0.5, antialiased=True)
+                if has_colormap:
+                    self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
+                                           rstride=1, cstride=1, cmap=colormap, linewidth=0.5, antialiased=True)
+                else:
+                    self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
+                                           rstride=1, cstride=1, color=self.__cc('black'), linewidth=0.5, antialiased=True)
+
             elif self.__type==Scan3DHistoWidget.PlotType.LINES:
 
-                verts = []
-                for i in range(len(self.yy)):
-                    verts.append(list(zip(x_to_plot[i], zz_to_plot[i, :])))
+                if has_colormap:
+                    self.plot_lines_colormap(x_to_plot, y_to_plot, zz_to_plot, colormap, histo_index)
+                else:
+                    self.plot_lines_black(x_to_plot, zz_to_plot)
 
-                lines = LineCollection(verts, colors=[self.__cc('black')])
-
-                self.axis.add_collection3d(lines, zs=self.yy, zdir='y')
-                
                 xmin = numpy.min(self.xx)
                 xmax = numpy.max(self.xx)
                 ymin = numpy.min(self.yy)
@@ -325,12 +358,54 @@ class Scan3DHistoWidget(QWidget):
         pass
 
 
-class ScanHistoWidget(QWidget):
+    def plot_lines_black(self, X, Z):
+        verts = []
+        for i in range(len(self.yy)):
+            verts.append(list(zip(X[i], Z[i, :])))
+
+        self.axis.add_collection3d(LineCollection(verts, colors=[self.__cc('black')]), zs=self.yy, zdir='y')
+
+    def plot_lines_colormap(self, X, Y, Z, colormap, histo_index):
+
+        import matplotlib.pyplot as plt
+
+        # Set normalization to the same values for all plots
+        norm = plt.Normalize(numpy.min(self.zz), numpy.max(self.zz))
+
+        # Check sizes to loop always over the smallest dimension
+        n,m = Z.shape
+
+        if n>m:
+            X=X.T; Y=Y.T; Z=Z.T
+            m,n = n,m
+
+        transparent_colormap = colormap(numpy.arange(colormap.N))
+        transparent_colormap[:,-1] = 0.5*numpy.ones(colormap.N)
+        transparent_colormap = ListedColormap(transparent_colormap)
+
+
+        for j in range(n):
+            # reshape the X,Z into pairs
+            points = numpy.array([X[j,:], Z[j,:]]).T.reshape(-1, 1, 2)
+            segments = numpy.concatenate([points[:-1], points[1:]], axis=1)
+            lc = LineCollection(segments, cmap=transparent_colormap, norm=norm)
+
+            # Set the values used for colormapping
+            lc.set_array((Z[j,1:]+Z[j,:-1])/2)
+            lc.set_linewidth(2) # set linewidth a little larger to see properly the colormap variation
+            self.axis.add_collection3d(lc, zs=(Y[j,1:]+Y[j,:-1])/2,  zdir='y') # add line to axes
+
+        if histo_index==0:
+            self.colorbar = self.figure.colorbar(lc) # add colorbar, as the normalization is the same for all,
+
+        self.colorbar.update_normal(lc)
+        self.colorbar.draw_all()
+        self.colorbar.update_bruteforce(lc)
+
+class ScanHistoWidget(AbstractScanHistoWidget):
 
     def __init__(self, workspace_units_to_cm):
-        super(ScanHistoWidget, self).__init__()
-
-        self.workspace_units_to_cm=workspace_units_to_cm
+        super(ScanHistoWidget, self).__init__(workspace_units_to_cm)
 
         self.plot_canvas = oasysgui.plotWindow(parent=None,
                                                backend=None,
@@ -357,6 +432,7 @@ class ScanHistoWidget(QWidget):
 
         self.setLayout(layout)
 
+
     def plot_histo(self,
                    beam,
                    col,
@@ -368,7 +444,11 @@ class ScanHistoWidget(QWidget):
                    scan_variable_name="Variable",
                    scan_variable_value=0,
                    offset=0.0,
-                   xrange=None):
+                   xrange=None,
+                   show_reference=True,
+                   add_labels=True,
+                   has_colormap=True,
+                   colormap=cm.rainbow):
 
         factor=ShadowPlot.get_factor(col, conv=self.workspace_units_to_cm)
 
@@ -397,7 +477,7 @@ class ScanHistoWidget(QWidget):
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
-        if histo_index==0:
+        if histo_index==0 and show_reference:
             h_title = "Reference"
         else:
             h_title = scan_variable_name + ": " + str(scan_variable_value)
@@ -412,7 +492,7 @@ class ScanHistoWidget(QWidget):
 
         self.plot_canvas.addCurve(bins, histogram + offset*histo_index, h_title, symbol='', color=color, xlabel=xtitle, ylabel=ytitle, replace=False) #'+', '^', ','
 
-        self.plot_canvas._backend.ax.text(xrange[0]*factor*1.05, offset*histo_index*1.05, h_title)
+        if add_labels: self.plot_canvas._backend.ax.text(xrange[0]*factor*1.05, offset*histo_index*1.05, h_title)
 
         if not xtitle is None: self.plot_canvas.setGraphXLabel(xtitle)
         if not ytitle is None: self.plot_canvas.setGraphYLabel(ytitle)
@@ -527,6 +607,8 @@ def get_sigma(histogram, bins):
 
     return numpy.sqrt(numpy.sum(histogram*((bins-average)**2))/total)
 
+
+
 if __name__=="__main__":
 
     if False:
@@ -571,7 +653,7 @@ if __name__=="__main__":
         print(histos.get_positions())
         print(histos.get_intensities())
 
-    if True:
+    if False:
 
         app = QApplication(sys.argv)
 

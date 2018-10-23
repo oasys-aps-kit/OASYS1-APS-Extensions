@@ -70,6 +70,8 @@ class Histogram(ow_automatic_element.AutomaticElement):
     histo_index = -1
 
     plot_type = Setting(1)
+    add_labels=Setting(0)
+    has_colormap=Setting(1)
     plot_type_3D = Setting(0)
     stats_to_plot = Setting(0)
 
@@ -200,7 +202,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                             "Lost Only"],
                                      sendSelectedValue=False, orientation="horizontal")
 
-        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=250)
+        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=260)
 
         gui.button(incremental_box, self, "Clear Stored Data", callback=self.clearResults, height=30)
         gui.separator(incremental_box)
@@ -216,12 +218,23 @@ class Histogram(ow_automatic_element.AutomaticElement):
                      items=["2D", "3D"],
                      sendSelectedValue=False, orientation="horizontal", callback=self.set_PlotType)
 
-        self.box_pt_1 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=30)
-        self.box_pt_2 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=30)
+        self.box_pt_1 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=25)
+
+        gui.comboBox(self.box_pt_1, self, "add_labels", label="Add Labels (Variable Name/Value)", labelWidth=310,
+                     items=["No", "Yes"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        self.box_pt_2 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=25)
 
         gui.comboBox(self.box_pt_2, self, "plot_type_3D", label="3D Plot Aspect", labelWidth=310,
                      items=["Lines", "Surface"],
                      sendSelectedValue=False, orientation="horizontal")
+
+        gui.comboBox(self.box_scan, self, "has_colormap", label="Colormap", labelWidth=310,
+                     items=["No", "Yes"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        gui.separator(self.box_scan)
 
         gui.comboBox(self.box_scan, self, "stats_to_plot", label="Stats: Spot Dimension", labelWidth=310,
                      items=["Sigma", "FWHM"],
@@ -271,8 +284,8 @@ class Histogram(ow_automatic_element.AutomaticElement):
         self.histo_index = -1
 
         if not self.plot_canvas is None:
-            self.main_tabs.removeTab(0)
             self.main_tabs.removeTab(1)
+            self.main_tabs.removeTab(0)
 
             plot_tab = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
 
@@ -287,9 +300,9 @@ class Histogram(ow_automatic_element.AutomaticElement):
             self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
 
             self.main_tabs.insertTab(0, plot_tab_stats, "TEMP")
-            self.main_tabs.setTabText(0, "Stats Result")
+            self.main_tabs.setTabText(0, "Stats")
             self.main_tabs.insertTab(0, plot_tab, "TEMP")
-            self.main_tabs.setTabText(0, "Plot Result")
+            self.main_tabs.setTabText(0, "Plots")
             self.main_tabs.setCurrentIndex(0)
 
             self.plot_canvas = None
@@ -343,14 +356,19 @@ class Histogram(ow_automatic_element.AutomaticElement):
                 self.current_stats = None
                 self.last_histo_data = None
                 self.histo_index = -1
-                self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange, self.weight_column_index, title, xtitle, ytitle, nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
+                self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
+                                            self.weight_column_index, title, xtitle, ytitle,
+                                            nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
 
             elif self.iterative_mode == 1:
                 self.current_histo_data = None
                 self.current_stats = None
                 self.last_histo_data = None
                 self.histo_index = -1
-                self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange, self.weight_column_index, title, xtitle, ytitle, nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm, ticket_to_add=self.last_ticket)
+                self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
+                                                               self.weight_column_index, title, xtitle, ytitle,
+                                                               nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm,
+                                                               ticket_to_add=self.last_ticket)
             else:
                 if not beam.scanned_variable_data is None:
                     self.last_ticket = None
@@ -365,7 +383,11 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                                              scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
                                                              scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
                                                              offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
-                                                             xrange=xrange)
+                                                             xrange=xrange,
+                                                             show_reference=False,
+                                                             add_labels=self.add_labels==1,
+                                                             has_colormap=self.has_colormap==1
+                                                             )
                     histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
 
                     if not histo_data.bins is None:
