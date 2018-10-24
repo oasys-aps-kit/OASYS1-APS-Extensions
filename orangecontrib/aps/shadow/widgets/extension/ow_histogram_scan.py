@@ -21,7 +21,7 @@ from orangecontrib.aps.shadow.util.gui import HistogramData, StatisticalDataColl
 
 class Histogram(ow_automatic_element.AutomaticElement):
 
-    name = "Histogram"
+    name = "Scanning Variable Histogram"
     description = "Display Data Tools: Histogram"
     icon = "icons/histogram.png"
     maintainer = "Luca Rebuffi"
@@ -32,8 +32,8 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
     inputs = [("Input Beam", ShadowBeam, "setBeam")]
 
-    IMAGE_WIDTH = 860
-    IMAGE_HEIGHT = 640
+    IMAGE_WIDTH = 878
+    IMAGE_HEIGHT = 635
 
     want_main_area=1
     plot_canvas=None
@@ -78,7 +78,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
     def __init__(self):
         super().__init__()
 
-        gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
+        self.refresh_button = gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
         gui.separator(self.controlArea, 10)
 
         self.tabs_setting = oasysgui.tabWidget(self.controlArea)
@@ -265,7 +265,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
         self.image_box_stats.setFixedHeight(self.IMAGE_HEIGHT)
         self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
 
-        self.shadow_output = oasysgui.textArea(height=600, width=600)
+        self.shadow_output = oasysgui.textArea(height=580, width=800)
 
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
@@ -312,9 +312,11 @@ class Histogram(ow_automatic_element.AutomaticElement):
         self.box_scan_empty.setVisible(self.iterative_mode<2)
         if self.iterative_mode==2:
             self.box_scan.setVisible(True)
+            self.refresh_button.setEnabled(False)
             self.set_PlotType()
         else:
             self.box_scan.setVisible(False)
+            self.refresh_button.setEnabled(True)
 
         self.clear_data()
 
@@ -601,4 +603,4 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                            output_folder=output_folder)
 
 
-            QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
+            QtWidgets.QMessageBox.information(self, "Export Scanning Results/Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)

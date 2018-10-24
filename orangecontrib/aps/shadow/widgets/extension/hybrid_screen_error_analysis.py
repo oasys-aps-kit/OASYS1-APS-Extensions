@@ -205,7 +205,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         gui.button(adv_other_box, self, "Export Error Analysis", callback=self.export_error_analysis)
 
-        self.shadow_output = oasysgui.textArea(height=590, width=800)
+        self.shadow_output = oasysgui.textArea(height=580, width=800)
 
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
