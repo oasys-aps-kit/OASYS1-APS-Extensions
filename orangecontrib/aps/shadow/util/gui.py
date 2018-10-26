@@ -289,8 +289,10 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
         histogram_stats = ticket['histogram']
         bins_stats = ticket['bin_center']
 
-        fwhm = ticket['fwhm']*factor
+        fwhm = ticket['fwhm']
+
         sigma = get_sigma(histogram_stats, bins_stats)*factor
+        fwhm = sigma*2.35 if fwhm is None else fwhm*factor
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
@@ -472,8 +474,10 @@ class ScanHistoWidget(AbstractScanHistoWidget):
         histogram_stats = ticket['histogram']
         bins_stats = ticket['bin_center']
 
-        fwhm = ticket['fwhm']*factor
+        fwhm = ticket['fwhm']
+
         sigma = get_sigma(histogram_stats, bins_stats)*factor
+        fwhm = sigma*2.35 if fwhm is None else fwhm*factor
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
 
