@@ -18,7 +18,7 @@ class ScanLoopPoint(widget.OWWidget):
     icon = "icons/cycle.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
-    priority = 5
+    priority = 6
     category = "User Defined"
     keywords = ["data", "file", "load", "read"]
 

@@ -35,7 +35,7 @@ class OWheight_profile_simulator(OWWidget):
     icon = "icons/simulator_T.png"
     author = "Luca Rebuffi"
     maintainer_email = "srio@esrf.eu; luca.rebuffi@elettra.eu"
-    priority = 2
+    priority = 3
     category = ""
     keywords = ["height_profile_simulator"]
 

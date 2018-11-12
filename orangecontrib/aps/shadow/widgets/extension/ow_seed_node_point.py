@@ -18,7 +18,7 @@ class LoopPoint(widget.OWWidget):
     icon = "icons/cycle.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
-    priority = 4
+    priority = 5
     category = "User Defined"
     keywords = ["data", "file", "load", "read"]
 

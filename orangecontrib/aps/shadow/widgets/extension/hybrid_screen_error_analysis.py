@@ -33,7 +33,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
     icon = "icons/hybrid_screen.png"
     maintainer = "Luca Rebuffi and Xianbo Shi"
     maintainer_email = "lrebuffi(@at@)anl.gov, xshi(@at@)aps.anl.gov"
-    priority = 1
+    priority = 2
     category = "HYBRID"
     keywords = ["data", "file", "load", "read"]
 
