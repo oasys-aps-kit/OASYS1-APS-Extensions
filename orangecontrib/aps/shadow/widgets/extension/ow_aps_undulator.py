@@ -770,7 +770,7 @@ class APSUndulator(GenericElement):
         arI = array('f', [0]*wfrSouDim.mesh.nx*wfrSouDim.mesh.ny) #"flat" 2D array to take intensity data
         srwl.CalcIntFromElecField(arI, wfrSouDim, 6, 1, 3, wfrSouDim.mesh.eStart, 0, 0)
 
-        if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrSouDim.mesh, "intensity_source_dimension.dat")
+        if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrSouDim.mesh, self.source_dimension_srw_file)
         print('done')
 
         x, z, intensity_source_dimension = self.transform_srw_array(arI, wfrSouDim.mesh)
@@ -799,7 +799,7 @@ class APSUndulator(GenericElement):
         wfrAngDist.mesh.yStart /= distance
         wfrAngDist.mesh.yFin /= distance
 
-        if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrAngDist.mesh, "intensity_angular_distribution.dat")
+        if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrAngDist.mesh, self.angular_distribution_srw_file)
         print('done')
 
         x_first, z_first, intensity_angular_distribution = self.transform_srw_array(arI, wfrAngDist.mesh)
