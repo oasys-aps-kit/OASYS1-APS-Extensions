@@ -41,8 +41,8 @@ SETUP_REQUIRES = (
 
 INSTALL_REQUIRES = (
     'setuptools',
-    'oasys1>=1.1.13',
-    'syned>=1.0.8',
+    'oasys1>=1.1.19',
+    'oasys1-srwlib>=1.0.13',
 )
 
 PACKAGES = find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests'))
