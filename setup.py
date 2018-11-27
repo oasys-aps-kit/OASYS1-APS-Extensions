@@ -54,7 +54,7 @@ PACKAGE_DATA = {
 NAMESPACE_PACAKGES = ["orangecontrib", "orangecontrib.aps", "orangecontrib.aps.shadow", "orangecontrib.aps.shadow.widgets"]
 
 ENTRY_POINTS = {
-    'oasys.addons' : ("SRW = orangecontrib.aps.shadow", ),
+    'oasys.addons' : ("APS Shadow = orangecontrib.aps.shadow", ),
     'oasys.widgets' : (
         "APS Shadow Extension = orangecontrib.aps.shadow.widgets.extension",
     ),
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     try:
         import PyMca5, PyQt4
 
-        raise NotImplementedError("This version of SRW doesn't work with Oasys1 beta.\nPlease install OASYS1 final release: http://www.elettra.eu/oasys.html")
+        raise NotImplementedError("This version of APS ShadowOui doesn't work with Oasys1 beta.\nPlease install OASYS1 final release: http://www.elettra.eu/oasys.html")
     except:
         setup(
               name = NAME,
