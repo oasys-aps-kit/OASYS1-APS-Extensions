@@ -1,77 +1,86 @@
-import copy
 import sys
+import os
 import time
-
+import copy
 import numpy
+
 from PyQt5 import QtGui, QtWidgets
 from orangewidget import gui
 from orangewidget.settings import Setting
 from oasys.widgets import gui as oasysgui
 from oasys.widgets import congruence
 from oasys.widgets.gui import ConfirmDialog
-
 from oasys.util.oasys_util import EmittingStream, TTYGrabber
 
-from orangecontrib.shadow.util.shadow_objects import ShadowBeam
-from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
-from orangecontrib.shadow.widgets.gui.ow_automatic_element import AutomaticElement
+from orangecontrib.shadow.util.shadow_util import ShadowCongruence
 
+from orangecontrib.srw.util.srw_util import SRWPlot
+from orangecontrib.srw.util.srw_objects import SRWData
+from orangecontrib.srw.widgets.gui.ow_srw_widget import SRWWidget
 
-raise NotImplementedError("Not implemented, yet")
+from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file
+from orangecontrib.aps.srw.util.gui import ScanHistoWidget, Scan3DHistoWidget
 
+class Histogram(SRWWidget):
 
-class PlotXY(AutomaticElement):
-
-    name = "Plot XY"
-    description = "Display Data Tools: Plot XY"
-    icon = "icons/plot_xy.png"
+    name = "Scanning Variable Histogram"
+    description = "Display Data Tools: Histogram"
+    icon = "icons/histogram.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
-    priority = 7
+    priority = 1
     category = "Display Data Tools"
     keywords = ["data", "file", "load", "read"]
 
-    inputs = [("Input Beam", ShadowBeam, "setBeam")]
+    inputs = [("SRWData", SRWData, "set_input")]
 
     IMAGE_WIDTH = 878
     IMAGE_HEIGHT = 635
 
     want_main_area=1
     plot_canvas=None
+    plot_scan_canvas=None
+
     input_beam=None
 
     image_plane=Setting(0)
     image_plane_new_position=Setting(10.0)
     image_plane_rel_abs_position=Setting(0)
 
-    x_column_index=Setting(0)
-    y_column_index=Setting(2)
+    x_column_index=Setting(10)
 
     x_range=Setting(0)
     x_range_min=Setting(0.0)
     x_range_max=Setting(0.0)
 
-    y_range=Setting(0)
-    y_range_min=Setting(0.0)
-    y_range_max=Setting(0.0)
-
     weight_column_index = Setting(23)
     rays=Setting(1)
-    cartesian_axis=Setting(1)
 
     number_of_bins=Setting(100)
 
-    title=Setting("X,Z")
+    title=Setting("Energy")
 
-    iterative_mode=Setting(0)
+    iterative_mode = Setting(0)
+
     last_ticket=None
 
     is_conversion_active = Setting(1)
 
+    current_histo_data = None
+    current_stats = None
+    last_histo_data = None
+    histo_index = -1
+
+    plot_type = Setting(1)
+    add_labels=Setting(0)
+    has_colormap=Setting(1)
+    plot_type_3D = Setting(0)
+    stats_to_plot = Setting(0)
+
     def __init__(self):
         super().__init__()
 
-        gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
+        self.refresh_button = gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
         gui.separator(self.controlArea, 10)
 
         self.tabs_setting = oasysgui.tabWidget(self.controlArea)
@@ -97,9 +106,9 @@ class PlotXY(AutomaticElement):
 
         self.set_ImagePlane()
 
-        general_box = oasysgui.widgetBox(tab_set, "Variables Settings", addSpace=True, orientation="vertical", height=350)
+        general_box = oasysgui.widgetBox(tab_set, "General Settings", addSpace=True, orientation="vertical", height=250)
 
-        self.x_column = gui.comboBox(general_box, self, "x_column_index", label="X Column",labelWidth=70,
+        self.x_column = gui.comboBox(general_box, self, "x_column_index", label="Column", labelWidth=70,
                                      items=["1: X",
                                             "2: Y",
                                             "3: Z",
@@ -150,58 +159,6 @@ class PlotXY(AutomaticElement):
 
         self.set_XRange()
 
-        self.y_column = gui.comboBox(general_box, self, "y_column_index", label="Y Column",labelWidth=70,
-                                     items=["1: X",
-                                            "2: Y",
-                                            "3: Z",
-                                            "4: X'",
-                                            "5: Y'",
-                                            "6: Z'",
-                                            "7: E\u03c3 X",
-                                            "8: E\u03c3 Y",
-                                            "9: E\u03c3 Z",
-                                            "10: Ray Flag",
-                                            "11: Energy",
-                                            "12: Ray Index",
-                                            "13: Optical Path",
-                                            "14: Phase \u03c3",
-                                            "15: Phase \u03c0",
-                                            "16: E\u03c0 X",
-                                            "17: E\u03c0 Y",
-                                            "18: E\u03c0 Z",
-                                            "19: Wavelength",
-                                            "20: R = sqrt(X\u00b2 + Y\u00b2 + Z\u00b2)",
-                                            "21: Theta (angle from Y axis)",
-                                            "22: Magnitude = |E\u03c3| + |E\u03c0|",
-                                            "23: Total Intensity = |E\u03c3|\u00b2 + |E\u03c0|\u00b2",
-                                            "24: \u03a3 Intensity = |E\u03c3|\u00b2",
-                                            "25: \u03a0 Intensity = |E\u03c0|\u00b2",
-                                            "26: |K|",
-                                            "27: K X",
-                                            "28: K Y",
-                                            "29: K Z",
-                                            "30: S0-stokes = |E\u03c0|\u00b2 + |E\u03c3|\u00b2",
-                                            "31: S1-stokes = |E\u03c0|\u00b2 - |E\u03c3|\u00b2",
-                                            "32: S2-stokes = 2|E\u03c3||E\u03c0|cos(Phase \u03c3-Phase \u03c0)",
-                                            "33: S3-stokes = 2|E\u03c3||E\u03c0|sin(Phase \u03c3-Phase \u03c0)",
-                                            "34: Power = Intensity * Energy",
-                                     ],
-
-                                     sendSelectedValue=False, orientation="horizontal")
-
-        gui.comboBox(general_box, self, "y_range", label="Y Range",labelWidth=250,
-                                     items=["<Default>",
-                                            "Set.."],
-                                     callback=self.set_YRange, sendSelectedValue=False, orientation="horizontal")
-
-        self.yrange_box = oasysgui.widgetBox(general_box, "", addSpace=True, orientation="vertical", height=100)
-        self.yrange_box_empty = oasysgui.widgetBox(general_box, "", addSpace=True, orientation="vertical", height=100)
-
-        oasysgui.lineEdit(self.yrange_box, self, "y_range_min", "Y min", labelWidth=220, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(self.yrange_box, self, "y_range_max", "Y max", labelWidth=220, valueType=float, orientation="horizontal")
-
-        self.set_YRange()
-
         self.weight_column = gui.comboBox(general_box, self, "weight_column_index", label="Weight", labelWidth=70,
                                          items=["0: No Weight",
                                                 "1: X",
@@ -247,33 +204,68 @@ class PlotXY(AutomaticElement):
                                             "Lost Only"],
                                      sendSelectedValue=False, orientation="horizontal")
 
-        gui.comboBox(general_box, self, "cartesian_axis", label="Cartesian Axis",labelWidth=300,
-                                     items=["No",
-                                            "Yes"],
-                                     sendSelectedValue=False, orientation="horizontal")
+        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=260)
 
-        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=100)
+        gui.button(incremental_box, self, "Clear Stored Data", callback=self.clearResults, height=30)
+        gui.separator(incremental_box)
 
         gui.comboBox(incremental_box, self, "iterative_mode", label="Iterative Mode", labelWidth=250,
                                          items=["None", "Accumulating", "Scanning"],
                                          sendSelectedValue=False, orientation="horizontal", callback=self.set_IterativeMode)
 
-        gui.button(incremental_box, self, "Clear", callback=self.clearResults)
+        self.box_scan_empty = oasysgui.widgetBox(incremental_box, "", addSpace=False, orientation="vertical")
+        self.box_scan = oasysgui.widgetBox(incremental_box, "", addSpace=False, orientation="vertical")
+
+        gui.comboBox(self.box_scan, self, "plot_type", label="Plot Type", labelWidth=310,
+                     items=["2D", "3D"],
+                     sendSelectedValue=False, orientation="horizontal", callback=self.set_PlotType)
+
+        self.box_pt_1 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=25)
+
+        gui.comboBox(self.box_pt_1, self, "add_labels", label="Add Labels (Variable Name/Value)", labelWidth=310,
+                     items=["No", "Yes"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        self.box_pt_2 = oasysgui.widgetBox(self.box_scan, "", addSpace=False, orientation="vertical", height=25)
+
+        gui.comboBox(self.box_pt_2, self, "plot_type_3D", label="3D Plot Aspect", labelWidth=310,
+                     items=["Lines", "Surface"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        gui.comboBox(self.box_scan, self, "has_colormap", label="Colormap", labelWidth=310,
+                     items=["No", "Yes"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        gui.separator(self.box_scan)
+
+        gui.comboBox(self.box_scan, self, "stats_to_plot", label="Stats: Spot Dimension", labelWidth=310,
+                     items=["Sigma", "FWHM"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        gui.button(self.box_scan, self, "Export Scanning Results & Stats", callback=self.export_scanning_stats_analysis, height=30)
+
+        self.set_IterativeMode()
 
         histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=90)
 
         oasysgui.lineEdit(histograms_box, self, "number_of_bins", "Number of Bins", labelWidth=250, valueType=int, orientation="horizontal")
+
         gui.comboBox(histograms_box, self, "is_conversion_active", label="Is U.M. conversion active", labelWidth=250,
                                          items=["No", "Yes"],
                                          sendSelectedValue=False, orientation="horizontal")
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
+        plot_tab_stats = oasysgui.createTabPage(self.main_tabs, "Stats")
         out_tab = oasysgui.createTabPage(self.main_tabs, "Output")
 
         self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
         self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
         self.image_box.setFixedWidth(self.IMAGE_WIDTH)
+
+        self.image_box_stats = gui.widgetBox(plot_tab_stats, "Stats Result", addSpace=True, orientation="vertical")
+        self.image_box_stats.setFixedHeight(self.IMAGE_HEIGHT)
+        self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
 
         self.shadow_output = oasysgui.textArea(height=580, width=800)
 
@@ -282,47 +274,153 @@ class PlotXY(AutomaticElement):
 
     def clearResults(self):
         if ConfirmDialog.confirmed(parent=self):
-            self.input_beam = None
-            self.last_ticket = None
+            self.clear_data()
 
-            if not self.plot_canvas is None:
-                self.plot_canvas.clear()
+    def clear_data(self):
+        self.input_beam = None
+        self.last_ticket = None
+        self.current_stats = None
+        self.current_histo_data = None
+        self.last_histo_data = None
 
-            return True
-        else:
-            return False
+        self.histo_index = -1
+
+        if not self.plot_canvas is None:
+            self.main_tabs.removeTab(1)
+            self.main_tabs.removeTab(0)
+
+            plot_tab = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
+
+            self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
+            self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
+            self.image_box.setFixedWidth(self.IMAGE_WIDTH)
+
+            plot_tab_stats = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
+
+            self.image_box_stats = gui.widgetBox(plot_tab_stats, "Stats Result", addSpace=True, orientation="vertical")
+            self.image_box_stats.setFixedHeight(self.IMAGE_HEIGHT)
+            self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
+
+            self.main_tabs.insertTab(0, plot_tab_stats, "TEMP")
+            self.main_tabs.setTabText(0, "Stats")
+            self.main_tabs.insertTab(0, plot_tab, "TEMP")
+            self.main_tabs.setTabText(0, "Plots")
+            self.main_tabs.setCurrentIndex(0)
+
+            self.plot_canvas = None
+            self.plot_canvas_stats = None
 
     def set_IterativeMode(self):
-        pass
+        self.box_scan_empty.setVisible(self.iterative_mode<2)
+        if self.iterative_mode==2:
+            self.box_scan.setVisible(True)
+            self.refresh_button.setEnabled(False)
+            self.set_PlotType()
+        else:
+            self.box_scan.setVisible(False)
+            self.refresh_button.setEnabled(True)
 
-    def set_ImagePlane(self):
-        self.image_plane_box.setVisible(self.image_plane==1)
-        self.image_plane_box_empty.setVisible(self.image_plane==0)
+        self.clear_data()
+
+    def set_PlotType(self):
+        self.plot_canvas = None
+        self.plot_canvas_stats = None
+
+        self.box_pt_1.setVisible(self.plot_type==0)
+        self.box_pt_2.setVisible(self.plot_type==1)
 
     def set_XRange(self):
         self.xrange_box.setVisible(self.x_range == 1)
         self.xrange_box_empty.setVisible(self.x_range == 0)
 
-    def set_YRange(self):
-        self.yrange_box.setVisible(self.y_range == 1)
-        self.yrange_box_empty.setVisible(self.y_range == 0)
+    def set_ImagePlane(self):
+        self.image_plane_box.setVisible(self.image_plane==1)
+        self.image_plane_box_empty.setVisible(self.image_plane==0)
 
-    def replace_fig(self, beam, var_x, var_y,  title, xtitle, ytitle, xrange, yrange, nbins, nolost, xum, yum):
+    def replace_fig(self, beam, var, xrange, title, xtitle, ytitle, xum):
         if self.plot_canvas is None:
-            self.plot_canvas = ShadowPlot.DetailedPlotWidget(y_scale_factor=1.14)
+            if self.iterative_mode < 2:
+                self.plot_canvas = SRWPlot.Detailed1DWidget(y_scale_factor=1.14)
+            else:
+                if self.plot_type == 0:
+                    self.plot_canvas = ScanHistoWidget()
+                elif self.plot_type==1:
+                    self.plot_canvas = Scan3DHistoWidget(type=Scan3DHistoWidget.PlotType.LINES if self.plot_type_3D==0 else Scan3DHistoWidget.PlotType.SURFACE)
+
+                self.plot_canvas_stats = DoublePlotWidget(parent=None)
+                self.image_box_stats.layout().addWidget(self.plot_canvas_stats)
+
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            if self.iterative_mode == 1: # accumulating
-                self.last_ticket = self.plot_canvas.plot_xy(beam, var_x, var_y, title, xtitle, ytitle, xrange=xrange, yrange=yrange, nbins=nbins, nolost=nolost, xum=xum, yum=yum, conv=self.workspace_units_to_cm, ref=self.weight_column_index, ticket_to_add=self.last_ticket)
-            else:
+            if self.iterative_mode==0:
                 self.last_ticket = None
-                self.plot_canvas.plot_xy(beam, var_x, var_y, title, xtitle, ytitle, xrange=xrange, yrange=yrange, nbins=nbins, nolost=nolost, xum=xum, yum=yum, conv=self.workspace_units_to_cm, ref=self.weight_column_index)
-        except Exception:
-            raise Exception("Data not plottable: No good rays or bad content")
+                self.current_histo_data = None
+                self.current_stats = None
+                self.last_histo_data = None
+                self.histo_index = -1
+                self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
+                                            self.weight_column_index, title, xtitle, ytitle,
+                                            nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
 
-    def plot_xy(self, var_x, var_y, title, xtitle, ytitle, xum, yum):
-        beam_to_plot = self.input_beam._beam
+            elif self.iterative_mode == 1:
+                self.current_histo_data = None
+                self.current_stats = None
+                self.last_histo_data = None
+                self.histo_index = -1
+                self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
+                                                               self.weight_column_index, title, xtitle, ytitle,
+                                                               nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm,
+                                                               ticket_to_add=self.last_ticket)
+            else:
+                if not beam.scanned_variable_data is None:
+                    self.last_ticket = None
+                    self.histo_index += 1
+                    histo_data = self.plot_canvas.plot_histo(beam=beam,
+                                                             col=var,
+                                                             nbins=self.number_of_bins,
+                                                             title=title,
+                                                             xtitle=xtitle,
+                                                             ytitle=ytitle,
+                                                             histo_index=self.histo_index,
+                                                             scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                             scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
+                                                             offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
+                                                             xrange=xrange,
+                                                             show_reference=False,
+                                                             add_labels=self.add_labels==1,
+                                                             has_colormap=self.has_colormap==1
+                                                             )
+                    histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
+
+                    if not histo_data.bins is None:
+                        if self.current_histo_data is None:
+                            self.current_histo_data = HistogramDataCollection(histo_data)
+                        else:
+                            self.current_histo_data.add_histogram_data(histo_data)
+
+                    if self.current_stats is None:
+                        self.current_stats = StatisticalDataCollection(histo_data)
+                    else:
+                        self.current_stats.add_statistical_data(histo_data)
+
+                    self.last_histo_data = histo_data
+
+                    self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
+                                                      self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
+                                                      self.current_stats.get_relative_intensities(),
+                                                      "Statistics",
+                                                      beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                      "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
+                                                      "Relative Peak Intensity")
+
+
+        except Exception as e:
+            if self.IS_DEVELOP: raise e
+            else: raise Exception("Data not plottable: No good rays or bad content")
+
+    def plot_histo(self, var_x, title, xtitle, ytitle, xum):
+        beam_to_plot = self.input_beam
 
         if self.image_plane == 1:
             new_shadow_beam = self.input_beam.duplicate(history=False)
@@ -344,69 +442,50 @@ class PlotXY(AutomaticElement):
 
             self.retrace_beam(new_shadow_beam, dist)
 
-            beam_to_plot = new_shadow_beam._beam
+            beam_to_plot = new_shadow_beam
 
-        xrange, yrange = self.get_ranges(beam_to_plot, var_x, var_y)
+        xrange = self.get_range(beam_to_plot._beam, var_x)
 
-        self.replace_fig(beam_to_plot, var_x, var_y, title, xtitle, ytitle, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays, xum=xum, yum=yum)
+        self.replace_fig(beam_to_plot, var_x, xrange, title, xtitle, ytitle, xum)
 
-    def get_ranges(self, beam_to_plot, var_x, var_y):
-        xrange = None
-        yrange = None
-        factor1 = ShadowPlot.get_factor(var_x, self.workspace_units_to_cm)
-        factor2 = ShadowPlot.get_factor(var_y, self.workspace_units_to_cm)
+    def get_range(self, beam_to_plot, var_x):
+        if self.x_range == 0 :
+            x_max = 0
+            x_min = 0
 
-        if self.x_range == 0 and self.y_range == 0:
-            if self.cartesian_axis == 1:
-                x_max = 0
-                y_max = 0
-                x_min = 0
-                y_min = 0
+            x, good_only = beam_to_plot.getshcol((var_x, 10))
 
-                x, y, good_only = beam_to_plot.getshcol((var_x, var_y, 10))
+            x_to_plot = copy.deepcopy(x)
 
-                x_to_plot = copy.deepcopy(x)
-                y_to_plot = copy.deepcopy(y)
+            go = numpy.where(good_only == 1)
+            lo = numpy.where(good_only != 1)
 
-                go = numpy.where(good_only == 1)
-                lo = numpy.where(good_only != 1)
+            if self.rays == 0:
+                x_max = numpy.array(x_to_plot[0:], float).max()
+                x_min = numpy.array(x_to_plot[0:], float).min()
+            elif self.rays == 1:
+                x_max = numpy.array(x_to_plot[go], float).max()
+                x_min = numpy.array(x_to_plot[go], float).min()
+            elif self.rays == 2:
+                x_max = numpy.array(x_to_plot[lo], float).max()
+                x_min = numpy.array(x_to_plot[lo], float).min()
 
-                if self.rays == 0:
-                    x_max = numpy.array(x_to_plot[0:], float).max()
-                    y_max = numpy.array(y_to_plot[0:], float).max()
-                    x_min = numpy.array(x_to_plot[0:], float).min()
-                    y_min = numpy.array(y_to_plot[0:], float).min()
-                elif self.rays == 1:
-                    x_max = numpy.array(x_to_plot[go], float).max()
-                    y_max = numpy.array(y_to_plot[go], float).max()
-                    x_min = numpy.array(x_to_plot[go], float).min()
-                    y_min = numpy.array(y_to_plot[go], float).min()
-                elif self.rays == 2:
-                    x_max = numpy.array(x_to_plot[lo], float).max()
-                    y_max = numpy.array(y_to_plot[lo], float).max()
-                    x_min = numpy.array(x_to_plot[lo], float).min()
-                    y_min = numpy.array(y_to_plot[lo], float).min()
-
-                xrange = [x_min, x_max]
-                yrange = [y_min, y_max]
+            xrange = [x_min, x_max]
         else:
-            if self.x_range == 1:
-                congruence.checkLessThan(self.x_range_min, self.x_range_max, "X range min", "X range max")
+            congruence.checkLessThan(self.x_range_min, self.x_range_max, "X range min", "X range max")
 
-                xrange = [self.x_range_min / factor1, self.x_range_max / factor1]
+            factor1 = ShadowPlot.get_factor(var_x, self.workspace_units_to_cm)
 
-            if self.y_range == 1:
-                congruence.checkLessThan(self.y_range_min, self.y_range_max, "Y range min", "Y range max")
+            xrange = [self.x_range_min / factor1, self.x_range_max / factor1]
 
-                yrange = [self.y_range_min / factor2, self.y_range_max / factor2]
-
-        return xrange, yrange
+        return xrange
 
     def plot_results(self):
         try:
             plotted = False
 
             sys.stdout = EmittingStream(textWritten=self.writeStdOut)
+
             if self.trace_shadow:
                 grabber = TTYGrabber()
                 grabber.start()
@@ -414,11 +493,11 @@ class PlotXY(AutomaticElement):
             if ShadowCongruence.checkEmptyBeam(self.input_beam):
                 ShadowPlot.set_conversion_active(self.getConversionActive())
 
-                self.number_of_bins = congruence.checkStrictlyPositiveNumber(self.number_of_bins, "Number of Bins")
+                self.number_of_bins = congruence.checkPositiveNumber(self.number_of_bins, "Number of Bins")
 
-                x, y, auto_x_title, auto_y_title, xum, yum = self.get_titles()
+                x, auto_title, xum = self.get_titles()
 
-                self.plot_xy(x, y, title=self.title, xtitle=auto_x_title, ytitle=auto_y_title, xum=xum, yum=yum)
+                self.plot_histo(x, title=self.title, xtitle=auto_title, ytitle="Number of Rays", xum=xum)
 
                 plotted = True
             if self.trace_shadow:
@@ -440,91 +519,52 @@ class PlotXY(AutomaticElement):
             return False
 
     def get_titles(self):
-        auto_x_title = self.x_column.currentText().split(":", 2)[1]
-        auto_y_title = self.y_column.currentText().split(":", 2)[1]
-        xum = auto_x_title + " "
-        yum = auto_y_title + " "
-        self.title = auto_x_title + "," + auto_y_title
+        auto_title = self.x_column.currentText().split(":", 2)[1]
+
+        xum = auto_title + " "
+        self.title = auto_title
         x = self.x_column_index + 1
+
         if x == 1 or x == 2 or x == 3:
             if self.getConversionActive():
                 xum = xum + "[" + u"\u03BC" + "m]"
-                auto_x_title = auto_x_title + " [$\mu$m]"
+                auto_title = auto_title + " [$\mu$m]"
             else:
                 xum = xum + " [" + self.workspace_units_label + "]"
-                auto_x_title = auto_x_title + " [" + self.workspace_units_label + "]"
+                auto_title = auto_title + " [" + self.workspace_units_label + "]"
         elif x == 4 or x == 5 or x == 6:
             if self.getConversionActive():
                 xum = xum + "[" + u"\u03BC" + "rad]"
-                auto_x_title = auto_x_title + " [$\mu$rad]"
+                auto_title = auto_title + " [$\mu$rad]"
             else:
                 xum = xum + " [rad]"
-                auto_x_title = auto_x_title + " [rad]"
+                auto_title = auto_title + " [rad]"
         elif x == 11:
             xum = xum + "[eV]"
-            auto_x_title = auto_x_title + " [eV]"
+            auto_title = auto_title + " [eV]"
         elif x == 13:
-            xum = xum + "[" + self.workspace_units_label + "]"
-            auto_x_title = auto_x_title + " [" + self.workspace_units_label + "]"
+            xum = xum + " [" + self.workspace_units_label + "]"
+            auto_title = auto_title + " [" + self.workspace_units_label + "]"
         elif x == 14:
             xum = xum + "[rad]"
-            auto_x_title = auto_x_title + " [rad]"
+            auto_title = auto_title + " [rad]"
         elif x == 15:
             xum = xum + "[rad]"
-            auto_x_title = auto_x_title + " [rad]"
+            auto_title = auto_title + " [rad]"
         elif x == 19:
             xum = xum + "[Å]"
-            auto_x_title = auto_x_title + " [Å]"
+            auto_title = auto_title + " [Å]"
         elif x == 20:
-            xum = xum + "[" + self.workspace_units_label + "]"
-            auto_x_title = auto_x_title + " [" + self.workspace_units_label + "]"
+            xum = xum + " [" + self.workspace_units_label + "]"
+            auto_title = auto_title + " [" + self.workspace_units_label + "]"
         elif x == 21:
             xum = xum + "[rad]"
-            auto_x_title = auto_x_title + " [rad]"
+            auto_title = auto_title + " [rad]"
         elif x >= 25 and x <= 28:
             xum = xum + "[Å-1]"
-            auto_x_title = auto_x_title + " [Å-1]"
-        y = self.y_column_index + 1
-        if y == 1 or y == 2 or y == 3:
-            if self.getConversionActive():
-                yum = yum + "[" + u"\u03BC" + "m]"
-                auto_y_title = auto_y_title + " [$\mu$m]"
-            else:
-                yum = yum + " [" + self.workspace_units_label + "]"
-                auto_y_title = auto_y_title + " [" + self.workspace_units_label + "]"
-        elif y == 4 or y == 5 or y == 6:
-            if self.getConversionActive():
-                yum = yum + "[" + u"\u03BC" + "rad]"
-                auto_y_title = auto_y_title + " [$\mu$rad]"
-            else:
-                yum = yum + " [rad]"
-                auto_y_title = auto_y_title + " [rad]"
-        elif y == 11:
-            yum = yum + "[eV]"
-            auto_y_title = auto_y_title + " [eV]"
-        elif y == 13:
-            yum = yum + "[" + self.workspace_units_label + "]"
-            auto_y_title = auto_y_title + " [" + self.workspace_units_label + "]"
-        elif y == 14:
-            yum = yum + "[rad]"
-            auto_y_title = auto_y_title + " [rad]"
-        elif y == 15:
-            yum = yum + "[rad]"
-            auto_y_title = auto_y_title + " [rad]"
-        elif y == 19:
-            yum = yum + "[Å]"
-            auto_y_title = auto_y_title + " [Å]"
-        elif y == 20:
-            yum = yum + "[" + self.workspace_units_label + "]"
-            auto_y_title = auto_y_title + " [" + self.workspace_units_label + "]"
-        elif y == 21:
-            yum = yum + "[rad]"
-            auto_y_title = auto_y_title + " [rad]"
-        elif y >= 25 and y <= 28:
-            yum = yum + "[Å-1]"
-            auto_y_title = auto_y_title + " [Å-1]"
+            auto_title = auto_title + " [Å-1]"
 
-        return x, y, auto_x_title, auto_y_title, xum, yum
+        return x, auto_title, xum
 
     def setBeam(self, beam):
         if ShadowCongruence.checkEmptyBeam(beam):
@@ -535,7 +575,7 @@ class PlotXY(AutomaticElement):
                     self.plot_results()
             else:
                 QtWidgets.QMessageBox.critical(self, "Error",
-                                           "Data not displayable: No good rays, bad content, bad limits or axes",
+                                           "Data not displayable: No good rays or bad content",
                                            QtWidgets.QMessageBox.Ok)
 
 
@@ -551,3 +591,17 @@ class PlotXY(AutomaticElement):
 
     def getConversionActive(self):
         return self.is_conversion_active==1
+
+    def export_scanning_stats_analysis(self):
+
+        output_folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
+
+        if output_folder:
+            if not self.current_histo_data is None:
+                write_histo_and_stats_file(histo_data=self.current_histo_data,
+                                           stats=self.current_stats,
+                                           suffix="",
+                                           output_folder=output_folder)
+
+
+            QtWidgets.QMessageBox.information(self, "Export Scanning Results/Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
