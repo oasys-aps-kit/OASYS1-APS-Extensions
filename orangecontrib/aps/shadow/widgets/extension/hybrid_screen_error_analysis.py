@@ -1,26 +1,25 @@
 __author__ = 'labx'
 
-import os, sys, numpy
+import os, sys
 import orangecanvas.resources as resources
 from oasys.widgets import gui as oasysgui
 from oasys.widgets import congruence
 from orangewidget import gui, widget
 from orangewidget.settings import Setting
-from oasys.util.oasys_util import EmittingStream, TriggerIn
+from oasys.util.oasys_util import EmittingStream
 
-from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
+from orangecontrib.shadow.util.shadow_util import ShadowCongruence
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam
 
 from PyQt5.QtGui import QImage, QPixmap,  QPalette, QFont, QColor, QTextCursor
-from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QVBoxLayout, QMessageBox, QFileDialog
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QMessageBox, QFileDialog
 
 from orangecontrib.shadow.widgets.gui.ow_automatic_element import AutomaticElement
 from orangecontrib.shadow.widgets.special_elements import hybrid_control
 
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
 
-from orangecontrib.aps.shadow.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, \
+from orangecontrib.aps.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, \
     DoublePlotWidget, ScanHistoWidget, Scan3DHistoWidget, write_histo_and_stats_file
 
 class HybridScreenErrorAnalysis(AutomaticElement):

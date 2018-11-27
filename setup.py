@@ -7,17 +7,17 @@ try:
 except AttributeError:
     from setuptools import find_packages, setup
 
-NAME = 'OASYS1-APS-ShadowOui'
-VERSION = '0.0.16'
+NAME = 'OASYS1-APS-Extensions'
+VERSION = '0.0.1'
 ISRELEASED = False
 
-DESCRIPTION = 'ShadowOui extenstions for the APS'
+DESCRIPTION = 'ShadowOui/SRW extensions for the APS'
 README_FILE = os.path.join(os.path.dirname(__file__), 'README.txt')
 LONG_DESCRIPTION = open(README_FILE).read()
 AUTHOR = 'Luca Rebuffi'
 AUTHOR_EMAIL = 'lrebuffi@anl.gov'
-URL = 'https://github.com/oasys-aps-kit/OASYS1-APS-ShadowOui'
-DOWNLOAD_URL = 'https://github.com/oasys-aps-kit/OASYS1-APS-ShadowOui'
+URL = 'https://github.com/oasys-aps-kit/OASYS1-APS-Extensions'
+DOWNLOAD_URL = 'https://github.com/oasys-aps-kit/OASYS1-APS-Extensions'
 LICENSE = 'GPLv3'
 
 KEYWORDS = (
@@ -41,22 +41,35 @@ SETUP_REQUIRES = (
 
 INSTALL_REQUIRES = (
     'setuptools',
-    'oasys1>=1.1.21',
-    'oasys1-srwlib>=1.0.13',
 )
 
 PACKAGES = find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests'))
 
 PACKAGE_DATA = {
+    "orangecontrib.aps.oasys.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
     "orangecontrib.aps.shadow.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
+    "orangecontrib.aps.srw.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
 }
 
-NAMESPACE_PACAKGES = ["orangecontrib", "orangecontrib.aps", "orangecontrib.aps.shadow", "orangecontrib.aps.shadow.widgets"]
+NAMESPACE_PACAKGES = ["orangecontrib",
+                      "orangecontrib.aps",
+                      "orangecontrib.aps.oasys",
+                      "orangecontrib.aps.shadow",
+                      "orangecontrib.aps.srw",
+                      "orangecontrib.aps.oasys.widgets",
+                      "orangecontrib.aps.shadow.widgets",
+                      "orangecontrib.aps.srw.widgets",
+                      ]
 
 ENTRY_POINTS = {
-    'oasys.addons' : ("APS Shadow = orangecontrib.aps.shadow", ),
+    'oasys.addons' : ("APS OASYS Extension = orangecontrib.aps.oasys",
+                      "APS Shadow Extension= orangecontrib.aps.shadow",
+                      "APS SRW Extension= orangecontrib.aps.srw",
+                      ),
     'oasys.widgets' : (
+        "APS OASYS Extension = orangecontrib.aps.oasys.widgets.extension",
         "APS Shadow Extension = orangecontrib.aps.shadow.widgets.extension",
+        "APS SRW Extension = orangecontrib.aps.srw.widgets.extension",
     ),
 }
 
