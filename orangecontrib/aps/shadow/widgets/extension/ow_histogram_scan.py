@@ -16,8 +16,8 @@ from orangecontrib.shadow.util.shadow_objects import ShadowBeam
 from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
 from orangecontrib.shadow.widgets.gui import ow_automatic_element
 
-from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, \
-    DoublePlotWidget, ScanHistoWidget, Scan3DHistoWidget, write_histo_and_stats_file
+from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file
+from orangecontrib.aps.shadow.util.gui import ScanHistoWidget, Scan3DHistoWidget
 
 class Histogram(ow_automatic_element.AutomaticElement):
 

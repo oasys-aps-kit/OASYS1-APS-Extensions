@@ -181,7 +181,7 @@ class ScanLoopPoint(widget.OWWidget):
             self.run_loop = True
 
     def get_object_name(self):
-        return "Beam"
+        return "Object"
 
 if __name__ == "__main__":
     a = QtGui.QApplication(sys.argv)
