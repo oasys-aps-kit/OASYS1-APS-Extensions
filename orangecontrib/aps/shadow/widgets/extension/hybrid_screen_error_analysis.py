@@ -20,7 +20,8 @@ from orangecontrib.shadow.widgets.special_elements import hybrid_control
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
 
 from orangecontrib.aps.util.gui import HistogramData, StatisticalDataCollection, HistogramDataCollection, \
-    DoublePlotWidget, ScanHistoWidget, Scan3DHistoWidget, write_histo_and_stats_file
+    DoublePlotWidget, write_histo_and_stats_file
+from orangecontrib.aps.shadow.util.gui import Scan3DHistoWidget, ScanHistoWidget
 
 class HybridScreenErrorAnalysis(AutomaticElement):
 

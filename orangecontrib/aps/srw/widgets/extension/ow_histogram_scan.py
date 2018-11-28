@@ -12,14 +12,14 @@ from oasys.widgets import congruence
 from oasys.widgets.gui import ConfirmDialog
 from oasys.util.oasys_util import EmittingStream, TTYGrabber
 
-from orangecontrib.shadow.util.shadow_util import ShadowCongruence
-
 from orangecontrib.srw.util.srw_util import SRWPlot
 from orangecontrib.srw.util.srw_objects import SRWData
 from orangecontrib.srw.widgets.gui.ow_srw_widget import SRWWidget
 
 from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file
 from orangecontrib.aps.srw.util.gui import ScanHistoWidget, Scan3DHistoWidget
+
+from wofrysrw.propagator.wavefront2D.srw_wavefront import PolarizationComponent, TypeOfDependence
 
 class Histogram(SRWWidget):
 
@@ -41,30 +41,22 @@ class Histogram(SRWWidget):
     plot_canvas=None
     plot_scan_canvas=None
 
-    input_beam=None
+    input_srw_data = None
 
-    image_plane=Setting(0)
-    image_plane_new_position=Setting(10.0)
-    image_plane_rel_abs_position=Setting(0)
-
-    x_column_index=Setting(10)
+    x_column_index=Setting(0)
 
     x_range=Setting(0)
     x_range_min=Setting(0.0)
     x_range_max=Setting(0.0)
 
-    weight_column_index = Setting(23)
-    rays=Setting(1)
+    polarization_component_to_be_extracted=Setting(0)
+    multi_electron = Setting(0)
 
-    number_of_bins=Setting(100)
-
-    title=Setting("Energy")
+    title=Setting("Y")
 
     iterative_mode = Setting(0)
 
     last_ticket=None
-
-    is_conversion_active = Setting(1)
 
     current_histo_data = None
     current_stats = None
@@ -80,7 +72,7 @@ class Histogram(SRWWidget):
     def __init__(self):
         super().__init__()
 
-        self.refresh_button = gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
+        self.refresh_button = gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45, width=400)
         gui.separator(self.controlArea, 10)
 
         self.tabs_setting = oasysgui.tabWidget(self.controlArea)
@@ -90,63 +82,13 @@ class Histogram(SRWWidget):
         tab_set = oasysgui.createTabPage(self.tabs_setting, "Plot Settings")
         tab_gen = oasysgui.createTabPage(self.tabs_setting, "Histogram Settings")
 
-        screen_box = oasysgui.widgetBox(tab_set, "Screen Position Settings", addSpace=True, orientation="vertical", height=120)
+        general_box = oasysgui.widgetBox(tab_set, "General Settings", addSpace=True, orientation="vertical", height=250, width=390)
 
-        self.image_plane_combo = gui.comboBox(screen_box, self, "image_plane", label="Position of the Image",
-                                            items=["On Image Plane", "Retraced"], labelWidth=260,
-                                            callback=self.set_ImagePlane, sendSelectedValue=False, orientation="horizontal")
-
-        self.image_plane_box = oasysgui.widgetBox(screen_box, "", addSpace=False, orientation="vertical", height=50)
-        self.image_plane_box_empty = oasysgui.widgetBox(screen_box, "", addSpace=False, orientation="vertical", height=50)
-
-        oasysgui.lineEdit(self.image_plane_box, self, "image_plane_new_position", "Image Plane new Position", labelWidth=220, valueType=float, orientation="horizontal")
-
-        gui.comboBox(self.image_plane_box, self, "image_plane_rel_abs_position", label="Position Type", labelWidth=250,
-                     items=["Absolute", "Relative"], sendSelectedValue=False, orientation="horizontal")
-
-        self.set_ImagePlane()
-
-        general_box = oasysgui.widgetBox(tab_set, "General Settings", addSpace=True, orientation="vertical", height=250)
-
-        self.x_column = gui.comboBox(general_box, self, "x_column_index", label="Column", labelWidth=70,
-                                     items=["1: X",
-                                            "2: Y",
-                                            "3: Z",
-                                            "4: X'",
-                                            "5: Y'",
-                                            "6: Z'",
-                                            "7: E\u03c3 X",
-                                            "8: E\u03c3 Y",
-                                            "9: E\u03c3 Z",
-                                            "10: Ray Flag",
-                                            "11: Energy",
-                                            "12: Ray Index",
-                                            "13: Optical Path",
-                                            "14: Phase \u03c3",
-                                            "15: Phase \u03c0",
-                                            "16: E\u03c0 X",
-                                            "17: E\u03c0 Y",
-                                            "18: E\u03c0 Z",
-                                            "19: Wavelength",
-                                            "20: R = sqrt(X\u00b2 + Y\u00b2 + Z\u00b2)",
-                                            "21: Theta (angle from Y axis)",
-                                            "22: Magnitude = |E\u03c3| + |E\u03c0|",
-                                            "23: Total Intensity = |E\u03c3|\u00b2 + |E\u03c0|\u00b2",
-                                            "24: \u03a3 Intensity = |E\u03c3|\u00b2",
-                                            "25: \u03a0 Intensity = |E\u03c0|\u00b2",
-                                            "26: |K|",
-                                            "27: K X",
-                                            "28: K Y",
-                                            "29: K Z",
-                                            "30: S0-stokes = |E\u03c0|\u00b2 + |E\u03c3|\u00b2",
-                                            "31: S1-stokes = |E\u03c0|\u00b2 - |E\u03c3|\u00b2",
-                                            "32: S2-stokes = 2|E\u03c3||E\u03c0|cos(Phase \u03c3-Phase \u03c0)",
-                                            "33: S3-stokes = 2|E\u03c3||E\u03c0|sin(Phase \u03c3-Phase \u03c0)",
-                                            "34: Power = Intensity * Energy",
-                                     ],
+        self.x_column = gui.comboBox(general_box, self, "x_column_index", label="Intensity Cut", labelWidth=250,
+                                     items=["Horizontal", "Vertical"],
                                      sendSelectedValue=False, orientation="horizontal")
 
-        gui.comboBox(general_box, self, "x_range", label="X Range", labelWidth=250,
+        gui.comboBox(general_box, self, "x_range", label="Position Range", labelWidth=250,
                                      items=["<Default>",
                                             "Set.."],
                                      callback=self.set_XRange, sendSelectedValue=False, orientation="horizontal")
@@ -154,54 +96,17 @@ class Histogram(SRWWidget):
         self.xrange_box = oasysgui.widgetBox(general_box, "", addSpace=True, orientation="vertical", height=100)
         self.xrange_box_empty = oasysgui.widgetBox(general_box, "", addSpace=True, orientation="vertical", height=100)
 
-        oasysgui.lineEdit(self.xrange_box, self, "x_range_min", "X min", labelWidth=220, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(self.xrange_box, self, "x_range_max", "X max", labelWidth=220, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.xrange_box, self, "x_range_min", "Min", labelWidth=220, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.xrange_box, self, "x_range_max", "Max", labelWidth=220, valueType=float, orientation="horizontal")
 
         self.set_XRange()
 
-        self.weight_column = gui.comboBox(general_box, self, "weight_column_index", label="Weight", labelWidth=70,
-                                         items=["0: No Weight",
-                                                "1: X",
-                                                "2: Y",
-                                                "3: Z",
-                                                "4: X'",
-                                                "5: Y'",
-                                                "6: Z'",
-                                                "7: E\u03c3 X",
-                                                "8: E\u03c3 Y",
-                                                "9: E\u03c3 Z",
-                                                "10: Ray Flag",
-                                                "11: Energy",
-                                                "12: Ray Index",
-                                                "13: Optical Path",
-                                                "14: Phase \u03c3",
-                                                "15: Phase \u03c0",
-                                                "16: E\u03c0 X",
-                                                "17: E\u03c0 Y",
-                                                "18: E\u03c0 Z",
-                                                "19: Wavelength",
-                                                "20: R = sqrt(X\u00b2 + Y\u00b2 + Z\u00b2)",
-                                                "21: Theta (angle from Y axis)",
-                                                "22: Magnitude = |E\u03c3| + |E\u03c0|",
-                                                "23: Total Intensity = |E\u03c3|\u00b2 + |E\u03c0|\u00b2",
-                                                "24: \u03a3 Intensity = |E\u03c3|\u00b2",
-                                                "25: \u03a0 Intensity = |E\u03c0|\u00b2",
-                                                "26: |K|",
-                                                "27: K X",
-                                                "28: K Y",
-                                                "29: K Z",
-                                                "30: S0-stokes = |E\u03c0|\u00b2 + |E\u03c3|\u00b2",
-                                                "31: S1-stokes = |E\u03c0|\u00b2 - |E\u03c3|\u00b2",
-                                                "32: S2-stokes = 2|E\u03c3||E\u03c0|cos(Phase \u03c3-Phase \u03c0)",
-                                                "33: S3-stokes = 2|E\u03c3||E\u03c0|sin(Phase \u03c3-Phase \u03c0)",
-                                                "34: Power = Intensity * Energy",
-                                         ],
-                                         sendSelectedValue=False, orientation="horizontal")
+        gui.comboBox(general_box, self, "polarization_component_to_be_extracted", label="Polarization Component", labelWidth=250,
+                                     items=["Total", "\u03c3", "\u03c0"],
+                                     sendSelectedValue=False, orientation="horizontal")
 
-        gui.comboBox(general_box, self, "rays", label="Rays", labelWidth=250,
-                                     items=["All rays",
-                                            "Good Only",
-                                            "Lost Only"],
+        gui.comboBox(general_box, self, "multi_electron", label="Multi Electron (Convolution)", labelWidth=250,
+                                     items=["No", "Yes"],
                                      sendSelectedValue=False, orientation="horizontal")
 
         incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=260)
@@ -246,14 +151,6 @@ class Histogram(SRWWidget):
 
         self.set_IterativeMode()
 
-        histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=90)
-
-        oasysgui.lineEdit(histograms_box, self, "number_of_bins", "Number of Bins", labelWidth=250, valueType=int, orientation="horizontal")
-
-        gui.comboBox(histograms_box, self, "is_conversion_active", label="Is U.M. conversion active", labelWidth=250,
-                                         items=["No", "Yes"],
-                                         sendSelectedValue=False, orientation="horizontal")
-
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
         plot_tab_stats = oasysgui.createTabPage(self.main_tabs, "Stats")
@@ -277,7 +174,7 @@ class Histogram(SRWWidget):
             self.clear_data()
 
     def clear_data(self):
-        self.input_beam = None
+        self.input_srw_data = None
         self.last_ticket = None
         self.current_stats = None
         self.current_histo_data = None
@@ -333,11 +230,7 @@ class Histogram(SRWWidget):
         self.xrange_box.setVisible(self.x_range == 1)
         self.xrange_box_empty.setVisible(self.x_range == 0)
 
-    def set_ImagePlane(self):
-        self.image_plane_box.setVisible(self.image_plane==1)
-        self.image_plane_box_empty.setVisible(self.image_plane==0)
-
-    def replace_fig(self, beam, var, xrange, title, xtitle, ytitle, xum):
+    def replace_fig(self, wavefront, var, xrange, title, xtitle, ytitle, xum):
         if self.plot_canvas is None:
             if self.iterative_mode < 2:
                 self.plot_canvas = SRWPlot.Detailed1DWidget(y_scale_factor=1.14)
@@ -352,6 +245,19 @@ class Histogram(SRWWidget):
 
             self.image_box.layout().addWidget(self.plot_canvas)
 
+        if self.polarization_component_to_be_extracted == 0:
+            polarization_component_to_be_extracted = PolarizationComponent.TOTAL
+        elif self.polarization_component_to_be_extracted == 1:
+            polarization_component_to_be_extracted = PolarizationComponent.LINEAR_HORIZONTAL
+        elif self.polarization_component_to_be_extracted == 2:
+            polarization_component_to_be_extracted = PolarizationComponent.LINEAR_VERTICAL
+
+        e, pos, i = wavefront.get_intensity(multi_electron=self.multi_electron==1,
+                                            polarization_component_to_be_extracted=polarization_component_to_be_extracted,
+                                            type_of_dependence=TypeOfDependence.VS_X if var==1 else TypeOfDependence.VS_Y)
+
+        ticket = SRWPlot.get_ticket_1D(pos, i)
+
         try:
             if self.iterative_mode==0:
                 self.last_ticket = None
@@ -359,10 +265,8 @@ class Histogram(SRWWidget):
                 self.current_stats = None
                 self.last_histo_data = None
                 self.histo_index = -1
-                self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
-                                            self.weight_column_index, title, xtitle, ytitle,
-                                            nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
 
+                self.plot_canvas.plot_1D(ticket, var, title, xtitle, ytitle, xum, xrange)
             elif self.iterative_mode == 1:
                 self.current_histo_data = None
                 self.current_stats = None
@@ -373,7 +277,7 @@ class Histogram(SRWWidget):
                                                                nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm,
                                                                ticket_to_add=self.last_ticket)
             else:
-                if not beam.scanned_variable_data is None:
+                if not wavefront.scanned_variable_data is None:
                     self.last_ticket = None
                     self.histo_index += 1
                     histo_data = self.plot_canvas.plot_histo(beam=beam,
@@ -383,15 +287,15 @@ class Histogram(SRWWidget):
                                                              xtitle=xtitle,
                                                              ytitle=ytitle,
                                                              histo_index=self.histo_index,
-                                                             scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
-                                                             scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
+                                                             scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + " [" + wavefront.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                             scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
                                                              offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
                                                              xrange=xrange,
                                                              show_reference=False,
                                                              add_labels=self.add_labels==1,
                                                              has_colormap=self.has_colormap==1
                                                              )
-                    histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
+                    histo_data.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
 
                     if not histo_data.bins is None:
                         if self.current_histo_data is None:
@@ -410,7 +314,7 @@ class Histogram(SRWWidget):
                                                       self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
                                                       self.current_stats.get_relative_intensities(),
                                                       "Statistics",
-                                                      beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                      wavefront.scanned_variable_data.get_scanned_variable_display_name() + " [" + wavefront.scanned_variable_data.get_scanned_variable_um() + "]",
                                                       "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
                                                       "Relative Peak Intensity")
 
@@ -420,63 +324,28 @@ class Histogram(SRWWidget):
             else: raise Exception("Data not plottable: No good rays or bad content")
 
     def plot_histo(self, var_x, title, xtitle, ytitle, xum):
-        beam_to_plot = self.input_beam
+        wavefront_to_plot = self.input_srw_data.get_srw_wavefront()
 
-        if self.image_plane == 1:
-            new_shadow_beam = self.input_beam.duplicate(history=False)
-            dist = 0.0
+        xrange = self.get_range(wavefront_to_plot, var_x)
 
-            if self.image_plane_rel_abs_position == 1:  # relative
-                dist = self.image_plane_new_position
-            else:  # absolute
-                if self.input_beam.historySize() == 0:
-                    historyItem = None
-                else:
-                    historyItem = self.input_beam.getOEHistory(oe_number=self.input_beam._oe_number)
+        self.replace_fig(wavefront_to_plot, var_x, xrange, title, xtitle, ytitle, xum)
 
-                if historyItem is None: image_plane = 0.0
-                elif self.input_beam._oe_number == 0: image_plane = 0.0
-                else: image_plane = historyItem._shadow_oe_end._oe.T_IMAGE
+    def get_range(self, wavefront_to_plot, var_x):
+        factor = SRWPlot.get_factor(var_x)
 
-                dist = self.image_plane_new_position - image_plane
-
-            self.retrace_beam(new_shadow_beam, dist)
-
-            beam_to_plot = new_shadow_beam
-
-        xrange = self.get_range(beam_to_plot._beam, var_x)
-
-        self.replace_fig(beam_to_plot, var_x, xrange, title, xtitle, ytitle, xum)
-
-    def get_range(self, beam_to_plot, var_x):
         if self.x_range == 0 :
-            x_max = 0
-            x_min = 0
-
-            x, good_only = beam_to_plot.getshcol((var_x, 10))
-
-            x_to_plot = copy.deepcopy(x)
-
-            go = numpy.where(good_only == 1)
-            lo = numpy.where(good_only != 1)
-
-            if self.rays == 0:
-                x_max = numpy.array(x_to_plot[0:], float).max()
-                x_min = numpy.array(x_to_plot[0:], float).min()
-            elif self.rays == 1:
-                x_max = numpy.array(x_to_plot[go], float).max()
-                x_min = numpy.array(x_to_plot[go], float).min()
-            elif self.rays == 2:
-                x_max = numpy.array(x_to_plot[lo], float).max()
-                x_min = numpy.array(x_to_plot[lo], float).min()
+            if var_x == 1: # horizontal
+                x_max = wavefront_to_plot.mesh.xFin
+                x_min = wavefront_to_plot.mesh.xStart
+            else:
+                x_max = wavefront_to_plot.mesh.yFin
+                x_min = wavefront_to_plot.mesh.yStart
 
             xrange = [x_min, x_max]
         else:
-            congruence.checkLessThan(self.x_range_min, self.x_range_max, "X range min", "X range max")
+            congruence.checkLessThan(self.x_range_min, self.x_range_max, "Range min", "Range max")
 
-            factor1 = ShadowPlot.get_factor(var_x, self.workspace_units_to_cm)
-
-            xrange = [self.x_range_min / factor1, self.x_range_max / factor1]
+            xrange = [self.x_range_min / factor, self.x_range_max / factor]
 
         return xrange
 
@@ -486,25 +355,12 @@ class Histogram(SRWWidget):
 
             sys.stdout = EmittingStream(textWritten=self.writeStdOut)
 
-            if self.trace_shadow:
-                grabber = TTYGrabber()
-                grabber.start()
+            if not self.input_srw_data is None:
+                x, title, x_title, y_title, xum = self.get_titles()
 
-            if ShadowCongruence.checkEmptyBeam(self.input_beam):
-                ShadowPlot.set_conversion_active(self.getConversionActive())
-
-                self.number_of_bins = congruence.checkPositiveNumber(self.number_of_bins, "Number of Bins")
-
-                x, auto_title, xum = self.get_titles()
-
-                self.plot_histo(x, title=self.title, xtitle=auto_title, ytitle="Number of Rays", xum=xum)
+                self.plot_histo(x, title=title, xtitle=x_title, ytitle=y_title, xum=xum)
 
                 plotted = True
-            if self.trace_shadow:
-                grabber.stop()
-
-                for row in grabber.ttyData:
-                    self.writeStdOut(row)
 
             time.sleep(0.5)  # prevents a misterious dead lock in the Orange cycle when refreshing the histogram
 
@@ -519,64 +375,34 @@ class Histogram(SRWWidget):
             return False
 
     def get_titles(self):
-        auto_title = self.x_column.currentText().split(":", 2)[1]
+        auto_title = self.x_column.currentText()
 
-        xum = auto_title + " "
-        self.title = auto_title
+        xum = "[mm]"
+        x_title = auto_title + " Position " + xum
+        title = auto_title + " Cut"
         x = self.x_column_index + 1
 
-        if x == 1 or x == 2 or x == 3:
-            if self.getConversionActive():
-                xum = xum + "[" + u"\u03BC" + "m]"
-                auto_title = auto_title + " [$\mu$m]"
-            else:
-                xum = xum + " [" + self.workspace_units_label + "]"
-                auto_title = auto_title + " [" + self.workspace_units_label + "]"
-        elif x == 4 or x == 5 or x == 6:
-            if self.getConversionActive():
-                xum = xum + "[" + u"\u03BC" + "rad]"
-                auto_title = auto_title + " [$\mu$rad]"
-            else:
-                xum = xum + " [rad]"
-                auto_title = auto_title + " [rad]"
-        elif x == 11:
-            xum = xum + "[eV]"
-            auto_title = auto_title + " [eV]"
-        elif x == 13:
-            xum = xum + " [" + self.workspace_units_label + "]"
-            auto_title = auto_title + " [" + self.workspace_units_label + "]"
-        elif x == 14:
-            xum = xum + "[rad]"
-            auto_title = auto_title + " [rad]"
-        elif x == 15:
-            xum = xum + "[rad]"
-            auto_title = auto_title + " [rad]"
-        elif x == 19:
-            xum = xum + "[Å]"
-            auto_title = auto_title + " [Å]"
-        elif x == 20:
-            xum = xum + " [" + self.workspace_units_label + "]"
-            auto_title = auto_title + " [" + self.workspace_units_label + "]"
-        elif x == 21:
-            xum = xum + "[rad]"
-            auto_title = auto_title + " [rad]"
-        elif x >= 25 and x <= 28:
-            xum = xum + "[Å-1]"
-            auto_title = auto_title + " [Å-1]"
+        me = " ME " if self.multi_electron else " SE "
 
-        return x, auto_title, xum
+        if self.polarization_component_to_be_extracted == 0:
+            y_title = "Intensity" + me + "[ph/s/.1%bw/mm\u00b2]"
+        elif self.polarization_component_to_be_extracted == 1:
+            y_title = "Intensity" + me + "\u03c3 [ph/s/.1%bw/mm\u00b2]"
+        else:
+            y_title = "Intensity" + me + "\u03c0 [ph/s/.1%bw/mm\u00b2]"
 
-    def setBeam(self, beam):
-        if ShadowCongruence.checkEmptyBeam(beam):
-            if ShadowCongruence.checkGoodBeam(beam):
-                self.input_beam = beam
+        return x, title, x_title, y_title, xum
 
-                if self.is_automatic_run:
-                    self.plot_results()
-            else:
-                QtWidgets.QMessageBox.critical(self, "Error",
-                                           "Data not displayable: No good rays or bad content",
-                                           QtWidgets.QMessageBox.Ok)
+    def set_input(self, srw_data):
+        if not srw_data is None:
+            self.input_srw_data = srw_data
+
+            if self.is_automatic_run:
+                self.plot_results()
+        else:
+            QtWidgets.QMessageBox.critical(self, "Error",
+                                       "Data not displayable: no input data",
+                                       QtWidgets.QMessageBox.Ok)
 
 
     def writeStdOut(self, text):
@@ -585,12 +411,6 @@ class Histogram(SRWWidget):
         cursor.insertText(text)
         self.shadow_output.setTextCursor(cursor)
         self.shadow_output.ensureCursorVisible()
-
-    def retrace_beam(self, new_shadow_beam, dist):
-            new_shadow_beam._beam.retrace(dist)
-
-    def getConversionActive(self):
-        return self.is_conversion_active==1
 
     def export_scanning_stats_analysis(self):
 
