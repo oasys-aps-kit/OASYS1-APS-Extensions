@@ -14,8 +14,6 @@ try:
 except:
     pass
 
-from wofrysrw.propagator.wavefront2D.srw_wavefront import PolarizationComponent
-
 from oasys.widgets import gui as oasysgui
 
 from orangecontrib.srw.util.srw_util import SRWPlot
@@ -31,10 +29,8 @@ class AbstractScanHistoWidget(QWidget):
         super(AbstractScanHistoWidget, self).__init__()
 
     def plot_histo(self,
-                   wavefront,
+                   ticket,
                    col=Column.X,
-                   multi_electron=False,
-                   polarization_component_to_be_extracted=PolarizationComponent.TOTAL,
                    title="",
                    xtitle="",
                    ytitle="",
@@ -46,7 +42,8 @@ class AbstractScanHistoWidget(QWidget):
                    show_reference=True,
                    add_labels=True,
                    has_colormap=True,
-                   colormap=cm.rainbow):
+                   colormap=cm.rainbow,
+                   use_default_factor=True):
         raise NotImplementedError("this methid is abstract")
 
 
@@ -118,10 +115,8 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
 
 
     def plot_histo(self,
-                   wavefront,
+                   ticket,
                    col=Column.X,
-                   multi_electron=False,
-                   polarization_component_to_be_extracted=PolarizationComponent.TOTAL,
                    title="",
                    xtitle="",
                    ytitle="",
@@ -133,37 +128,29 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
                    show_reference=True,
                    add_labels=True,
                    has_colormap=True,
-                   colormap=cm.rainbow):
+                   colormap=cm.rainbow,
+                   use_default_factor=True):
 
-        factor=SRWPlot.get_factor(col)
-
-        e, h, v, i = wavefront.get_intensity(multi_electron=multi_electron, polarization_component_to_be_extracted=polarization_component_to_be_extracted)
-
-        ticket = SRWPlot.get_ticket_2D(h*factor, v*factor, i[int(e.size/2)])
+        if use_default_factor:
+            factor=SRWPlot.get_factor(col)
+        else:
+            factor=1.0
 
         if histo_index==0 and xrange is None:
-            if col==Column.X:
-                fwhm = ticket['fwhm_h']
-                xrange = ticket['xrange']
-            elif col==Column.Y:
-                fwhm = ticket['fwhm_v']
-                xrange = ticket['yrange']
-            else:
-                raise ValueError("Column not plottable")
+            fwhm = ticket['fwhm']
+            xrange = ticket['xrange']
 
             centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
 
             if not fwhm is None:
                 xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
 
-        if col==Column.X:
-            histogram = ticket['histogram_h']
-            bins = ticket['bin_h']
-        elif col==Column.Y:
-            histogram = ticket['histogram_v']
-            bins = ticket['bin_v']
+        if isinstance(ticket['histogram'].shape, list):
+            histogram = ticket['histogram'][0]
         else:
-            raise ValueError("Column not plottable")
+            histogram = ticket['histogram']
+
+        bins = ticket['bins']
 
         if not xrange is None:
             good = numpy.where((bins >= xrange[0]) & (bins <= xrange[1]))
@@ -176,14 +163,9 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
         histogram_stats = histogram
         bins_stats = bins
 
-        if col==Column.X:
-            fwhm = ticket['fwhm_h']
-        elif col==Column.Y:
-            fwhm = ticket['fwhm_v']
-        else:
-            raise ValueError("Column not plottable")
+        fwhm = ticket['fwhm']
 
-        sigma = get_sigma(histogram_stats, bins_stats)*factor
+        sigma = get_sigma(histogram_stats, bins_stats)
         fwhm = sigma*2.35 if fwhm is None else fwhm*factor
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
@@ -327,10 +309,8 @@ class ScanHistoWidget(AbstractScanHistoWidget):
 
 
     def plot_histo(self,
-                   wavefront,
+                   ticket,
                    col=Column.X,
-                   multi_electron=False,
-                   polarization_component_to_be_extracted=PolarizationComponent.TOTAL,
                    title="",
                    xtitle="",
                    ytitle="",
@@ -342,39 +322,28 @@ class ScanHistoWidget(AbstractScanHistoWidget):
                    show_reference=True,
                    add_labels=True,
                    has_colormap=True,
-                   colormap=cm.rainbow):
-
-
-
-        factor=SRWPlot.get_factor(col)
-
-        e, h, v, i = wavefront.get_intensity(multi_electron=multi_electron, polarization_component_to_be_extracted=polarization_component_to_be_extracted)
-
-        ticket = SRWPlot.get_ticket_2D(h*factor, v*factor, i[int(e.size/2)])
+                   colormap=cm.rainbow,
+                   use_default_factor=True):
+        if use_default_factor:
+            factor=SRWPlot.get_factor(col)
+        else:
+            factor=1.0
 
         if histo_index==0 and xrange is None:
-            if col==Column.X:
-                fwhm = ticket['fwhm_h']
-                xrange = ticket['xrange']
-            elif col==Column.Y:
-                fwhm = ticket['fwhm_v']
-                xrange = ticket['yrange']
-            else:
-                raise ValueError("Column not plottable")
+            fwhm = ticket['fwhm']
+            xrange = ticket['xrange']
 
             centroid = xrange[0] + (xrange[1] - xrange[0])*0.5
 
             if not fwhm is None:
                 xrange = [centroid - 2*fwhm , centroid + 2*fwhm]
 
-        if col==Column.X:
-            histogram = ticket['histogram_h']
-            bins = ticket['bin_h']
-        elif col==Column.Y:
-            histogram = ticket['histogram_v']
-            bins = ticket['bin_v']
+        if isinstance(ticket['histogram'].shape, list):
+            histogram = ticket['histogram'][0]
         else:
-            raise ValueError("Column not plottable")
+            histogram = ticket['histogram']
+
+        bins = ticket['bins']
 
         if not xrange is None:
             good = numpy.where((bins >= xrange[0]) & (bins <= xrange[1]))
@@ -387,14 +356,9 @@ class ScanHistoWidget(AbstractScanHistoWidget):
         histogram_stats = histogram
         bins_stats = bins
 
-        if col==Column.X:
-            fwhm = ticket['fwhm_h']
-        elif col==Column.Y:
-            fwhm = ticket['fwhm_v']
-        else:
-            raise ValueError("Column not plottable")
+        fwhm = ticket['fwhm']
 
-        sigma = get_sigma(histogram_stats, bins_stats)*factor
+        sigma = get_sigma(histogram_stats, bins_stats)
         fwhm = sigma*2.35 if fwhm is None else fwhm*factor
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])

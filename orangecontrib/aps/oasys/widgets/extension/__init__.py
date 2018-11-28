@@ -6,4 +6,4 @@ BACKGROUND = "#c9901e"#"#0099ff"
 
 ICON = "icons/extension.png"
 
-PRIORITY = 109
+PRIORITY = 3

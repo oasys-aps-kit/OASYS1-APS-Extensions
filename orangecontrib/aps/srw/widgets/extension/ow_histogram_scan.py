@@ -17,12 +17,13 @@ from orangecontrib.srw.util.srw_objects import SRWData
 from orangecontrib.srw.widgets.gui.ow_srw_widget import SRWWidget
 
 from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file
-from orangecontrib.aps.srw.util.gui import ScanHistoWidget, Scan3DHistoWidget
+from orangecontrib.aps.srw.util.gui import ScanHistoWidget, Scan3DHistoWidget, Column
 
 from wofrysrw.propagator.wavefront2D.srw_wavefront import PolarizationComponent, TypeOfDependence
 
-class Histogram(SRWWidget):
+TO_UM = 1e6
 
+class Histogram(SRWWidget):
     name = "Scanning Variable Histogram"
     description = "Display Data Tools: Histogram"
     icon = "icons/histogram.png"
@@ -96,8 +97,8 @@ class Histogram(SRWWidget):
         self.xrange_box = oasysgui.widgetBox(general_box, "", addSpace=True, orientation="vertical", height=100)
         self.xrange_box_empty = oasysgui.widgetBox(general_box, "", addSpace=True, orientation="vertical", height=100)
 
-        oasysgui.lineEdit(self.xrange_box, self, "x_range_min", "Min", labelWidth=220, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(self.xrange_box, self, "x_range_max", "Max", labelWidth=220, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.xrange_box, self, "x_range_min", "Min [\u03bcm]", labelWidth=220, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.xrange_box, self, "x_range_max", "Max [\u03bcm]", labelWidth=220, valueType=float, orientation="horizontal")
 
         self.set_XRange()
 
@@ -252,11 +253,30 @@ class Histogram(SRWWidget):
         elif self.polarization_component_to_be_extracted == 2:
             polarization_component_to_be_extracted = PolarizationComponent.LINEAR_VERTICAL
 
-        e, pos, i = wavefront.get_intensity(multi_electron=self.multi_electron==1,
+        e, h, v, i = wavefront.get_intensity(multi_electron=self.multi_electron==1,
                                             polarization_component_to_be_extracted=polarization_component_to_be_extracted,
-                                            type_of_dependence=TypeOfDependence.VS_X if var==1 else TypeOfDependence.VS_Y)
+                                            type_of_dependence=TypeOfDependence.VS_XY)
 
-        ticket = SRWPlot.get_ticket_1D(pos, i)
+        ticket2D = SRWPlot.get_ticket_2D(h, v, i[int(e.size/2)])
+
+        ticket = {}
+        if var == Column.X:
+            ticket["histogram"] = ticket2D["histogram_h"]
+            ticket["bins"] = ticket2D["bin_h"]*TO_UM
+            ticket["xrange"] = ticket2D["xrange"]
+            ticket["fwhm"] = ticket2D["fwhm_h"]*TO_UM
+            ticket["fwhm_coordinates"] = ticket2D["fwhm_coordinates_h"]
+        elif var == Column.Y:
+            ticket["histogram"] = ticket2D["histogram_v"]
+            ticket["bins"] = ticket2D["bin_v"]*TO_UM
+            ticket["xrange"] = ticket2D["yrange"]
+            ticket["fwhm"] = ticket2D["fwhm_v"]*TO_UM
+            ticket["fwhm_coordinates"] = ticket2D["fwhm_coordinates_v"]
+
+        ticket["xrange"] = (ticket["xrange"][0]*TO_UM, ticket["xrange"][1]*TO_UM)
+
+        if not ticket["fwhm"] is None and not ticket["fwhm"] == 0.0:
+            ticket["fwhm_coordinates"] = (ticket["fwhm_coordinates"][0]*TO_UM, ticket["fwhm_coordinates"][1]*TO_UM)
 
         try:
             if self.iterative_mode==0:
@@ -266,23 +286,24 @@ class Histogram(SRWWidget):
                 self.last_histo_data = None
                 self.histo_index = -1
 
-                self.plot_canvas.plot_1D(ticket, var, title, xtitle, ytitle, xum, xrange)
+                self.plot_canvas.plot_1D(ticket, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
             elif self.iterative_mode == 1:
                 self.current_histo_data = None
                 self.current_stats = None
                 self.last_histo_data = None
                 self.histo_index = -1
-                self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
-                                                               self.weight_column_index, title, xtitle, ytitle,
-                                                               nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm,
-                                                               ticket_to_add=self.last_ticket)
+
+                ticket['histogram'] += self.last_ticket['histogram']
+
+                self.plot_canvas.plot_1D(ticket, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
+
+                self.last_ticket = ticket
             else:
                 if not wavefront.scanned_variable_data is None:
                     self.last_ticket = None
                     self.histo_index += 1
-                    histo_data = self.plot_canvas.plot_histo(beam=beam,
+                    histo_data = self.plot_canvas.plot_histo(ticket,
                                                              col=var,
-                                                             nbins=self.number_of_bins,
                                                              title=title,
                                                              xtitle=xtitle,
                                                              ytitle=ytitle,
@@ -293,7 +314,8 @@ class Histogram(SRWWidget):
                                                              xrange=xrange,
                                                              show_reference=False,
                                                              add_labels=self.add_labels==1,
-                                                             has_colormap=self.has_colormap==1
+                                                             has_colormap=self.has_colormap==1,
+                                                             use_default_factor=False
                                                              )
                     histo_data.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
 
@@ -331,8 +353,6 @@ class Histogram(SRWWidget):
         self.replace_fig(wavefront_to_plot, var_x, xrange, title, xtitle, ytitle, xum)
 
     def get_range(self, wavefront_to_plot, var_x):
-        factor = SRWPlot.get_factor(var_x)
-
         if self.x_range == 0 :
             if var_x == 1: # horizontal
                 x_max = wavefront_to_plot.mesh.xFin
@@ -341,11 +361,11 @@ class Histogram(SRWWidget):
                 x_max = wavefront_to_plot.mesh.yFin
                 x_min = wavefront_to_plot.mesh.yStart
 
-            xrange = [x_min, x_max]
+            xrange = [x_min*TO_UM, x_max*TO_UM]
         else:
             congruence.checkLessThan(self.x_range_min, self.x_range_max, "Range min", "Range max")
 
-            xrange = [self.x_range_min / factor, self.x_range_max / factor]
+            xrange = [self.x_range_min, self.x_range_max]
 
         return xrange
 
@@ -377,7 +397,7 @@ class Histogram(SRWWidget):
     def get_titles(self):
         auto_title = self.x_column.currentText()
 
-        xum = "[mm]"
+        xum = "[\u03bcm]"
         x_title = auto_title + " Position " + xum
         title = auto_title + " Cut"
         x = self.x_column_index + 1

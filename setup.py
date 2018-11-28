@@ -62,14 +62,14 @@ NAMESPACE_PACAKGES = ["orangecontrib",
                       ]
 
 ENTRY_POINTS = {
-    'oasys.addons' : ("APS OASYS Extension = orangecontrib.aps.oasys",
-                      "APS Shadow Extension= orangecontrib.aps.shadow",
-                      "APS SRW Extension= orangecontrib.aps.srw",
+    'oasys.addons' : ("Oasys APS Extension = orangecontrib.aps.oasys",
+                      "Shadow APS Extension = orangecontrib.aps.shadow",
+                      "SRW APS Extension = orangecontrib.aps.srw",
                       ),
     'oasys.widgets' : (
-        "APS OASYS = orangecontrib.aps.oasys.widgets.extension",
-        "APS Shadow = orangecontrib.aps.shadow.widgets.extension",
-        "APS SRW = orangecontrib.aps.srw.widgets.extension",
+        "Oasys APS Extension = orangecontrib.aps.oasys.widgets.extension",
+        "Shadow APS Extension = orangecontrib.aps.shadow.widgets.extension",
+        "SRW APS Extension = orangecontrib.aps.srw.widgets.extension",
     ),
 }
 
