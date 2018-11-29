@@ -1,6 +1,7 @@
 import sys, numpy, copy
 
 from PyQt5 import QtGui
+from PyQt5.QtWidgets import QMessageBox
 
 from orangewidget import gui
 from orangewidget.widget import OWAction
@@ -24,7 +25,7 @@ class FluxCalculator(AutomaticElement):
     keywords = ["data", "file", "load", "read"]
 
     inputs = [("Shadow Beam", ShadowBeam, "setBeam"),
-              ("Xoppy Data", DataExchangeObject, "setXoppyData")]
+              ("Spectrum Data", DataExchangeObject, "setSpectrumData")]
 
     outputs = [{"name":"Beam",
                 "type":ShadowBeam,
@@ -36,6 +37,7 @@ class FluxCalculator(AutomaticElement):
 
     input_beam     = None
     input_spectrum = None
+    flux_index = -1
 
     def __init__(self):
         super(FluxCalculator, self).__init__()
@@ -59,35 +61,67 @@ class FluxCalculator(AutomaticElement):
         gui.rubber(self.controlArea)
 
     def setBeam(self, beam):
-        if ShadowCongruence.checkEmptyBeam(beam):
-            if ShadowCongruence.checkGoodBeam(beam):
-                self.input_beam = beam
+        try:
+            if ShadowCongruence.checkEmptyBeam(beam):
+                if ShadowCongruence.checkGoodBeam(beam):
+                    self.input_beam = beam
+
+                    if self.is_automatic_run: self.calculate_flux()
+        except Exception as exception:
+            QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
+
+            if self.IS_DEVELOP: raise exception
+
+    def setSpectrumData(self, data):
+        if not data is None:
+            try:
+                if data.get_program_name() == "XOPPY":
+                    if data.get_widget_name() == "UNDULATOR_FLUX" or data.get_widget_name() == "XWIGGLER" or data.get_widget_name() == "WS":
+                        self.flux_index = 1
+                    elif data.get_widget_name() == "BM":
+                        self.flux_index = 5
+                    else:
+                        raise Exception("Connect to one of the following XOPPY widgets: Undulator Spectrum, BM, XWIGGLER, WS")
+
+                    self.input_spectrum = data.get_content('xoppy_data')
+                elif data.get_program_name() == "SRW":
+                    if data.get_widget_name() == "UNDULATOR_SPECTRUM":
+                        self.flux_index = 1
+                    else:
+                        raise Exception("Connect to one of the following SRW widgets: Undulator Spectrum")
+
+                    self.input_spectrum = data.get_content('srw_data')
+                else:
+                    raise ValueError("Widget accept data from the following Add-ons: XOPPY, SRW")
 
                 if self.is_automatic_run: self.calculate_flux()
+            except Exception as exception:
+                QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
-    def setXoppyData(self, data):
-        if not data is None:
-            self.input_spectrum = data.get_content('xoppy_data')
-
-            if self.is_automatic_run: self.calculate_flux()
+                if self.IS_DEVELOP: raise exception
 
     def calculate_flux(self):
         if not self.input_beam is None and not self.input_spectrum is None:
-            flux_factor, resolving_power, energy, ttext = calculate_flux_factor_and_resolving_power(self.input_beam)
+            try:
+                flux_factor, resolving_power, energy, ttext = calculate_flux_factor_and_resolving_power(self.input_beam)
 
-            total_text = ttext
+                total_text = ttext
 
-            flux_at_sample, ttext = calculate_flux_at_sample(self.input_spectrum, flux_factor, energy)
+                flux_at_sample, ttext = calculate_flux_at_sample(self.input_spectrum, flux_factor, energy)
 
-            total_text += "\n" + ttext
+                total_text += "\n" + ttext
 
-            total_text += "\n\n ---> Flux at Image Plane : %g"%flux_at_sample + " ph/s"
-            total_text += "\n ---> Resolving Power: %g"%resolving_power
+                total_text += "\n\n ---> Flux at Image Plane : %g"%flux_at_sample + " ph/s"
+                total_text += "\n ---> Resolving Power: %g"%resolving_power
 
-            self.text.clear()
-            self.text.setText(total_text)
+                self.text.clear()
+                self.text.setText(total_text)
 
-            self.send("Beam", self.input_beam)
+                self.send("Beam", self.input_beam)
+            except Exception as exception:
+                QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise exception
 
 def calculate_flux_factor_and_resolving_power(beam):
     ticket = beam._beam.histo1(11, nbins=2, nolost=1)
@@ -105,6 +139,9 @@ def calculate_flux_factor_and_resolving_power(beam):
     efficiency = final_intensity/initial_intensity
     bandwidth = ticket['fwhm']
     resolving_power = energy/bandwidth
+
+    if Denergy_source < 4*bandwidth:
+        raise ValueError("Source \u0394E (" + str(round(Denergy_source, 2)) + ") should be at least 4 times bigger than the bandwidth (" + str(round(bandwidth, 3)) + ")")
 
     text = "\n# SOURCE ---------\n"
     text += "\n Source Central Energy: %g"%round(energy, 2) + " eV"
