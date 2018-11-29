@@ -1,7 +1,11 @@
-import sys, numpy, copy
+import sys, numpy, os
 
 from PyQt5 import QtGui
-from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QMessageBox, QLabel, QSizePolicy
+from PyQt5.QtGui import QPixmap
+
+import orangecanvas.resources as resources
 
 from orangewidget import gui
 from orangewidget.widget import OWAction
@@ -39,6 +43,8 @@ class FluxCalculator(AutomaticElement):
     input_spectrum = None
     flux_index = -1
 
+    usage_path = os.path.join(resources.package_dirname("orangecontrib.aps.shadow.widgets.extension"), "misc", "flux_calculator.png")
+
     def __init__(self):
         super(FluxCalculator, self).__init__()
 
@@ -47,16 +53,35 @@ class FluxCalculator(AutomaticElement):
         self.addAction(self.runaction)
 
         self.setMaximumWidth(self.CONTROL_AREA_WIDTH+10)
-        self.setMaximumHeight(600)
+        self.setMaximumHeight(580)
 
         box0 = gui.widgetBox(self.controlArea, "", orientation="horizontal")
         gui.button(box0, self, "Calculate Flux", callback=self.calculate_flux, height=45)
 
-        box1 = gui.widgetBox(self.controlArea, "Flux Calculation Results", orientation="horizontal")
+        tabs_setting = oasysgui.tabWidget(self.controlArea)
+        tabs_setting.setFixedHeight(440)
+        tabs_setting.setFixedWidth(self.CONTROL_AREA_WIDTH-8)
 
-        self.text = oasysgui.textArea(width=self.CONTROL_AREA_WIDTH-25, height=400)
+        tab_out = oasysgui.createTabPage(tabs_setting, "Flux Calculation Results")
+        tab_usa = oasysgui.createTabPage(tabs_setting, "Use of the Widget")
+        tab_usa.setStyleSheet("background-color: white;")
 
-        box1.layout().addWidget(self.text)
+        self.text = oasysgui.textArea(width=self.CONTROL_AREA_WIDTH-22, height=400)
+
+        tab_out.layout().addWidget(self.text)
+
+        usage_box = oasysgui.widgetBox(tab_usa, "", addSpace=True, orientation="horizontal")
+
+        label = QLabel("")
+        label.setAlignment(Qt.AlignCenter)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        label.setPixmap(QPixmap(self.usage_path))
+
+        usage_box.layout().addWidget(label)
+
+
+
+
 
         gui.rubber(self.controlArea)
 
@@ -132,16 +157,23 @@ def calculate_flux_factor_and_resolving_power(beam):
     Denergy_source = numpy.abs(energy_max - energy_min)
     energy = numpy.average([energy_min, energy_max])
 
+    if Denergy_source == 0.0:
+        raise ValueError("This calculation is not possibile for a single energy value")
+
     ticket = beam._beam.histo1(11, nbins=200, nolost=1, ref=23)
 
     initial_intensity = len(beam._beam.rays)
     final_intensity = ticket['intensity']
     efficiency = final_intensity/initial_intensity
     bandwidth = ticket['fwhm']
+
+    if bandwidth == 0.0:
+        raise ValueError("Bandwidth is 0.0: calculation not possible")
+
     resolving_power = energy/bandwidth
 
     if Denergy_source < 4*bandwidth:
-        raise ValueError("Source \u0394E (" + str(round(Denergy_source, 2)) + ") should be at least 4 times bigger than the bandwidth (" + str(round(bandwidth, 3)) + ")")
+        raise ValueError("Source \u0394E (" + str(round(Denergy_source, 2)) + " eV) should be at least 4 times bigger than the bandwidth (" + str(round(bandwidth, 3)) + " eV)")
 
     text = "\n# SOURCE ---------\n"
     text += "\n Source Central Energy: %g"%round(energy, 2) + " eV"
