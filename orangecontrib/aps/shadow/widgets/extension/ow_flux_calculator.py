@@ -132,7 +132,7 @@ class FluxCalculator(AutomaticElement):
 
                 total_text = ttext
 
-                flux_at_sample, ttext = calculate_flux_at_sample(self.input_spectrum, flux_factor, energy)
+                flux_at_sample, ttext = calculate_flux_at_sample(self.input_spectrum, self.flux_index, flux_factor, energy)
 
                 total_text += "\n" + ttext
 
@@ -193,12 +193,12 @@ def calculate_flux_factor_and_resolving_power(beam):
 
     return flux_factor, resolving_power, energy, text
 
-def calculate_flux_at_sample(spectrum, flux_factor, energy):
+def calculate_flux_at_sample(spectrum, flux_index, flux_factor, energy):
     index_up = numpy.where(spectrum[:, 0] >= energy)
     index_down = numpy.where(spectrum[:, 0] < energy)
 
-    flux_up = spectrum[index_up, 1][0, 0]
-    flux_down = spectrum[index_down, 1][0, -1]
+    flux_up = spectrum[index_up, flux_index][0, 0]
+    flux_down = spectrum[index_down, flux_index][0, -1]
 
     interpolated_flux = (flux_up + flux_down)/2
 
