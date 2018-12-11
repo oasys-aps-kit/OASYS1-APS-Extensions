@@ -1,6 +1,5 @@
 import numpy
 from numpy.matlib import repmat
-from scipy import stats
 from scipy.signal import convolve2d
 
 from PyQt5 import QtGui, QtWidgets
@@ -45,7 +44,6 @@ class APSUndulator(GenericElement):
                 "type":ShadowBeam,
                 "doc":"Shadow Beam",
                 "id":"beam"}]
-
 
     distribution_source = Setting(0)
 
@@ -115,6 +113,8 @@ class APSUndulator(GenericElement):
     max_number_of_rejected_rays = Setting(10000000)
 
     file_to_write_out = Setting(0)
+
+    energy_step = None
 
     def __init__(self, show_automatic_box=False):
         super().__init__(show_automatic_box=show_automatic_box)
@@ -418,7 +418,6 @@ class APSUndulator(GenericElement):
         self.le_z_divergences_file.setText(oasysgui.selectFileFromDialog(self, self.z_divergences_file, "Open Z Divergences File", file_extension_filter="*.dat, *.txt"))
 
 
-
     ####################################################################################
     # PROCEDURES
     ####################################################################################
@@ -500,6 +499,30 @@ class APSUndulator(GenericElement):
 
             self.setStatusMessage("")
 
+            if self.use_harmonic==1 and self.distribution_source==0 and self.save_srw_result==0 and self.energy_step:
+                additional_parameters = {}
+
+                additional_parameters["Kv"] = self.Kv
+                additional_parameters["Kh"] = self.Kh
+                additional_parameters["period_id"] = self.undulator_period
+                additional_parameters["n_periods"] = self.number_of_periods
+                additional_parameters["electron_current"] = self.ring_current
+                additional_parameters["electron_energy"] = self.electron_energy_in_GeV
+                additional_parameters["electron_energy_spread"] = self.electron_energy_spread
+                additional_parameters["electron_beam_size_h"] = self.electron_beam_size_h
+                additional_parameters["electron_beam_size_v"] = self.electron_beam_size_v
+                additional_parameters["electron_beam_divergence_h"] = self.electron_beam_divergence_h
+                additional_parameters["electron_beam_divergence_v"] = self.electron_beam_divergence_v
+                additional_parameters["gap_h"] = self.source_dimension_wf_h_slit_gap
+                additional_parameters["gap_v"] = self.source_dimension_wf_v_slit_gap
+                additional_parameters["h_slits_points"] = self.source_dimension_wf_h_slit_points
+                additional_parameters["v_slits_points"] = self.source_dimension_wf_v_slit_points
+                additional_parameters["distance"] = self.source_dimension_wf_distance
+                additional_parameters["photon_energy_min"] = self.energy
+                additional_parameters["photon_energy_max"] = self.energy + self.energy_step
+
+                beam_out.setScanningData(ShadowBeam.ScanningData("Energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
+
             self.send("Beam", beam_out)
         except Exception as exception:
             QtWidgets.QMessageBox.critical(self, "Error",
@@ -512,7 +535,24 @@ class APSUndulator(GenericElement):
 
     def sendNewBeam(self, trigger):
         if trigger and trigger.new_object == True:
+            if trigger.has_additional_parameter("seed_increment"):
+                self.seed += trigger.get_additional_parameter("seed_increment")
+
+            if trigger.has_additional_parameter("energy_value") and trigger.has_additional_parameter("energy_step"):
+                self.use_harmonic = 1
+                self.distribution_source = 0
+                self.save_srw_result = 0
+
+                self.energy = trigger.get_additional_parameter("energy_value")
+                self.energy_step = trigger.get_additional_parameter("energy_step")
+
+                self.set_WFUseHarmonic()
+                self.set_DistributionSource()
+                self.set_SaveFileSRW()
+
             self.runShadowSource()
+        else:
+            self.energy_step = None
 
     def checkFields(self):
         self.number_of_rays = congruence.checkPositiveNumber(self.number_of_rays, "Number of rays")

@@ -146,7 +146,6 @@ class ScanLoopPoint(widget.OWWidget):
                 if trigger.interrupt:
                     self.current_new_object = 0
                     self.current_variable_value = None
-                    self.variable_value_step = 0.0
                     self.start_button.setEnabled(True)
                     self.setStatusMessage("")
                     self.send("Trigger", TriggerOut(new_object=False))

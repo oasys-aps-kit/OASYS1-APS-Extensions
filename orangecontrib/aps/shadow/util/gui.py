@@ -398,3 +398,88 @@ class ScanHistoWidget(AbstractScanHistoWidget):
                                   color='white')
 
         self.plot_canvas.setActiveCurve("Click on curve to highlight it")
+
+from silx.gui.plot import Plot2D
+from orangecontrib.shadow.util.shadow_util import ShadowPlot
+
+class PowerPlotXYWidget(QWidget):
+    
+    def __init__(self, parent=None):
+        pass
+    
+        super(QWidget, self).__init__(parent=parent)
+        
+        self.plot_canvas = None
+        self.setLayout(QVBoxLayout())
+
+    def plot_power_density(self, beam, var_x, var_y, total_power, nbins=100, xrange=None, yrange=None, nolost=0, ticket_to_add=None, to_mm=1.0):
+        ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, ref=23)
+
+        bin_h_size = (ticket['bin_h_center'][1]-ticket['bin_h_center'][0])*to_mm
+        bin_v_size = (ticket['bin_v_center'][1]-ticket['bin_v_center'][0])*to_mm
+
+        ticket['histogram'] *= (total_power/ticket['nrays'])/(bin_h_size*bin_v_size)
+
+        if not ticket_to_add is None:
+            ticket['histogram'] += ticket_to_add['histogram']
+            ticket['intensity'] += ticket_to_add['intensity']
+            ticket['nrays']     += ticket_to_add['nrays']
+            ticket['good_rays'] += ticket_to_add['good_rays']
+
+        xx = ticket['bin_h_center']*to_mm
+        yy = ticket['bin_v_center']*to_mm
+
+        self.plot_data2D(ticket['histogram'], xx, yy, "Power Density", self.get_label(var_x), self.get_label(var_y))
+
+        return ticket
+
+    def get_label(self, var):
+        if var == 1: return "X [mm]"
+        elif var == 2: return "Y [mm]"
+        elif var == 3: return "Z [mm]"
+
+    def plot_data2D(self, data2D, dataX, dataY, title="", xtitle="", ytitle=""):
+
+        if self.plot_canvas is None:
+            self.plot_canvas = Plot2D()
+
+            self.plot_canvas.resetZoom()
+            self.plot_canvas.setXAxisAutoScale(True)
+            self.plot_canvas.setYAxisAutoScale(True)
+            self.plot_canvas.setGraphGrid(False)
+            self.plot_canvas.setKeepDataAspectRatio(True)
+            self.plot_canvas.yAxisInvertedAction.setVisible(False)
+
+            self.plot_canvas.setXAxisLogarithmic(False)
+            self.plot_canvas.setYAxisLogarithmic(False)
+            self.plot_canvas.getMaskAction().setVisible(False)
+            self.plot_canvas.getRoiAction().setVisible(False)
+            self.plot_canvas.getColormapAction().setVisible(False)
+            self.plot_canvas.setKeepDataAspectRatio(False)
+
+        origin = (dataX[0],dataY[0])
+        scale = (dataX[1]-dataX[0],dataY[1]-dataY[0])
+
+        data_to_plot = data2D.T
+
+        colormap = {"name":"temperature", "normalization":"linear", "autoscale":True, "vmin":0, "vmax":0, "colors":256}
+
+        self.plot_canvas.addImage(numpy.array(data_to_plot),
+                                  legend="power",
+                                  scale=scale,
+                                  origin=origin,
+                                  colormap=colormap,
+                                  replace=True)
+
+        self.plot_canvas.setActiveImage("power")
+
+        self.plot_canvas.setGraphXLabel(xtitle)
+        self.plot_canvas.setGraphYLabel(ytitle)
+        self.plot_canvas.setGraphTitle(title)
+
+        layout = self.layout()
+        layout.addWidget(self.plot_canvas)
+        self.setLayout(layout)
+
+    def clear(self):
+        if not self.plot_canvas is None: self.plot_canvas.clear()
