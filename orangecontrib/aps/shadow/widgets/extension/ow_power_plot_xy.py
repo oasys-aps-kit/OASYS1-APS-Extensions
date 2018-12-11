@@ -60,6 +60,12 @@ class PowerPlotXY(AutomaticElement):
     keep_result=Setting(0)
     last_ticket=None
 
+    energy_min = None
+    energy_max = None
+    energy_step = None
+    total_power = None
+    cumulated_power = None
+
     def __init__(self):
         super().__init__()
 
@@ -160,17 +166,21 @@ class PowerPlotXY(AutomaticElement):
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
 
-    def clearResults(self):
-        if ConfirmDialog.confirmed(parent=self):
+    def clearResults(self, interactive=True):
+        if not interactive: proceed = True
+        else: proceed = ConfirmDialog.confirmed(parent=self)
+
+        if proceed:
             self.input_beam = None
             self.last_ticket = None
+            self.energy_min = None
+            self.energy_max = None
+            self.energy_step = None
+            self.total_power = None
+            self.cumulated_power = None
 
             if not self.plot_canvas is None:
                 self.plot_canvas.clear()
-
-            return True
-        else:
-            return False
 
     def set_ImagePlane(self):
         self.image_plane_box.setVisible(self.image_plane==1)
@@ -189,14 +199,17 @@ class PowerPlotXY(AutomaticElement):
             self.plot_canvas = PowerPlotXYWidget()
             self.image_box.layout().addWidget(self.plot_canvas)
 
-        total_power = beam.scanned_variable_data.get_additional_parameter("total_power")
-
         try:
             if self.keep_result == 1:
-                self.last_ticket = self.plot_canvas.plot_power_density(beam._beam, var_x, var_y, total_power, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm)
+                self.last_ticket = self.plot_canvas.plot_power_density(beam._beam, var_x, var_y,
+                                                                       self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                       nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
+                                                                       ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm)
             else:
                 self.last_ticket = None
-                self.plot_canvas.plot_power_density(beam._beam, var_x, var_y, total_power, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm)
+                self.plot_canvas.plot_power_density(beam._beam, var_x, var_y,
+                                                    self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
+                                                    nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm)
         except Exception as e:
             raise Exception("Data not plottable: No good rays or bad content: " + str(e))
 
@@ -274,13 +287,25 @@ class PowerPlotXY(AutomaticElement):
     def setBeam(self, beam):
         if ShadowCongruence.checkEmptyBeam(beam):
             if ShadowCongruence.checkGoodBeam(beam):
-                self.input_beam = beam
+                if not beam.scanned_variable_data is None:
+                    self.input_beam = beam
 
-                if self.is_automatic_run:
-                    self.plot_results()
+                    self.total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
+
+                    if self.energy_min is None:
+                        self.energy_min  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
+                        self.energy_step = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
+                        self.cumulated_power = self.total_power
+                    else:
+                        self.cumulated_power += self.total_power
+
+                    self.energy_max  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
+
+                    if self.is_automatic_run:
+                        self.plot_results()
             else:
                 QtWidgets.QMessageBox.critical(self, "Error",
-                                           "Data not displayable: No good rays, bad content, bad limits or axes",
+                                           "Data not displayable: No Power Density data, No good rays, bad content, bad limits or axes",
                                            QtWidgets.QMessageBox.Ok)
 
 

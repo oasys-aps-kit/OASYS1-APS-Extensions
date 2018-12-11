@@ -502,6 +502,9 @@ class APSUndulator(GenericElement):
             if self.use_harmonic==1 and self.distribution_source==0 and self.save_srw_result==0 and self.energy_step:
                 additional_parameters = {}
 
+                additional_parameters["intensity_arrays"] = x, z, intensity_source_dimension
+                additional_parameters["photon_energy_step"] = self.energy_step
+
                 additional_parameters["Kv"] = self.Kv
                 additional_parameters["Kh"] = self.Kh
                 additional_parameters["period_id"] = self.undulator_period
@@ -518,10 +521,10 @@ class APSUndulator(GenericElement):
                 additional_parameters["h_slits_points"] = self.source_dimension_wf_h_slit_points
                 additional_parameters["v_slits_points"] = self.source_dimension_wf_v_slit_points
                 additional_parameters["distance"] = self.source_dimension_wf_distance
-                additional_parameters["photon_energy_min"] = self.energy
-                additional_parameters["photon_energy_max"] = self.energy + self.energy_step
 
-                beam_out.setScanningData(ShadowBeam.ScanningData("Energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
+                 # scanned variable named for monochromators! todo: other kind of objects
+
+                beam_out.setScanningData(ShadowBeam.ScanningData("photon_energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
 
             self.send("Beam", beam_out)
         except Exception as exception:

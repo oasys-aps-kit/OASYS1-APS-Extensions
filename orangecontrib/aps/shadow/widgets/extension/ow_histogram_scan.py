@@ -270,8 +270,11 @@ class Histogram(ow_automatic_element.AutomaticElement):
         out_box = gui.widgetBox(out_tab, "System Output", addSpace=True, orientation="horizontal")
         out_box.layout().addWidget(self.shadow_output)
 
-    def clearResults(self):
-        if ConfirmDialog.confirmed(parent=self):
+    def clearResults(self, interactive=True):
+        if not interactive: proceed = True
+        else: proceed = ConfirmDialog.confirmed(parent=self)
+
+        if proceed:
             self.clear_data()
 
     def clear_data(self):

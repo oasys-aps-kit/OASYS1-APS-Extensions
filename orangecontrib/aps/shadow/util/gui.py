@@ -412,7 +412,7 @@ class PowerPlotXYWidget(QWidget):
         self.plot_canvas = None
         self.setLayout(QVBoxLayout())
 
-    def plot_power_density(self, beam, var_x, var_y, total_power, nbins=100, xrange=None, yrange=None, nolost=0, ticket_to_add=None, to_mm=1.0):
+    def plot_power_density(self, beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step, nbins=100, xrange=None, yrange=None, nolost=0, ticket_to_add=None, to_mm=1.0):
         ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, ref=23)
 
         bin_h_size = (ticket['bin_h_center'][1]-ticket['bin_h_center'][0])*to_mm
@@ -429,7 +429,10 @@ class PowerPlotXYWidget(QWidget):
         xx = ticket['bin_h_center']*to_mm
         yy = ticket['bin_v_center']*to_mm
 
-        self.plot_data2D(ticket['histogram'], xx, yy, "Power Density", self.get_label(var_x), self.get_label(var_y))
+        title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max, 2)) + \
+                " [eV], (step " + str(round(energy_step, 2)) + ")\nCumulated Power: " + str(round(cumulated_power, 2)) + " [W]"
+
+        self.plot_data2D(ticket['histogram'], xx, yy, title, self.get_label(var_x), self.get_label(var_y))
 
         return ticket
 
