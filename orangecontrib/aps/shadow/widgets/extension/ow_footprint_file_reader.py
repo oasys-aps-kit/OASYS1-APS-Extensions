@@ -104,12 +104,12 @@ class FootprintFileReader(oasyswidget.OWWidget):
 
                     incident_beam = history_entry._input_beam
 
-                    beam_out._beam.rays[:, 6]  = incident_beam._beam.rays[:, 6]  - beam_out._beam.rays[:, 6]
-                    beam_out._beam.rays[:, 7]  = incident_beam._beam.rays[:, 7]  - beam_out._beam.rays[:, 7]
-                    beam_out._beam.rays[:, 8]  = incident_beam._beam.rays[:, 8]  - beam_out._beam.rays[:, 8]
-                    beam_out._beam.rays[:, 15] = incident_beam._beam.rays[:, 15] - beam_out._beam.rays[:, 15]
-                    beam_out._beam.rays[:, 16] = incident_beam._beam.rays[:, 16] - beam_out._beam.rays[:, 16]
-                    beam_out._beam.rays[:, 17] = incident_beam._beam.rays[:, 17] - beam_out._beam.rays[:, 17]
+                    beam_out._beam.rays[:, 6]  = numpy.sqrt(incident_beam._beam.rays[:, 6]**2  - beam_out._beam.rays[:, 6]**2)
+                    beam_out._beam.rays[:, 7]  = numpy.sqrt(incident_beam._beam.rays[:, 7]**2  - beam_out._beam.rays[:, 7]**2)
+                    beam_out._beam.rays[:, 8]  = numpy.sqrt(incident_beam._beam.rays[:, 8]**2  - beam_out._beam.rays[:, 8]**2)
+                    beam_out._beam.rays[:, 15] = numpy.sqrt(incident_beam._beam.rays[:, 15]**2 - beam_out._beam.rays[:, 15]**2)
+                    beam_out._beam.rays[:, 16] = numpy.sqrt(incident_beam._beam.rays[:, 16]**2 - beam_out._beam.rays[:, 16]**2)
+                    beam_out._beam.rays[:, 17] = numpy.sqrt(incident_beam._beam.rays[:, 17]**2 - beam_out._beam.rays[:, 17]**2)
 
                 beam_out.setScanningData(ShadowBeam.ScanningData(self.input_beam.scanned_variable_data.get_scanned_variable_name(),
                                                                  self.input_beam.scanned_variable_data.get_scanned_variable_value(),

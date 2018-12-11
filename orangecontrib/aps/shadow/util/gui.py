@@ -457,8 +457,7 @@ class PowerPlotXYWidget(QWidget):
             self.plot_canvas.setYAxisLogarithmic(False)
             self.plot_canvas.getMaskAction().setVisible(False)
             self.plot_canvas.getRoiAction().setVisible(False)
-            self.plot_canvas.getColormapAction().setVisible(False)
-            self.plot_canvas.setKeepDataAspectRatio(False)
+            self.plot_canvas.getColormapAction().setVisible(True)
 
         origin = (dataX[0],dataY[0])
         scale = (dataX[1]-dataX[0],dataY[1]-dataY[0])

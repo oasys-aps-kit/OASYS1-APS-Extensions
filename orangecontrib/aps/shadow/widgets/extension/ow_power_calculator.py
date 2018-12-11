@@ -33,9 +33,13 @@ class LoopPoint(widget.OWWidget):
                 "id":"beam"}]
 
     want_main_area = 0
+    redo_calculation = Setting(0)
 
     def __init__(self):
-        oasysgui.widgetBox(self.controlArea, "Power Calculation", addSpace=True, orientation="vertical", width=380, height=120)
+        left_box_1 = oasysgui.widgetBox(self.controlArea, "Power Calculation", addSpace=True, orientation="vertical", width=380, height=120)
+
+        gui.comboBox(left_box_1, self, "redo_calculation", label="Recalculate Intensity",
+                     items=["No", "Yes"], labelWidth=260, sendSelectedValue=False, orientation="horizontal")
 
         gui.rubber(self.controlArea)
 
@@ -45,18 +49,12 @@ class LoopPoint(widget.OWWidget):
             photon_energy      = input_beam.scanned_variable_data.get_scanned_variable_value()
             photon_energy_step = input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
 
-            if input_beam.scanned_variable_data.has_additional_parameter("intensity_arrays"):
+            if input_beam.scanned_variable_data.has_additional_parameter("intensity_arrays") and self.redo_calculation == 0:
                 h_array, v_array, intensity_array = input_beam.scanned_variable_data.get_additional_parameter("intensity_arrays")
 
-                h_array *= self.workspace_units_to_mm
-                v_array *= self.workspace_units_to_mm
-
-                power_density_array, total_power = self.calculate_power(h_array,
-                                                                        v_array,
-                                                                        intensity_array,
-                                                                        photon_energy_step)
+                total_power = self.calculate_power(h_array, v_array, intensity_array, photon_energy_step)
             else:
-                h_array, v_array, intensity_array, power_density_array, total_power = self.calc2d_srw(photon_energy, photon_energy_step, input_beam.scanned_variable_data)
+                total_power = self.calc2d_srw(photon_energy, photon_energy_step, input_beam.scanned_variable_data)
 
             additional_parameters = {}
             additional_parameters["total_power"] = total_power
@@ -128,7 +126,7 @@ class LoopPoint(widget.OWWidget):
         h_array=numpy.linspace(mesh_out.xStart, mesh_out.xFin, mesh_out.nx)*1e3 # in mm
         v_array=numpy.linspace(mesh_out.yStart, mesh_out.yFin, mesh_out.ny)*1e3 # in mm
 
-        intensity_array = numpy.zeros((h_array.size, v_array.size,))
+        intensity_array = numpy.zeros((h_array.size, v_array.size))
 
         arI0 = srwlib.array("f", [0]*mesh_out.nx*mesh_out.ny) #"flat" array to take 2D intensity data
 
@@ -140,23 +138,16 @@ class LoopPoint(widget.OWWidget):
             for iy in range(v_array.size):
                 intensity_array[ix, iy] = data[iy,ix]
 
-        power_density_array, total_power = self.calculate_power(h_array, v_array, intensity_array, photon_energy_step)
-
-        return h_array, v_array, intensity_array, power_density_array, total_power
+        return self.calculate_power(h_array, v_array, intensity_array, photon_energy_step)
 
     def calculate_power(self, h_array, v_array, intensity_array, photon_energy_step):
 
         # intensity_array = intensity_array * photon_energy_step / (1e-3*photon_energy) -> intensity in the photon energy step (from 01.%BW)
         # power_density_array = intensity_array * photon_energy * codata.e -> power in the photon energy step in Watt
 
-        power_density_array = intensity_array * (1e3 * photon_energy_step * codata.e)
-
-        total_power = 0.0
-
         dx = h_array[1] - h_array[0]
         dy = v_array[1] - v_array[0]
-        for j in range(len(v_array)):
-            for i in range(len(h_array)):
-                total_power += power_density_array[i, j] * dx * dy
 
-        return power_density_array, total_power
+        total_power = intensity_array.sum() * dx * dy * (1e3 * photon_energy_step * codata.e)
+
+        return total_power

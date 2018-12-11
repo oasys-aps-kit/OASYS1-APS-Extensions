@@ -68,12 +68,6 @@ class APSUndulator(GenericElement):
     source_dimension_wf_v_slit_points=Setting(301)
     source_dimension_wf_distance = Setting(28.0)
 
-    angular_distribution_wf_h_slit_gap = Setting(0.008)
-    angular_distribution_wf_v_slit_gap = Setting(0.008)
-    angular_distribution_wf_h_slit_points=Setting(601)
-    angular_distribution_wf_v_slit_points=Setting(601)
-    angular_distribution_wf_distance = Setting(100.0)
-
     save_srw_result = Setting(1)
 
     # SRW FILE INPUT
@@ -278,21 +272,12 @@ class APSUndulator(GenericElement):
 
         left_box_3 = oasysgui.widgetBox(tab_wf, "Wavefront Propagation Parameters", addSpace=False, orientation="vertical")
 
-        left_box_3_1 = oasysgui.widgetBox(left_box_3, "Source Dimension", addSpace=False, orientation="vertical")
 
-        oasysgui.lineEdit(left_box_3_1, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_1, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_1, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_1, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_1, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
-
-        left_box_3_2 = oasysgui.widgetBox(left_box_3, "Angular Distribution", addSpace=False, orientation="vertical")
-
-        oasysgui.lineEdit(left_box_3_2, self, "angular_distribution_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_2, self, "angular_distribution_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_2, self, "angular_distribution_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_2, self, "angular_distribution_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3_2, self, "angular_distribution_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
 
         ####################################################################################
         # SRW FILES
@@ -458,7 +443,7 @@ class APSUndulator(GenericElement):
             if self.distribution_source == 0:
                 self.setStatusMessage("Running SRW")
 
-                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = self.runSRWCalculation()
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, x_power, z_power, intensity_power = self.runSRWCalculation()
             elif self.distribution_source == 1:
                 self.setStatusMessage("Loading SRW files")
 
@@ -502,7 +487,7 @@ class APSUndulator(GenericElement):
             if self.use_harmonic==1 and self.distribution_source==0 and self.save_srw_result==0 and self.energy_step:
                 additional_parameters = {}
 
-                additional_parameters["intensity_arrays"] = x, z, intensity_source_dimension
+                additional_parameters["intensity_arrays"] = x_power, z_power, intensity_power
                 additional_parameters["photon_energy_step"] = self.energy_step
 
                 additional_parameters["Kv"] = self.Kv
@@ -521,8 +506,6 @@ class APSUndulator(GenericElement):
                 additional_parameters["h_slits_points"] = self.source_dimension_wf_h_slit_points
                 additional_parameters["v_slits_points"] = self.source_dimension_wf_v_slit_points
                 additional_parameters["distance"] = self.source_dimension_wf_distance
-
-                 # scanned variable named for monochromators! todo: other kind of objects
 
                 beam_out.setScanningData(ShadowBeam.ScanningData("photon_energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
 
@@ -648,13 +631,6 @@ class APSUndulator(GenericElement):
         congruence.checkGreaterOrEqualThan(self.source_dimension_wf_distance, self.get_minimum_propagation_distance(),
                                            "Wavefront Propagation Distance", "Minimum Distance out of the Source: " + str(self.get_minimum_propagation_distance()))
 
-        congruence.checkStrictlyPositiveNumber(self.angular_distribution_wf_h_slit_gap, "Wavefront Propagation H Slit Gap")
-        congruence.checkStrictlyPositiveNumber(self.angular_distribution_wf_v_slit_gap, "Wavefront Propagation V Slit Gap")
-        congruence.checkStrictlyPositiveNumber(self.angular_distribution_wf_h_slit_points, "Wavefront Propagation H Slit Points")
-        congruence.checkStrictlyPositiveNumber(self.angular_distribution_wf_v_slit_points, "Wavefront Propagation V Slit Points")
-        congruence.checkGreaterOrEqualThan(self.angular_distribution_wf_distance, self.get_minimum_propagation_distance(),
-                                           "Wavefront Propagation Distance", "Minimum Distance out of the Source: " + str(self.get_minimum_propagation_distance()))
-
         if self.save_srw_result == 1:
             congruence.checkDir(self.source_dimension_srw_file)
             congruence.checkDir(self.angular_distribution_srw_file)
@@ -714,7 +690,7 @@ class APSUndulator(GenericElement):
 
         return elecBeam
 
-    def createInitialWavefrontMeshSourceDimension(self, elecBeam):
+    def createInitialWavefrontMesh(self, elecBeam):
         #****************** Initial Wavefront
         wfr = SRWLWfr() #For intensity distribution at fixed photon energy
         wfr.allocate(1, self.source_dimension_wf_h_slit_points, self.source_dimension_wf_v_slit_points) #Numbers of points vs Photon Energy, Horizontal and Vertical Positions
@@ -725,23 +701,6 @@ class APSUndulator(GenericElement):
         wfr.mesh.xStart = -0.5*self.source_dimension_wf_h_slit_gap #Initial Horizontal Position [m]
         wfr.mesh.xFin = -1 * wfr.mesh.xStart #0.00015 #Final Horizontal Position [m]
         wfr.mesh.yStart = -0.5*self.source_dimension_wf_v_slit_gap #Initial Vertical Position [m]
-        wfr.mesh.yFin = -1 * wfr.mesh.yStart#0.00015 #Final Vertical Position [m]
-
-        wfr.partBeam = elecBeam
-
-        return wfr
-
-    def createInitialWavefrontMeshAngularDistribution(self, elecBeam):
-        #****************** Initial Wavefront
-        wfr = SRWLWfr() #For intensity distribution at fixed photon energy
-        wfr.allocate(1, self.angular_distribution_wf_h_slit_points, self.angular_distribution_wf_v_slit_points) #Numbers of points vs Photon Energy, Horizontal and Vertical Positions
-        wfr.mesh.zStart = self.angular_distribution_wf_distance #Longitudinal Position [m] from Center of Straight Section at which SR has to be calculated
-        wfr.mesh.eStart =  self.energy if self.use_harmonic==1 else self.resonance_energy(harmonic=self.harmonic_number) #Initial Photon Energy [eV]
-        wfr.mesh.eFin = wfr.mesh.eStart #Final Photon Energy [eV]
-
-        wfr.mesh.xStart = -0.5*self.angular_distribution_wf_h_slit_gap #Initial Horizontal Position [m]
-        wfr.mesh.xFin = -1 * wfr.mesh.xStart #0.00015 #Final Horizontal Position [m]
-        wfr.mesh.yStart = -0.5*self.angular_distribution_wf_v_slit_gap #Initial Vertical Position [m]
         wfr.mesh.yFin = -1 * wfr.mesh.yStart#0.00015 #Final Vertical Position [m]
 
         wfr.partBeam = elecBeam
@@ -788,8 +747,8 @@ class APSUndulator(GenericElement):
 
         magFldCnt = self.createUndulator()
         elecBeam = self.createElectronBeam()
-        wfrAngDist = self.createInitialWavefrontMeshAngularDistribution(elecBeam)
-        wfrSouDim = self.createInitialWavefrontMeshSourceDimension(elecBeam)
+        wfrAngDist = self.createInitialWavefrontMesh(elecBeam)
+        wfrSouDim = self.createInitialWavefrontMesh(elecBeam)
         optBLSouDim = self.createBeamlineSourceDimension(wfrSouDim)
 
         arPrecParSpec = self.createCalculationPrecisionSettings()
@@ -835,6 +794,10 @@ class APSUndulator(GenericElement):
         print('done')
         print('   Saving the Initial Wavefront Intensity into a file ... ', end='')
 
+        x_power, z_power, intensity_power = self.transform_srw_array(arI, wfrAngDist.mesh)
+        x_power *= 1e3 # mm for power computations
+        z_power *= 1e3 # mm for power computations
+
         distance = wfrAngDist.mesh.zStart + 0.5*(self.number_of_periods*self.undulator_period)
 
         wfrAngDist.mesh.xStart /= distance
@@ -847,7 +810,7 @@ class APSUndulator(GenericElement):
 
         x_first, z_first, intensity_angular_distribution = self.transform_srw_array(arI, wfrAngDist.mesh)
 
-        return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution
+        return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, x_power, z_power, intensity_power
 
     def generate_user_defined_distribution_from_srw(self,
                                                     beam_out,
