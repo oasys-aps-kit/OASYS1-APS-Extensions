@@ -408,8 +408,10 @@ class PowerPlotXYWidget(QWidget):
         pass
     
         super(QWidget, self).__init__(parent=parent)
-        
+
         self.plot_canvas = None
+        self.cumulated_power_plot = 0.0
+
         self.setLayout(QVBoxLayout())
 
     def plot_power_density(self, beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step, nbins=100, xrange=None, yrange=None, nolost=0, ticket_to_add=None, to_mm=1.0):
@@ -418,7 +420,13 @@ class PowerPlotXYWidget(QWidget):
         bin_h_size = (ticket['bin_h_center'][1]-ticket['bin_h_center'][0])*to_mm
         bin_v_size = (ticket['bin_v_center'][1]-ticket['bin_v_center'][0])*to_mm
 
-        ticket['histogram'] *= (total_power/ticket['nrays'])/(bin_h_size*bin_v_size)
+        n_rays = len(beam.rays[:, 0]) # lost and good!
+
+        ticket['histogram'] *= (total_power/n_rays) # power
+
+        self.cumulated_power_plot += ticket['histogram'].sum()
+
+        ticket['histogram'] /= (bin_h_size*bin_v_size) # power density
 
         if not ticket_to_add is None:
             ticket['histogram'] += ticket_to_add['histogram']
@@ -430,7 +438,7 @@ class PowerPlotXYWidget(QWidget):
         yy = ticket['bin_v_center']*to_mm
 
         title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max, 2)) + \
-                " [eV], (step " + str(round(energy_step, 2)) + ")\nCumulated Power: " + str(round(cumulated_power, 2)) + " [W]"
+                " [eV], (step " + str(round(energy_step, 2)) + ")\nPlotted Cumulated Power: " + str(round(self.cumulated_power_plot, 2)) + " [W] of Total Cumulated Power: " + str(round(cumulated_power, 2)) + " [W]"
 
         self.plot_data2D(ticket['histogram'], xx, yy, title, self.get_label(var_x), self.get_label(var_y))
 
@@ -450,7 +458,7 @@ class PowerPlotXYWidget(QWidget):
             self.plot_canvas.setXAxisAutoScale(True)
             self.plot_canvas.setYAxisAutoScale(True)
             self.plot_canvas.setGraphGrid(False)
-            self.plot_canvas.setKeepDataAspectRatio(True)
+            self.plot_canvas.setKeepDataAspectRatio(False)
             self.plot_canvas.yAxisInvertedAction.setVisible(False)
 
             self.plot_canvas.setXAxisLogarithmic(False)
@@ -484,4 +492,6 @@ class PowerPlotXYWidget(QWidget):
         self.setLayout(layout)
 
     def clear(self):
-        if not self.plot_canvas is None: self.plot_canvas.clear()
+        if not self.plot_canvas is None:
+            self.plot_canvas.clear()
+            self.cumulated_power_plot = 0.0

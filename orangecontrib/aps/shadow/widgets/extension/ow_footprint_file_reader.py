@@ -103,13 +103,20 @@ class FootprintFileReader(oasyswidget.OWWidget):
                     history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
 
                     incident_beam = history_entry._input_beam
-
-                    beam_out._beam.rays[:, 6]  = numpy.sqrt(incident_beam._beam.rays[:, 6]**2  - beam_out._beam.rays[:, 6]**2)
-                    beam_out._beam.rays[:, 7]  = numpy.sqrt(incident_beam._beam.rays[:, 7]**2  - beam_out._beam.rays[:, 7]**2)
-                    beam_out._beam.rays[:, 8]  = numpy.sqrt(incident_beam._beam.rays[:, 8]**2  - beam_out._beam.rays[:, 8]**2)
-                    beam_out._beam.rays[:, 15] = numpy.sqrt(incident_beam._beam.rays[:, 15]**2 - beam_out._beam.rays[:, 15]**2)
-                    beam_out._beam.rays[:, 16] = numpy.sqrt(incident_beam._beam.rays[:, 16]**2 - beam_out._beam.rays[:, 16]**2)
-                    beam_out._beam.rays[:, 17] = numpy.sqrt(incident_beam._beam.rays[:, 17]**2 - beam_out._beam.rays[:, 17]**2)
+                    
+                    # need a trick: put the whole intensity of one single component
+                    
+                    incident_intensity = incident_beam._beam.rays[:, 6]**2 + incident_beam._beam.rays[:, 7]**2 + incident_beam._beam.rays[:, 8]**2 +\
+                                         incident_beam._beam.rays[:, 15]**2 + incident_beam._beam.rays[:, 16]**2 + incident_beam._beam.rays[:, 17]**2
+                    transmitted_intensity = beam_out._beam.rays[:, 6]**2 + beam_out._beam.rays[:, 7]**2 + beam_out._beam.rays[:, 8]**2 +\
+                                            beam_out._beam.rays[:, 15]**2 + beam_out._beam.rays[:, 16]**2 + beam_out._beam.rays[:, 17]**2
+                    
+                    beam_out._beam.rays[:, 6]  = numpy.sqrt(incident_intensity  - transmitted_intensity)
+                    beam_out._beam.rays[:, 7]  = 0.0
+                    beam_out._beam.rays[:, 8]  = 0.0
+                    beam_out._beam.rays[:, 15] = 0.0
+                    beam_out._beam.rays[:, 16] = 0.0
+                    beam_out._beam.rays[:, 17] = 0.0
 
                 beam_out.setScanningData(ShadowBeam.ScanningData(self.input_beam.scanned_variable_data.get_scanned_variable_name(),
                                                                  self.input_beam.scanned_variable_data.get_scanned_variable_value(),
