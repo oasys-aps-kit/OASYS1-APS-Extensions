@@ -138,10 +138,9 @@ class PowerPlotXY(AutomaticElement):
 
         self.set_YRange()
 
-        gui.comboBox(general_box, self, "rays", label="Rays", labelWidth=250,
-                                     items=["Transmitted",
-                                            "Absorbed"],
-                                     sendSelectedValue=False, orientation="horizontal")
+        self.cb_rays = gui.comboBox(general_box, self, "rays", label="Rays", labelWidth=250,
+                                    items=["Transmitted", "Absorbed"],
+                                    sendSelectedValue=False, orientation="horizontal")
 
         incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="horizontal", height=80)
 
@@ -284,6 +283,8 @@ class PowerPlotXY(AutomaticElement):
             return False
 
     def setBeam(self, beam):
+        self.cb_rays.setEnabled(True)
+
         if ShadowCongruence.checkEmptyBeam(beam):
             if ShadowCongruence.checkGoodBeam(beam):
                 if not beam.scanned_variable_data is None:
@@ -299,6 +300,13 @@ class PowerPlotXY(AutomaticElement):
                         self.cumulated_power += self.total_power
 
                     self.energy_max  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
+
+                    if self.input_beam.scanned_variable_data.has_additional_parameter("is_footprint"):
+                        if self.input_beam.scanned_variable_data.get_additional_parameter("is_footprint"):
+                            self.cb_rays.setEnabled(False)
+                            self.rays = 0 # transmitted, absorbed doesn't make sense since is precalculated by footprint object
+                        else:
+                            self.cb_rays.setEnabled(True)
 
                     if self.is_automatic_run:
                         self.plot_results()

@@ -87,6 +87,7 @@ class FootprintFileReader(oasyswidget.OWWidget):
                 additional_parameters = {}
                 additional_parameters["total_power"]        = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
                 additional_parameters["photon_energy_step"] = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
+                additional_parameters["is_footprint"] = True
 
                 if self.kind_of_power == 0: # incident
                     history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
@@ -110,8 +111,12 @@ class FootprintFileReader(oasyswidget.OWWidget):
                                          incident_beam._beam.rays[:, 15]**2 + incident_beam._beam.rays[:, 16]**2 + incident_beam._beam.rays[:, 17]**2
                     transmitted_intensity = beam_out._beam.rays[:, 6]**2 + beam_out._beam.rays[:, 7]**2 + beam_out._beam.rays[:, 8]**2 +\
                                             beam_out._beam.rays[:, 15]**2 + beam_out._beam.rays[:, 16]**2 + beam_out._beam.rays[:, 17]**2
-                    
-                    beam_out._beam.rays[:, 6]  = numpy.sqrt(incident_intensity  - transmitted_intensity)
+
+                    electric_field = numpy.sqrt(incident_intensity - transmitted_intensity)
+
+                    electric_field[numpy.where(electric_field == numpy.nan)] = 0.0
+
+                    beam_out._beam.rays[:, 6]  = electric_field
                     beam_out._beam.rays[:, 7]  = 0.0
                     beam_out._beam.rays[:, 8]  = 0.0
                     beam_out._beam.rays[:, 15] = 0.0
