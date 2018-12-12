@@ -68,6 +68,11 @@ class APSUndulator(GenericElement):
     source_dimension_wf_v_slit_points=Setting(301)
     source_dimension_wf_distance = Setting(28.0)
 
+    horizontal_range_modification_factor_at_resizing       = Setting(0.5)
+    horizontal_resolution_modification_factor_at_resizing  = Setting(5.0)
+    vertical_range_modification_factor_at_resizing         = Setting(0.5)
+    vertical_resolution_modification_factor_at_resizing    = Setting(5.0)
+
     save_srw_result = Setting(1)
 
     # SRW FILE INPUT
@@ -272,12 +277,19 @@ class APSUndulator(GenericElement):
 
         left_box_3 = oasysgui.widgetBox(tab_wf, "Wavefront Propagation Parameters", addSpace=False, orientation="vertical")
 
-
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
+
+        left_box_4 = oasysgui.widgetBox(tab_wf, "Drift Back Propagation Parameters", addSpace=False, orientation="vertical")
+
+        oasysgui.lineEdit(left_box_4, self, "horizontal_range_modification_factor_at_resizing", "H range modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_4, self, "horizontal_resolution_modification_factor_at_resizing", "H resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_4, self, "vertical_range_modification_factor_at_resizing", "V range modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_4, self, "vertical_resolution_modification_factor_at_resizing", "V resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
+
 
         ####################################################################################
         # SRW FILES
@@ -723,7 +735,12 @@ class APSUndulator(GenericElement):
         #***************** Optical Elements and Propagation Parameters
 
         opDrift = SRWLOptD(-wfr.mesh.zStart)
-        ppDrift = [0, 0, 1., 1, 0, 0.5, 5.0, 0.5, 5.0, 0, 0, 0]
+        ppDrift = [0, 0, 1., 1, 0,
+                   self.horizontal_range_modification_factor_at_resizing,
+                   self.horizontal_resolution_modification_factor_at_resizing,
+                   self.vertical_range_modification_factor_at_resizing,
+                   self.vertical_resolution_modification_factor_at_resizing,
+                   0, 0, 0]
 
         return SRWLOptC([opDrift],[ppDrift])
 
