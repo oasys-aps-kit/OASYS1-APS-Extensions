@@ -16,8 +16,9 @@ except:
 
 from oasys.widgets import gui as oasysgui
 
-from orangecontrib.shadow.util.shadow_util import ShadowPlot
 from orangecontrib.aps.util.gui import HistogramData, get_sigma
+
+from Shadow import Beam
 
 class AbstractScanHistoWidget(QWidget):
 
@@ -414,13 +415,34 @@ class PowerPlotXYWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
-    def plot_power_density(self, beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step, nbins=100, xrange=None, yrange=None, nolost=0, ticket_to_add=None, to_mm=1.0):
+    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step, nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0):
+
+        n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
+
+        if nolost==2: # must be calculating only the rays the become lost in the last object
+            current_beam = shadow_beam
+
+            history_item = shadow_beam.getOEHistory(oe_number=shadow_beam._oe_number)
+
+            if history_item is None:
+                beam = shadow_beam._beam
+            else:
+                previous_beam = history_item._input_beam.duplicate(history=False)
+
+                lost = numpy.where(current_beam._beam.rays[:, 9] != 1)
+
+                current_lost_rays = current_beam._beam.rays[lost]
+                lost_rays_in_previous = previous_beam._beam.rays[lost]
+
+                beam = Beam()
+                beam.rays = current_lost_rays[numpy.where(lost_rays_in_previous[:, 9] == 1)]# lost rays that were good after the previous OE
+        else:
+            beam = shadow_beam._beam
+
         ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, ref=23)
 
         bin_h_size = (ticket['bin_h_center'][1]-ticket['bin_h_center'][0])*to_mm
         bin_v_size = (ticket['bin_v_center'][1]-ticket['bin_v_center'][0])*to_mm
-
-        n_rays = len(beam.rays[:, 0]) # lost and good!
 
         ticket['histogram'] *= (total_power/n_rays) # power
 

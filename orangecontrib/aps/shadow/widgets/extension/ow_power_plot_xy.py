@@ -139,9 +139,8 @@ class PowerPlotXY(AutomaticElement):
         self.set_YRange()
 
         gui.comboBox(general_box, self, "rays", label="Rays", labelWidth=250,
-                                     items=["All rays",
-                                            "Good Only",
-                                            "Lost Only"],
+                                     items=["Transmitted",
+                                            "Absorbed"],
                                      sendSelectedValue=False, orientation="horizontal")
 
         incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="horizontal", height=80)
@@ -194,20 +193,20 @@ class PowerPlotXY(AutomaticElement):
         self.yrange_box.setVisible(self.y_range == 1)
         self.yrange_box_empty.setVisible(self.y_range == 0)
 
-    def replace_fig(self, beam, var_x, var_y, xrange, yrange, nbins, nolost):
+    def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost):
         if self.plot_canvas is None:
             self.plot_canvas = PowerPlotXYWidget()
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
             if self.keep_result == 1:
-                self.last_ticket = self.plot_canvas.plot_power_density(beam._beam, var_x, var_y,
+                self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
                                                                        self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
                                                                        nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                        ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm)
             else:
                 self.last_ticket = None
-                self.plot_canvas.plot_power_density(beam._beam, var_x, var_y,
+                self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
                                                     self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
                                                     nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm)
         except Exception as e:
@@ -239,7 +238,7 @@ class PowerPlotXY(AutomaticElement):
 
         xrange, yrange = self.get_ranges()
 
-        self.replace_fig(beam_to_plot, var_x, var_y, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays)
+        self.replace_fig(beam_to_plot, var_x, var_y, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays+1)
 
     def get_ranges(self):
         xrange = None
