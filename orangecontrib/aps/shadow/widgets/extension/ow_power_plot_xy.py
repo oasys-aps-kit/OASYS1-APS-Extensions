@@ -67,7 +67,7 @@ class PowerPlotXY(AutomaticElement):
     cumulated_power = None
 
     def __init__(self):
-        super().__init__()
+        super().__init__(show_automatic_box=False)
 
         gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
         gui.separator(self.controlArea, 10)
@@ -282,39 +282,34 @@ class PowerPlotXY(AutomaticElement):
 
             return False
 
-    def setBeam(self, beam):
+    def setBeam(self, input_beam):
         self.cb_rays.setEnabled(True)
 
-        if ShadowCongruence.checkEmptyBeam(beam):
-            if ShadowCongruence.checkGoodBeam(beam):
-                if not beam.scanned_variable_data is None:
-                    self.input_beam = beam
+        if not input_beam is None:
+            if not input_beam.scanned_variable_data is None and self.input_beam.scanned_variable_data.has_additional_parameter("total_power"):
+                self.input_beam = input_beam
 
-                    self.total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
+                self.total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
 
-                    if self.energy_min is None:
-                        self.energy_min  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
-                        self.energy_step = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
-                        self.cumulated_power = self.total_power
+                if self.energy_min is None:
+                    self.energy_min  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
+                    self.energy_step = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
+                    self.cumulated_power = self.total_power
+                else:
+                    self.cumulated_power += self.total_power
+
+                self.energy_max  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
+
+                if self.input_beam.scanned_variable_data.has_additional_parameter("is_footprint"):
+                    if self.input_beam.scanned_variable_data.get_additional_parameter("is_footprint"):
+                        self.cb_rays.setEnabled(False)
+                        self.rays = 0 # transmitted, absorbed doesn't make sense since is precalculated by footprint object
                     else:
-                        self.cumulated_power += self.total_power
+                        self.cb_rays.setEnabled(True)
 
-                    self.energy_max  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
-
-                    if self.input_beam.scanned_variable_data.has_additional_parameter("is_footprint"):
-                        if self.input_beam.scanned_variable_data.get_additional_parameter("is_footprint"):
-                            self.cb_rays.setEnabled(False)
-                            self.rays = 0 # transmitted, absorbed doesn't make sense since is precalculated by footprint object
-                        else:
-                            self.cb_rays.setEnabled(True)
-
-                    if self.is_automatic_run:
+                if ShadowCongruence.checkEmptyBeam(input_beam):
+                    if ShadowCongruence.checkGoodBeam(input_beam):
                         self.plot_results()
-            else:
-                QtWidgets.QMessageBox.critical(self, "Error",
-                                           "Data not displayable: No Power Density data, No good rays, bad content, bad limits or axes",
-                                           QtWidgets.QMessageBox.Ok)
-
 
     def writeStdOut(self, text):
         cursor = self.shadow_output.textCursor()

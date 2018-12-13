@@ -592,7 +592,7 @@ class APSUndulator(GenericElement):
         shadow_src.src.F_COLOR = 1 # single value
         shadow_src.src.F_PHOT = 0 # eV , 1 Angstrom
 
-        shadow_src.src.PH1 = self.energy
+        shadow_src.src.PH1 = self.energy if self.use_harmonic==1 else self.resonance_energy(harmonic=self.harmonic_number)
 
         shadow_src.src.F_POLAR = self.polarization
 

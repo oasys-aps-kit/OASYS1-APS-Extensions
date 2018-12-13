@@ -44,7 +44,7 @@ class LoopPoint(widget.OWWidget):
         gui.rubber(self.controlArea)
 
     def setBeam(self, input_beam):
-        if input_beam.scanned_variable_data and input_beam.scanned_variable_data.has_additional_parameter("total_power"):
+        if input_beam.scanned_variable_data and input_beam.scanned_variable_data.has_additional_parameter("photon_energy_step"):
 
             photon_energy      = input_beam.scanned_variable_data.get_scanned_variable_value()
             photon_energy_step = input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
