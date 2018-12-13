@@ -61,11 +61,12 @@ class FootprintFileReader(oasyswidget.OWWidget):
 
     def setBeam(self, beam):
         if ShadowCongruence.checkEmptyBeam(beam) and ShadowCongruence.checkGoodBeam(beam):
-            self.input_beam = beam
+            if beam.scanned_variable_data and beam.scanned_variable_data.has_additional_parameter("total_power"):
+                self.input_beam = beam
 
-            self.beam_file_name = "mirr." + (str(beam._oe_number) if beam._oe_number > 9 else "0" + str(beam._oe_number))
+                self.beam_file_name = "mirr." + (str(beam._oe_number) if beam._oe_number > 9 else "0" + str(beam._oe_number))
 
-            self.read_file()
+                self.read_file()
 
     def read_file(self):
         self.setStatusMessage("")
