@@ -286,7 +286,7 @@ class PowerPlotXY(AutomaticElement):
         self.cb_rays.setEnabled(True)
 
         if not input_beam is None:
-            if not input_beam.scanned_variable_data is None and self.input_beam.scanned_variable_data.has_additional_parameter("total_power"):
+            if not input_beam.scanned_variable_data is None and input_beam.scanned_variable_data.has_additional_parameter("total_power"):
                 self.input_beam = input_beam
 
                 self.total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
