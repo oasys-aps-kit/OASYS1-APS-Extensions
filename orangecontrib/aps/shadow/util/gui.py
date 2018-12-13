@@ -412,6 +412,7 @@ class PowerPlotXYWidget(QWidget):
 
         self.plot_canvas = None
         self.cumulated_power_plot = 0.0
+        self.cumulated_previous_power_plot = 0.0
 
         self.setLayout(QVBoxLayout())
 
@@ -419,15 +420,28 @@ class PowerPlotXYWidget(QWidget):
 
         n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
 
+        history_item = shadow_beam.getOEHistory(oe_number=shadow_beam._oe_number)
+
+        previous_beam = None
+
+        if shadow_beam.scanned_variable_data and shadow_beam.scanned_variable_data.has_additional_parameter("incident_power"):
+            self.cumulated_previous_power_plot += shadow_beam.scanned_variable_data.get_additional_parameter("incident_power")
+        else:
+            if not history_item is None and not history_item._input_beam is None:
+                previous_beam = history_item._input_beam.duplicate(history=False)
+
+                previous_ticket = previous_beam._beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=1, ref=23)
+                previous_ticket['histogram'] *= (total_power/n_rays) # power
+
+                self.cumulated_previous_power_plot += previous_ticket['histogram'].sum()
+
         if nolost==2: # must be calculating only the rays the become lost in the last object
             current_beam = shadow_beam
 
-            history_item = shadow_beam.getOEHistory(oe_number=shadow_beam._oe_number)
-
-            if history_item is None:
+            if history_item is None or history_item._input_beam is None:
                 beam = shadow_beam._beam
             else:
-                previous_beam = history_item._input_beam.duplicate(history=False)
+                previous_beam = previous_beam if previous_beam else history_item._input_beam.duplicate(history=False)
 
                 lost = numpy.where(current_beam._beam.rays[:, 9] != 1)
 
@@ -459,8 +473,8 @@ class PowerPlotXYWidget(QWidget):
         xx = ticket['bin_h_center']*to_mm
         yy = ticket['bin_v_center']*to_mm
 
-        title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max, 2)) + \
-                " [eV], (step " + str(round(energy_step, 2)) + ")\nPlotted Cumulated Power: " + str(round(self.cumulated_power_plot, 2)) + " [W] of Total Cumulated Power: " + str(round(cumulated_power, 2)) + " [W]"
+        title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max, 2)) + " [eV], (step " + str(round(energy_step, 2)) + ")\n" + \
+                "Plotted Power: " + str(round(self.cumulated_power_plot, 2)) + " [W], Incident Power: " + str(round(self.cumulated_previous_power_plot, 2)) + " [W], Total Power: " + str(round(cumulated_power, 2)) + " [W]"
 
         self.plot_data2D(ticket['histogram'], xx, yy, title, self.get_label(var_x), self.get_label(var_y))
 

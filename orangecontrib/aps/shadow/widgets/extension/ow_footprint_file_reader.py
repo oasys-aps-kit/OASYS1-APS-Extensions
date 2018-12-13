@@ -85,16 +85,25 @@ class FootprintFileReader(oasyswidget.OWWidget):
 
                 self.setStatusMessage("Current: " + file_name)
 
+                total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
+
                 additional_parameters = {}
-                additional_parameters["total_power"]        = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
+                additional_parameters["total_power"]        = total_power
                 additional_parameters["photon_energy_step"] = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
                 additional_parameters["is_footprint"] = True
 
+                n_rays = len(beam_out._beam.rays[:, 0]) # lost and good!
+
+                history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
+
+                incident_beam = history_entry._input_beam
+
+                ticket = incident_beam._beam.histo2(2, 1, nbins=100, xrange=None, yrange=None, nolost=1, ref=23)
+                ticket['histogram'] *= (total_power/n_rays) # power
+
+                additional_parameters["incident_power"] = ticket['histogram'].sum()
+
                 if self.kind_of_power == 0: # incident
-                    history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
-
-                    incident_beam = history_entry._input_beam
-
                     beam_out._beam.rays[:, 6]  = incident_beam._beam.rays[:, 6]
                     beam_out._beam.rays[:, 7]  = incident_beam._beam.rays[:, 7]
                     beam_out._beam.rays[:, 8]  = incident_beam._beam.rays[:, 8]
@@ -102,10 +111,6 @@ class FootprintFileReader(oasyswidget.OWWidget):
                     beam_out._beam.rays[:, 16] = incident_beam._beam.rays[:, 16]
                     beam_out._beam.rays[:, 17] = incident_beam._beam.rays[:, 17]
                 elif self.kind_of_power == 1: # absorbed
-                    history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
-
-                    incident_beam = history_entry._input_beam
-                    
                     # need a trick: put the whole intensity of one single component
                     
                     incident_intensity = incident_beam._beam.rays[:, 6]**2 + incident_beam._beam.rays[:, 7]**2 + incident_beam._beam.rays[:, 8]**2 +\
