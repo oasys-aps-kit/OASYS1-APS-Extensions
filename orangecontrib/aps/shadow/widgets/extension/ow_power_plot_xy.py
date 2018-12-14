@@ -31,7 +31,7 @@ class PowerPlotXY(AutomaticElement):
     inputs = [("Input Beam", ShadowBeam, "setBeam")]
 
     IMAGE_WIDTH = 878
-    IMAGE_HEIGHT = 635
+    IMAGE_HEIGHT = 570
 
     want_main_area=1
     plot_canvas=None
@@ -66,10 +66,13 @@ class PowerPlotXY(AutomaticElement):
     total_power = None
     cumulated_power = None
 
+    view_type=Setting(1)
+
     def __init__(self):
         super().__init__(show_automatic_box=False)
 
-        gui.button(self.controlArea, self, "Refresh", callback=self.plot_results, height=45)
+        gui.button(self.controlArea, self, "Plot Cumulated Data", callback=self.plot_cumulated_data, height=45)
+
         gui.separator(self.controlArea, 10)
 
         self.tabs_setting = oasysgui.tabWidget(self.controlArea)
@@ -155,6 +158,12 @@ class PowerPlotXY(AutomaticElement):
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
         out_tab = oasysgui.createTabPage(self.main_tabs, "Output")
 
+        view_box = oasysgui.widgetBox(plot_tab, "Plotting", addSpace=False, orientation="vertical", width=self.IMAGE_WIDTH)
+        view_box_1 = oasysgui.widgetBox(view_box, "", addSpace=False, orientation="vertical", width=350)
+
+        gui.comboBox(view_box_1, self, "view_type", label="Plot Accumulated Results", labelWidth=320,
+                     items=["No", "Yes"],  sendSelectedValue=False, orientation="horizontal")
+
         self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
         self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
         self.image_box.setFixedWidth(self.IMAGE_WIDTH)
@@ -192,26 +201,26 @@ class PowerPlotXY(AutomaticElement):
         self.yrange_box.setVisible(self.y_range == 1)
         self.yrange_box_empty.setVisible(self.y_range == 0)
 
-    def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost):
+    def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost, refresh=False):
         if self.plot_canvas is None:
             self.plot_canvas = PowerPlotXYWidget()
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            if self.keep_result == 1:
+            if self.keep_result == 1 and not refresh:
                 self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
                                                                        self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
                                                                        nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
-                                                                       ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm)
+                                                                       ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
             else:
-                self.last_ticket = None
+                if not refresh: self.last_ticket = None
                 self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
                                                     self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
-                                                    nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm)
+                                                    nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
         except Exception as e:
             raise Exception("Data not plottable: No good rays or bad content: " + str(e))
 
-    def plot_xy(self, var_x, var_y):
+    def plot_xy(self, var_x, var_y, refresh=False):
         beam_to_plot = self.input_beam
 
         if self.image_plane == 1:
@@ -237,7 +246,7 @@ class PowerPlotXY(AutomaticElement):
 
         xrange, yrange = self.get_ranges()
 
-        self.replace_fig(beam_to_plot, var_x, var_y, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays+1)
+        self.replace_fig(beam_to_plot, var_x, var_y, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays+1, refresh=refresh)
 
     def get_ranges(self):
         xrange = None
@@ -257,7 +266,10 @@ class PowerPlotXY(AutomaticElement):
 
         return xrange, yrange
 
-    def plot_results(self):
+    def plot_cumulated_data(self):
+        self.plot_results(refresh=True)
+
+    def plot_results(self, refresh=False):
         try:
             plotted = False
 
@@ -266,7 +278,7 @@ class PowerPlotXY(AutomaticElement):
             if ShadowCongruence.checkEmptyBeam(self.input_beam):
                 self.number_of_bins = congruence.checkStrictlyPositiveNumber(self.number_of_bins, "Number of Bins")
 
-                self.plot_xy(self.x_column_index+1, self.y_column_index+1)
+                self.plot_xy(self.x_column_index+1, self.y_column_index+1, refresh)
 
                 plotted = True
 

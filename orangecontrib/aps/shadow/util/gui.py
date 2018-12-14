@@ -416,7 +416,8 @@ class PowerPlotXYWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
-    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step, nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0):
+    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step,
+                           nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0, show_image=True):
 
         n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
 
@@ -476,7 +477,7 @@ class PowerPlotXYWidget(QWidget):
         title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max, 2)) + " [eV], (step " + str(round(energy_step, 2)) + ")\n" + \
                 "Plotted Power: " + str(round(self.cumulated_power_plot, 2)) + " [W], Incident Power: " + str(round(self.cumulated_previous_power_plot, 2)) + " [W], Total Power: " + str(round(cumulated_power, 2)) + " [W]"
 
-        self.plot_data2D(ticket['histogram'], xx, yy, title, self.get_label(var_x), self.get_label(var_y))
+        if show_image: self.plot_data2D(ticket['histogram'], xx, yy, title, self.get_label(var_x), self.get_label(var_y))
 
         return ticket
 
