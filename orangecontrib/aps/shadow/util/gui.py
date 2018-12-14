@@ -531,3 +531,4 @@ class PowerPlotXYWidget(QWidget):
         if not self.plot_canvas is None:
             self.plot_canvas.clear()
             self.cumulated_power_plot = 0.0
+            self.cumulated_previous_power_plot = 0.0
