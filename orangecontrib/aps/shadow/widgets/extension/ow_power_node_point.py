@@ -98,6 +98,10 @@ class PowerLoopPoint(widget.OWWidget):
 
         left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=380, height=520)
 
+        oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
+
+        gui.separator(left_box_1)
+
         oasysgui.widgetLabel(left_box_1, "Energy From, Energy To, Energy Step [eV]")
 
         def write_text():
@@ -112,7 +116,7 @@ class PowerLoopPoint(widget.OWWidget):
 
         gui.separator(left_box_1)
 
-        self.le_number_of_new_objects = oasysgui.lineEdit(left_box_1, self, "total_new_objects", "Total Energy Values", labelWidth=250, valueType=float, orientation="horizontal")
+        self.le_number_of_new_objects = oasysgui.lineEdit(left_box_1, self, "total_new_objects", "Total Energy Values", labelWidth=250, valueType=int, orientation="horizontal")
         self.le_number_of_new_objects.setReadOnly(True)
         font = QFont(self.le_number_of_new_objects.font())
         font.setBold(True)
@@ -122,7 +126,7 @@ class PowerLoopPoint(widget.OWWidget):
         palette.setColor(QPalette.Base, QColor(243, 240, 160))
         self.le_number_of_new_objects.setPalette(palette)
 
-        self.le_number_of_new_objects = oasysgui.lineEdit(left_box_1, self, "number_of_new_objects", "Current Bin Energy Values", labelWidth=250, valueType=float, orientation="horizontal")
+        self.le_number_of_new_objects = oasysgui.lineEdit(left_box_1, self, "number_of_new_objects", "Current Binning Energy Values", labelWidth=250, valueType=int, orientation="horizontal")
         self.le_number_of_new_objects.setReadOnly(True)
         font = QFont(self.le_number_of_new_objects.font())
         font.setBold(True)
@@ -131,10 +135,6 @@ class PowerLoopPoint(widget.OWWidget):
         palette.setColor(QPalette.Text, QColor('dark blue'))
         palette.setColor(QPalette.Base, QColor(243, 240, 160))
         self.le_number_of_new_objects.setPalette(palette)
-
-        gui.separator(left_box_1)
-
-        oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
 
         gui.separator(left_box_1)
 
@@ -148,7 +148,7 @@ class PowerLoopPoint(widget.OWWidget):
         palette.setColor(QPalette.Base, QColor(243, 240, 160))
         le_current_value.setPalette(palette)
 
-        le_current_value = oasysgui.lineEdit(left_box_1, self, "current_new_object", "Current Bin New " + self.get_object_name(), labelWidth=250, valueType=int, orientation="horizontal")
+        le_current_value = oasysgui.lineEdit(left_box_1, self, "current_new_object", "Current Binning New " + self.get_object_name(), labelWidth=250, valueType=int, orientation="horizontal")
         le_current_value.setReadOnly(True)
         font = QFont(le_current_value.font())
         font.setBold(True)
