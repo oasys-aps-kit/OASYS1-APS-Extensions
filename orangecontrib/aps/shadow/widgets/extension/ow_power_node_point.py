@@ -205,6 +205,7 @@ class PowerLoopPoint(widget.OWWidget):
 
         self.start_button.setEnabled(False)
         self.test_button.setEnabled(False)
+        self.text_area.setEnabled(False)
         self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
         self.send("Trigger", TriggerOut(new_object=True,
                                         additional_parameters={"energy_value" : self.current_energy_value,
@@ -232,6 +233,7 @@ class PowerLoopPoint(widget.OWWidget):
                     self.reset_values()
                     self.start_button.setEnabled(True)
                     self.test_button.setEnabled(True)
+                    self.text_area.setEnabled(True)
                     self.setStatusMessage("")
                     self.send("Trigger", TriggerOut(new_object=False))
                 elif trigger.new_object:
@@ -254,6 +256,7 @@ class PowerLoopPoint(widget.OWWidget):
                             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                             self.start_button.setEnabled(False)
                             self.test_button.setEnabled(False)
+                            self.text_area.setEnabled(False)
                             self.send("Trigger", TriggerOut(new_object=True,
                                                             additional_parameters={"energy_value" : self.current_energy_value,
                                                                                    "energy_step" : energy_binning.energy_value_step,
@@ -271,6 +274,7 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                                 self.start_button.setEnabled(False)
                                 self.test_button.setEnabled(False)
+                                self.text_area.setEnabled(False)
                                 self.send("Trigger", TriggerOut(new_object=True,
                                                                 additional_parameters={"energy_value" : self.current_energy_value,
                                                                                        "energy_step" : energy_binning.energy_value_step,
@@ -279,18 +283,21 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.reset_values()
                                 self.start_button.setEnabled(True)
                                 self.test_button.setEnabled(True)
+                                self.text_area.setEnabled(True)
                                 self.setStatusMessage("")
                                 self.send("Trigger", TriggerOut(new_object=False))
                     else:
                         self.reset_values()
                         self.start_button.setEnabled(True)
                         self.test_button.setEnabled(True)
+                        self.text_area.setEnabled(True)
                         self.setStatusMessage("")
                         self.send("Trigger", TriggerOut(new_object=False))
         else:
             self.reset_values()
             self.start_button.setEnabled(True)
             self.test_button.setEnabled(True)
+            self.text_area.setEnabled(True)
             self.send("Trigger", TriggerOut(new_object=False))
             self.setStatusMessage("")
             self.run_loop = True
@@ -309,40 +316,43 @@ class PowerLoopPoint(widget.OWWidget):
 
         self.calculate_number_of_new_objects()
         self.start_button.setEnabled(False)
+        self.text_area.setEnabled(False)
         self.run_loop = True
 
         self.setStatusMessage("Testing Loop")
 
-        text = []
-
         try:
+
+            text = []
+
             triggerOut, textOut = self.passTestTrigger(TriggerIn(new_object=True))
             text.append(textOut)
 
             while(triggerOut and triggerOut.new_object):
                 triggerOut, textOut = self.passTestTrigger(TriggerIn(new_object=True))
                 text.append(textOut)
+
+            from PyQt5.QtWidgets import QScrollArea, QWidget, QVBoxLayout, QLabel
+            class ScrollMessageBox(QMessageBox):
+               def __init__(self, text_array, title, *args, **kwargs):
+                  QMessageBox.__init__(self, *args, **kwargs)
+                  self.setWindowTitle(title)
+                  scroll = QScrollArea(self)
+                  scroll.setWidgetResizable(True)
+                  scroll.setStyleSheet("background-color: white; font-family: Courier, monospace;")
+                  self.content = QWidget()
+                  scroll.setWidget(self.content)
+                  lay = QVBoxLayout(self.content)
+                  for item in text_array: lay.addWidget(QLabel(item, self))
+                  self.layout().addWidget(scroll, 0, 0, 1, self.layout().columnCount())
+                  self.setStyleSheet("QScrollArea{min-width:300 px; min-height: 400px;}")
+
+            ScrollMessageBox(text, "Test Loop").exec_()
         except:
             pass
 
-        from PyQt5.QtWidgets import QScrollArea, QWidget, QVBoxLayout, QLabel
-        class ScrollMessageBox(QMessageBox):
-           def __init__(self, text_array, title, *args, **kwargs):
-              QMessageBox.__init__(self, *args, **kwargs)
-              self.setWindowTitle(title)
-              scroll = QScrollArea(self)
-              scroll.setWidgetResizable(True)
-              scroll.setStyleSheet("background-color: white; font-family: Courier, monospace;")
-              self.content = QWidget()
-              scroll.setWidget(self.content)
-              lay = QVBoxLayout(self.content)
-              for item in text_array: lay.addWidget(QLabel(item, self))
-              self.layout().addWidget(scroll, 0, 0, 1, self.layout().columnCount())
-              self.setStyleSheet("QScrollArea{min-width:300 px; min-height: 400px;}")
-
-        ScrollMessageBox(text, "Test Loop").exec_()
-
         self.start_button.setEnabled(True)
+        self.text_area.setEnabled(True)
         self.setStatusMessage("")
 
     def passTestTrigger(self, trigger):
