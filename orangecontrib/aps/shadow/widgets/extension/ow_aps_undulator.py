@@ -114,6 +114,7 @@ class APSUndulator(GenericElement):
     file_to_write_out = Setting(0)
 
     energy_step = None
+    compute_power = False
 
     def __init__(self, show_automatic_box=False):
         super().__init__(show_automatic_box=show_automatic_box)
@@ -455,7 +456,7 @@ class APSUndulator(GenericElement):
             if self.distribution_source == 0:
                 self.setStatusMessage("Running SRW")
 
-                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, x_power, z_power, intensity_power = self.runSRWCalculation()
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power = self.runSRWCalculation()
             elif self.distribution_source == 1:
                 self.setStatusMessage("Loading SRW files")
 
@@ -496,28 +497,11 @@ class APSUndulator(GenericElement):
 
             self.setStatusMessage("")
 
-            if self.use_harmonic==1 and self.distribution_source==0 and self.save_srw_result==0 and self.energy_step:
+            if self.compute_power and self.energy_step and total_power:
                 additional_parameters = {}
 
-                additional_parameters["intensity_arrays"] = x_power, z_power, intensity_power
+                additional_parameters["total_power"]        = total_power
                 additional_parameters["photon_energy_step"] = self.energy_step
-
-                additional_parameters["Kv"] = self.Kv
-                additional_parameters["Kh"] = self.Kh
-                additional_parameters["period_id"] = self.undulator_period
-                additional_parameters["n_periods"] = self.number_of_periods
-                additional_parameters["electron_current"] = self.ring_current
-                additional_parameters["electron_energy"] = self.electron_energy_in_GeV
-                additional_parameters["electron_energy_spread"] = self.electron_energy_spread
-                additional_parameters["electron_beam_size_h"] = self.electron_beam_size_h
-                additional_parameters["electron_beam_size_v"] = self.electron_beam_size_v
-                additional_parameters["electron_beam_divergence_h"] = self.electron_beam_divergence_h
-                additional_parameters["electron_beam_divergence_v"] = self.electron_beam_divergence_v
-                additional_parameters["gap_h"] = self.source_dimension_wf_h_slit_gap
-                additional_parameters["gap_v"] = self.source_dimension_wf_v_slit_gap
-                additional_parameters["h_slits_points"] = self.source_dimension_wf_h_slit_points
-                additional_parameters["v_slits_points"] = self.source_dimension_wf_v_slit_points
-                additional_parameters["distance"] = self.source_dimension_wf_distance
 
                 beam_out.setScanningData(ShadowBeam.ScanningData("photon_energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
 
@@ -532,11 +516,15 @@ class APSUndulator(GenericElement):
         self.progressBarFinished()
 
     def sendNewBeam(self, trigger):
+        self.compute_power = False
+        self.energy_step = None
+
         if trigger and trigger.new_object == True:
             if trigger.has_additional_parameter("seed_increment"):
                 self.seed += trigger.get_additional_parameter("seed_increment")
 
             if trigger.has_additional_parameter("energy_value") and trigger.has_additional_parameter("energy_step"):
+                self.compute_power = True
                 self.use_harmonic = 1
                 self.distribution_source = 0
                 self.save_srw_result = 0
@@ -549,8 +537,6 @@ class APSUndulator(GenericElement):
                 self.set_SaveFileSRW()
 
             self.runShadowSource()
-        else:
-            self.energy_step = None
 
     def checkFields(self):
         self.number_of_rays = congruence.checkPositiveNumber(self.number_of_rays, "Number of rays")
@@ -776,21 +762,15 @@ class APSUndulator(GenericElement):
 
         # 1 calculate intensity distribution ME convoluted for dimension size
 
-        print('   Performing Initial Single-E Electric Field calculation ... ', end='')
         arPrecParSpec[6] = sampFactNxNyForProp #sampling factor for adjusting nx, ny (effective if > 0)
         srwl.CalcElecFieldSR(wfrSouDim, 0, magFldCnt, arPrecParSpec)
-        print('done')
 
-        print('   Simulating Electric Field Wavefront Propagation for Source Dimension ... ', end='')
         srwl.PropagElecField(wfrSouDim, optBLSouDim)
-        print('done')
 
-        print('   Extracting Intensity from the Propagated Electric Field for Dim Nat ... ', end='')
         arI = array('f', [0]*wfrSouDim.mesh.nx*wfrSouDim.mesh.ny) #"flat" 2D array to take intensity data
         srwl.CalcIntFromElecField(arI, wfrSouDim, 6, 1, 3, wfrSouDim.mesh.eStart, 0, 0)
 
         if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrSouDim.mesh, self.source_dimension_srw_file)
-        print('done')
 
         x, z, intensity_source_dimension = self.transform_srw_array(arI, wfrSouDim.mesh)
 
@@ -800,20 +780,23 @@ class APSUndulator(GenericElement):
 
         # 2 calculate intensity distribution ME convoluted at far field to express it in angular coordinates
 
-        print('   Performing Initial Single-E Electric Field calculation ... ', end='')
         arPrecParSpec[6] = sampFactNxNyForProp #sampling factor for adjusting nx, ny (effective if > 0)
         srwl.CalcElecFieldSR(wfrAngDist, 0, magFldCnt, arPrecParSpec)
-        print('done')
 
-        print('   Extracting Intensity ME Conv from the Calculated Initial Electric Field ... ', end='')
         arI = array('f', [0]*wfrAngDist.mesh.nx*wfrAngDist.mesh.ny) #"flat" array to take 2D intensity data
         srwl.CalcIntFromElecField(arI, wfrAngDist, 6, 1, 3, wfrAngDist.mesh.eStart, 0, 0)
-        print('done')
-        print('   Saving the Initial Wavefront Intensity into a file ... ', end='')
 
-        x_power, z_power, intensity_power = self.transform_srw_array(arI, wfrAngDist.mesh)
-        x_power *= 1e3 # mm for power computations
-        z_power *= 1e3 # mm for power computations
+        if self.compute_power:
+            x_power, z_power, intensity_power = self.transform_srw_array(arI, wfrAngDist.mesh)
+            x_power *= 1e3 # mm for power computations
+            z_power *= 1e3 # mm for power computations
+
+            dx = x_power[1] - x_power[0]
+            dy = z_power[1] - z_power[0]
+
+            total_power = intensity_power.sum() * dx * dy * (1e3 * self.energy_step * codata.e)
+        else:
+            total_power = None
 
         distance = wfrAngDist.mesh.zStart + 0.5*(self.number_of_periods*self.undulator_period)
 
@@ -823,11 +806,10 @@ class APSUndulator(GenericElement):
         wfrAngDist.mesh.yFin /= distance
 
         if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrAngDist.mesh, self.angular_distribution_srw_file)
-        print('done')
 
         x_first, z_first, intensity_angular_distribution = self.transform_srw_array(arI, wfrAngDist.mesh)
 
-        return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, x_power, z_power, intensity_power
+        return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power
 
     def generate_user_defined_distribution_from_srw(self,
                                                     beam_out,
