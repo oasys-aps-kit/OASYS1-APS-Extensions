@@ -648,8 +648,6 @@ class APSUndulator(GenericElement):
     def createUndulator(self):
         #***********Undulator
         By, Bx = self.magnetic_field_from_K() #Peak Vertical field [T]
-        print("By calculated: " + str(By) + " T")
-        Bx = 0.0 #Peak Vertical field [T]
 
         phBy = 0 #Initial Phase of the Vertical field component
         sBy = -1 #Symmetry of the Vertical field component vs Longitudinal position

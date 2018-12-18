@@ -201,26 +201,27 @@ class PowerPlotXY(AutomaticElement):
         self.yrange_box.setVisible(self.y_range == 1)
         self.yrange_box_empty.setVisible(self.y_range == 0)
 
-    def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost, refresh=False):
+    def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost):
         if self.plot_canvas is None:
             self.plot_canvas = PowerPlotXYWidget()
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            if self.keep_result == 1 and not refresh:
-                self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                       self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
-                                                                       nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
-                                                                       ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+            if self.keep_result == 1:
+                    self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
+                                                                           self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                           nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
+                                                                           ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
             else:
-                if not refresh: self.last_ticket = None
+                self.last_ticket = None
                 self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
                                                     self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
                                                     nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+
         except Exception as e:
             raise Exception("Data not plottable: No good rays or bad content: " + str(e))
 
-    def plot_xy(self, var_x, var_y, refresh=False):
+    def plot_xy(self, var_x, var_y):
         beam_to_plot = self.input_beam
 
         if self.image_plane == 1:
@@ -246,7 +247,7 @@ class PowerPlotXY(AutomaticElement):
 
         xrange, yrange = self.get_ranges()
 
-        self.replace_fig(beam_to_plot, var_x, var_y, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays+1, refresh=refresh)
+        self.replace_fig(beam_to_plot, var_x, var_y, xrange=xrange, yrange=yrange, nbins=int(self.number_of_bins), nolost=self.rays+1)
 
     def get_ranges(self):
         xrange = None
@@ -267,32 +268,32 @@ class PowerPlotXY(AutomaticElement):
         return xrange, yrange
 
     def plot_cumulated_data(self):
-        self.plot_results(refresh=True)
+        if not self.last_ticket is None:
+            self.plot_canvas.plot_power_density_ticket(ticket=self.last_ticket,
+                                                       var_x=self.x_column_index+1,
+                                                       var_y=self.y_column_index+1,
+                                                       cumulated_power=self.cumulated_power,
+                                                       energy_min=self.energy_min,
+                                                       energy_max=self.energy_max,
+                                                       energy_step=self.energy_step,
+                                                       show_image=self.view_type==1)
 
-    def plot_results(self, refresh=False):
+    def plot_results(self):
         try:
-            plotted = False
-
             sys.stdout = EmittingStream(textWritten=self.writeStdOut)
 
             if ShadowCongruence.checkEmptyBeam(self.input_beam):
                 self.number_of_bins = congruence.checkStrictlyPositiveNumber(self.number_of_bins, "Number of Bins")
 
-                self.plot_xy(self.x_column_index+1, self.y_column_index+1, refresh)
+                self.plot_xy(self.x_column_index+1, self.y_column_index+1)
 
-                plotted = True
-
-            time.sleep(0.5)  # prevents a misterious dead lock in the Orange cycle when refreshing the histogram
-
-            return plotted
+            time.sleep(0.1)  # prevents a misterious dead lock in the Orange cycle when refreshing the histogram
         except Exception as exception:
             QtWidgets.QMessageBox.critical(self, "Error",
                                        str(exception),
                                        QtWidgets.QMessageBox.Ok)
 
             if self.IS_DEVELOP: raise exception
-
-            return False
 
     def setBeam(self, input_beam):
         self.cb_rays.setEnabled(True)
