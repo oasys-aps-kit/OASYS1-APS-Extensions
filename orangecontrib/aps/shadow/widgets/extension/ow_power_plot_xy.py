@@ -57,9 +57,9 @@ class PowerPlotXY(AutomaticElement):
 
     title=Setting("X,Z")
 
-    keep_result=Setting(0)
-    last_ticket=None
+    keep_result=Setting(1)
 
+    last_ticket=None
     energy_min = None
     energy_max = None
     energy_step = None
@@ -207,17 +207,11 @@ class PowerPlotXY(AutomaticElement):
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            if self.keep_result == 1:
-                    self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                           self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
-                                                                           nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
-                                                                           ticket_to_add=self.last_ticket, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
-            else:
-                self.last_ticket = None
-                self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                    self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
-                                                    nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
-
+            self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
+                                                                   self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                   nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
+                                                                   ticket_to_add=self.last_ticket if self.keep_result==1 else None,
+                                                                   to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
         except Exception as e:
             raise Exception("Data not plottable: No good rays or bad content: " + str(e))
 
