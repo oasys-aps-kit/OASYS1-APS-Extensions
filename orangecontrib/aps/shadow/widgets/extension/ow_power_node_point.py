@@ -330,6 +330,7 @@ class PowerLoopPoint(widget.OWWidget):
 
         self.calculate_number_of_new_objects()
         self.start_button.setEnabled(False)
+        self.test_button.setEnabled(False)
         self.text_area.setEnabled(False)
         self.run_loop = True
 
@@ -366,6 +367,7 @@ class PowerLoopPoint(widget.OWWidget):
             pass
 
         self.start_button.setEnabled(True)
+        self.test_button.setEnabled(True)
         self.text_area.setEnabled(True)
         self.setStatusMessage("")
 
