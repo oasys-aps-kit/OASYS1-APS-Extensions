@@ -62,6 +62,7 @@ class PowerLoopPoint(widget.OWWidget):
 
     energy_binnings = None
 
+    test_mode = False
 
     #################################
     process_last = True
@@ -115,6 +116,8 @@ class PowerLoopPoint(widget.OWWidget):
         left_box_1.layout().addWidget(self.text_area)
 
         gui.separator(left_box_1)
+
+        gui.button(left_box_1, self, "Show Loop", callback=self.show_test_loop)
 
         self.le_number_of_new_objects = oasysgui.lineEdit(left_box_1, self, "total_new_objects", "Total Energy Values", labelWidth=250, valueType=int, orientation="horizontal")
         self.le_number_of_new_objects.setReadOnly(True)
@@ -219,12 +222,24 @@ class PowerLoopPoint(widget.OWWidget):
         self.current_energy_step = None
         self.current_energy_binning = 0
         self.energy_binnings = None
+        self.test_mode = False
 
     def stopLoop(self):
         if ConfirmDialog.confirmed(parent=self, message="Confirm Interruption of the Loop?"):
             self.run_loop = False
             self.reset_values()
             self.setStatusMessage("Interrupted by user")
+
+
+    def get_object_name(self):
+        return "Beam"
+
+    def test_loop(self):
+        self.test_mode = True
+
+        self.setStatusMessage("Testing Loop")
+
+        self.startLoop()
 
     def passTrigger(self, trigger):
         if self.run_loop:
@@ -241,9 +256,9 @@ class PowerLoopPoint(widget.OWWidget):
 
                     if self.current_energy_binning < len(self.energy_binnings):
                         energy_binning = self.energy_binnings[self.current_energy_binning]
-                        
+
                         self.total_current_new_object += 1
-                        
+
                         if self.current_new_object < self.number_of_new_objects:
                             if self.current_energy_value is None:
                                 self.current_new_object = 1
@@ -260,7 +275,8 @@ class PowerLoopPoint(widget.OWWidget):
                             self.send("Trigger", TriggerOut(new_object=True,
                                                             additional_parameters={"energy_value" : self.current_energy_value,
                                                                                    "energy_step" : energy_binning.energy_value_step,
-                                                                                   "seed_increment" : self.seed_increment}))
+                                                                                   "seed_increment" : self.seed_increment,
+                                                                                   "test_mode" : self.test_mode}))
                         else:
                             self.current_energy_binning += 1
 
@@ -278,7 +294,8 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.send("Trigger", TriggerOut(new_object=True,
                                                                 additional_parameters={"energy_value" : self.current_energy_value,
                                                                                        "energy_step" : energy_binning.energy_value_step,
-                                                                                       "seed_increment" : self.seed_increment}))
+                                                                                       "seed_increment" : self.seed_increment,
+                                                                                       "test_mode" : self.test_mode}))
                             else:
                                 self.reset_values()
                                 self.start_button.setEnabled(True)
@@ -302,10 +319,7 @@ class PowerLoopPoint(widget.OWWidget):
             self.setStatusMessage("")
             self.run_loop = True
 
-    def get_object_name(self):
-        return "Beam"
-
-    def test_loop(self):
+    def show_test_loop(self):
         self.calculate_energy_binnings()
 
         self.current_new_object = 1
@@ -322,10 +336,10 @@ class PowerLoopPoint(widget.OWWidget):
         self.setStatusMessage("Testing Loop")
 
         try:
-
             text = []
 
             triggerOut, textOut = self.passTestTrigger(TriggerIn(new_object=True))
+
             text.append(textOut)
 
             while(triggerOut and triggerOut.new_object):
@@ -383,7 +397,8 @@ class PowerLoopPoint(widget.OWWidget):
                         triggerOut = TriggerOut(new_object=True,
                                                 additional_parameters={"energy_value" : self.current_energy_value,
                                                                        "energy_step" : energy_binning.energy_value_step,
-                                                                       "seed_increment" : self.seed_increment})
+                                                                       "seed_increment" : self.seed_increment,
+                                                                       "test_mode": True})
                     else:
                         self.current_energy_binning += 1
 
@@ -399,7 +414,8 @@ class PowerLoopPoint(widget.OWWidget):
                             triggerOut = TriggerOut(new_object=True,
                                                     additional_parameters={"energy_value" : self.current_energy_value,
                                                                            "energy_step" : energy_binning.energy_value_step,
-                                                                           "seed_increment" : self.seed_increment})
+                                                                           "seed_increment" : self.seed_increment,
+                                                                           "test_mode": True})
                         else:
                             self.current_new_object = 0
                             self.total_current_new_object = 0

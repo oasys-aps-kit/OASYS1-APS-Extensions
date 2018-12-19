@@ -483,7 +483,7 @@ class PowerPlotXYWidget(QWidget):
 
     def plot_power_density_ticket(self, ticket, var_x, var_y, cumulated_power, energy_min, energy_max, energy_step, show_image=True):
         if show_image:
-            title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max+energy_step, 2)) + " [eV]\n" + \
+            title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max+energy_step, 2)) + " [eV], Current Step: " + str(round(energy_step, 2)) + "\n" + \
                     "Plotted Power: " + str(round(self.cumulated_power_plot, 2)) + \
                     " [W], Incident Power: " + str(round(self.cumulated_previous_power_plot, 2)) + \
                     " [W], Total Power: " + str(round(cumulated_power, 2)) + " [W]"

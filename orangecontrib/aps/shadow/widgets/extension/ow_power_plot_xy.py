@@ -306,11 +306,11 @@ class PowerPlotXY(AutomaticElement):
 
                 if self.energy_min is None:
                     self.energy_min  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
-                    self.energy_step = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
                     self.cumulated_power = self.total_power
                 else:
                     self.cumulated_power += self.total_power
 
+                self.energy_step = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
                 self.energy_max  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
 
                 if self.input_beam.scanned_variable_data.has_additional_parameter("is_footprint"):
