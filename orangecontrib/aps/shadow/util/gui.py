@@ -427,14 +427,11 @@ class PowerPlotXYWidget(QWidget):
 
         if shadow_beam.scanned_variable_data and shadow_beam.scanned_variable_data.has_additional_parameter("incident_power"):
             self.cumulated_previous_power_plot += shadow_beam.scanned_variable_data.get_additional_parameter("incident_power")
-        else:
-            if not history_item is None and not history_item._input_beam is None:
-                previous_beam = history_item._input_beam.duplicate(history=False)
+        elif not history_item is None and not history_item._input_beam is None:
+            previous_ticket = history_item._input_beam._beam.histo2(var_x, var_y, nbins=nbins, xrange=None, yrange=None, nolost=1, ref=23)
+            previous_ticket['histogram'] *= (total_power/n_rays) # power
 
-                previous_ticket = previous_beam._beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=1, ref=23)
-                previous_ticket['histogram'] *= (total_power/n_rays) # power
-
-                self.cumulated_previous_power_plot += previous_ticket['histogram'].sum()
+            self.cumulated_previous_power_plot += previous_ticket['histogram'].sum()
 
         if nolost==2: # must be calculating only the rays the become lost in the last object
             current_beam = shadow_beam
@@ -456,8 +453,11 @@ class PowerPlotXYWidget(QWidget):
 
         ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, ref=23)
 
-        bin_h_size = (ticket['bin_h_center'][1] - ticket['bin_h_center'][0]) * to_mm
-        bin_v_size = (ticket['bin_v_center'][1] - ticket['bin_v_center'][0]) * to_mm
+        ticket['bin_h_center'] *= to_mm
+        ticket['bin_v_center'] *= to_mm
+
+        bin_h_size = (ticket['bin_h_center'][1] - ticket['bin_h_center'][0])
+        bin_v_size = (ticket['bin_v_center'][1] - ticket['bin_v_center'][0])
 
         ticket['histogram'] *= (total_power / n_rays)  # power
 
@@ -471,11 +471,8 @@ class PowerPlotXYWidget(QWidget):
         if not ticket_to_add is None:
             ticket['histogram'] += ticket_to_add['histogram']
             ticket['intensity'] += ticket_to_add['intensity']
-            ticket['nrays'] += ticket_to_add['nrays']
+            ticket['nrays']     += ticket_to_add['nrays']
             ticket['good_rays'] += ticket_to_add['good_rays']
-
-        ticket['bin_h_center'] *= to_mm
-        ticket['bin_v_center'] *= to_mm
 
         self.plot_power_density_ticket(ticket, var_x, var_y, cumulated_power, energy_min, energy_max, energy_step, show_image)
 
@@ -499,7 +496,6 @@ class PowerPlotXYWidget(QWidget):
         elif var == 3: return "Z [mm]"
 
     def plot_data2D(self, data2D, dataX, dataY, title="", xtitle="", ytitle=""):
-
         if self.plot_canvas is None:
             self.plot_canvas = Plot2D()
 
@@ -519,15 +515,11 @@ class PowerPlotXYWidget(QWidget):
         origin = (dataX[0],dataY[0])
         scale = (dataX[1]-dataX[0],dataY[1]-dataY[0])
 
-        data_to_plot = data2D.T
-
-        colormap = {"name":"temperature", "normalization":"linear", "autoscale":True, "vmin":0, "vmax":0, "colors":256}
-
-        self.plot_canvas.addImage(numpy.array(data_to_plot),
+        self.plot_canvas.addImage(numpy.array(data2D.T),
                                   legend="power",
                                   scale=scale,
                                   origin=origin,
-                                  colormap=colormap,
+                                  colormap={"name":"temperature", "normalization":"linear", "autoscale":True, "vmin":0, "vmax":0, "colors":256},
                                   replace=True)
 
         self.plot_canvas.setActiveImage("power")

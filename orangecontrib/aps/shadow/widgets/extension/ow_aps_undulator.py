@@ -428,7 +428,11 @@ class APSUndulator(GenericElement):
         sys.stdout = EmittingStream(textWritten=self.writeStdOut)
 
         try:
-            if not self.test_mode:
+            if self.test_mode:
+                beam_out = ShadowBeam()
+                beam_out._beam.rays = numpy.zeros((1000, 18))
+                total_power = 100.0
+            else:
                 self.checkFields()
 
                 ###########################################
@@ -496,10 +500,6 @@ class APSUndulator(GenericElement):
 
                 self.progressBarSet(80)
                 self.plot_results(beam_out)
-            else:
-                beam_out = ShadowBeam()
-                beam_out._beam.rays = numpy.zeros((1000, 18))
-                total_power = 100.0
 
             self.setStatusMessage("")
 
