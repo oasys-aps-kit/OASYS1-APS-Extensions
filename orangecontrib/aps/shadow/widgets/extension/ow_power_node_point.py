@@ -51,6 +51,7 @@ class PowerLoopPoint(widget.OWWidget):
     total_new_objects = Setting(0)
 
     run_loop = True
+    suspend_loop = False
 
     energies = Setting("")
 
@@ -77,19 +78,29 @@ class PowerLoopPoint(widget.OWWidget):
         self.runaction.triggered.connect(self.stopLoop)
         self.addAction(self.runaction)
 
+        self.runaction = OWAction("Suspend", self)
+        self.runaction.triggered.connect(self.suspendLoop)
+        self.addAction(self.runaction)
+
+        self.runaction = OWAction("Restart", self)
+        self.runaction.triggered.connect(self.restartLoop)
+        self.addAction(self.runaction)
+
         self.setFixedWidth(400)
-        self.setFixedHeight(605)
+        self.setFixedHeight(640)
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
 
         self.start_button = gui.button(button_box, self, "Start Loop", callback=self.startLoop)
-        self.start_button.setFixedHeight(45)
+        self.start_button.setFixedHeight(35)
 
         self.test_button = gui.button(button_box, self, "Test Loop", callback=self.test_loop)
-        self.test_button.setFixedHeight(45)
+        self.test_button.setFixedHeight(35)
+
+        button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
 
         stop_button = gui.button(button_box, self, "Interrupt", callback=self.stopLoop)
-        stop_button.setFixedHeight(45)
+        stop_button.setFixedHeight(35)
         font = QFont(stop_button.font())
         font.setBold(True)
         stop_button.setFont(font)
@@ -97,7 +108,22 @@ class PowerLoopPoint(widget.OWWidget):
         palette.setColor(QPalette.ButtonText, QColor('red'))
         stop_button.setPalette(palette) # assign new palette
 
-        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=380, height=520)
+        self.stop_button = stop_button
+
+        suspend_button = gui.button(button_box, self, "Suspend", callback=self.suspendLoop)
+        suspend_button.setFixedHeight(35)
+        font = QFont(suspend_button.font())
+        font.setBold(True)
+        suspend_button.setFont(font)
+        palette = QPalette(suspend_button.palette()) # make a copy of the palette
+        palette.setColor(QPalette.ButtonText, QColor('orange'))
+        suspend_button.setPalette(palette) # assign new palette
+
+        self.re_start_button = gui.button(button_box, self, "Restart Loop", callback=self.restartLoop)
+        self.re_start_button.setFixedHeight(35)
+        self.re_start_button.setEnabled(False)
+
+        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=385, height=520)
 
         oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
 
@@ -195,26 +221,6 @@ class PowerLoopPoint(widget.OWWidget):
         else:
             self.number_of_new_objects = 0
 
-    def startLoop(self):
-        self.calculate_energy_binnings()
-
-        self.current_new_object = 1
-        self.total_current_new_object = 1
-        self.current_energy_binning = 0
-        self.current_energy_value = round(self.energy_binnings[0].energy_value_from, 8)
-        self.current_energy_step = round(self.energy_binnings[0].energy_value_step, 8)
-
-        self.calculate_number_of_new_objects()
-
-        self.start_button.setEnabled(False)
-        self.test_button.setEnabled(False)
-        self.text_area.setEnabled(False)
-        self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
-        self.send("Trigger", TriggerOut(new_object=True,
-                                        additional_parameters={"energy_value" : self.current_energy_value,
-                                                               "energy_step" : self.current_energy_step,
-                                                               "seed_increment" : self.seed_increment}))
-
     def reset_values(self):
         self.current_new_object = 0
         self.total_current_new_object = 0
@@ -224,21 +230,66 @@ class PowerLoopPoint(widget.OWWidget):
         self.energy_binnings = None
         self.test_mode = False
 
-    def stopLoop(self):
-        if ConfirmDialog.confirmed(parent=self, message="Confirm Interruption of the Loop?"):
-            self.run_loop = False
-            self.reset_values()
-            self.setStatusMessage("Interrupted by user")
+    def startLoop(self):
+        try:
+            self.calculate_energy_binnings()
 
+            self.current_new_object = 1
+            self.total_current_new_object = 1
+            self.current_energy_binning = 0
+            self.current_energy_value = round(self.energy_binnings[0].energy_value_from, 8)
+            self.current_energy_step = round(self.energy_binnings[0].energy_value_step, 8)
+
+            self.calculate_number_of_new_objects()
+
+            self.start_button.setEnabled(False)
+            self.test_button.setEnabled(False)
+            self.text_area.setEnabled(False)
+            self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
+            self.send("Trigger", TriggerOut(new_object=True,
+                                            additional_parameters={"energy_value" : self.current_energy_value,
+                                                                   "energy_step" : self.current_energy_step,
+                                                                   "seed_increment" : self.seed_increment}))
+        except:
+            pass
+
+    def stopLoop(self):
+        try:
+            if ConfirmDialog.confirmed(parent=self, message="Confirm Interruption of the Loop?"):
+                self.run_loop = False
+                self.reset_values()
+                self.setStatusMessage("Interrupted by user")
+        except:
+            pass
+
+    def suspendLoop(self):
+        try:
+            if ConfirmDialog.confirmed(parent=self, message="Confirm Suspension of the Loop?"):
+                self.run_loop = False
+                self.suspend_loop = True
+                self.stop_button.setEnabled(False)
+                self.re_start_button.setEnabled(True)
+                self.setStatusMessage("Suspended by user")
+        except:
+            pass
+
+
+    def restartLoop(self):
+        try:
+            self.run_loop = True
+            self.suspend_loop = False
+            self.stop_button.setEnabled(True)
+            self.re_start_button.setEnabled(False)
+            self.passTrigger(TriggerIn(new_object=True))
+        except:
+            pass
 
     def get_object_name(self):
         return "Beam"
 
     def test_loop(self):
         self.test_mode = True
-
         self.setStatusMessage("Testing Loop")
-
         self.startLoop()
 
     def passTrigger(self, trigger):
@@ -311,12 +362,15 @@ class PowerLoopPoint(widget.OWWidget):
                         self.setStatusMessage("")
                         self.send("Trigger", TriggerOut(new_object=False))
         else:
-            self.reset_values()
-            self.start_button.setEnabled(True)
-            self.test_button.setEnabled(True)
-            self.text_area.setEnabled(True)
+            if not self.suspend_loop:
+                self.reset_values()
+                self.start_button.setEnabled(True)
+                self.test_button.setEnabled(True)
+                self.text_area.setEnabled(True)
+
             self.send("Trigger", TriggerOut(new_object=False))
             self.setStatusMessage("")
+            self.suspend_loop = False
             self.run_loop = True
 
     def show_test_loop(self):
