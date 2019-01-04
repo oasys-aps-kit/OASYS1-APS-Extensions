@@ -10,8 +10,12 @@ from orangewidget.settings import Setting
 from oasys.widgets import widget
 from oasys.widgets import gui as oasysgui
 from oasys.widgets.gui import ConfirmDialog
+from oasys.widgets import congruence
 
 from oasys.util.oasys_util import TriggerIn, TriggerOut
+from oasys.widgets.exchange import DataExchangeObject
+
+import scipy.constants as codata
 
 class EnergyBinning(object):
     def __init__(self,
@@ -36,7 +40,8 @@ class PowerLoopPoint(widget.OWWidget):
     category = "User Defined"
     keywords = ["data", "file", "load", "read"]
 
-    inputs = [("Trigger", TriggerIn, "passTrigger")]
+    inputs = [("Trigger", TriggerIn, "passTrigger"),
+              ("ExchangeData", DataExchangeObject, "acceptExchangeData" )]
 
     outputs = [{"name":"Trigger",
                 "type":TriggerOut,
@@ -57,6 +62,9 @@ class PowerLoopPoint(widget.OWWidget):
 
     seed_increment=Setting(1)
 
+    auto_n_step = Setting(1001)
+    auto_perc_total_power = Setting(99)
+
     current_energy_binning = 0
     current_energy_value = None
     current_energy_step = None
@@ -64,6 +72,8 @@ class PowerLoopPoint(widget.OWWidget):
     energy_binnings = None
 
     test_mode = False
+
+    external_binning = False
 
     #################################
     process_last = True
@@ -87,7 +97,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.addAction(self.runaction)
 
         self.setFixedWidth(400)
-        self.setFixedHeight(640)
+        self.setFixedHeight(680)
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
 
@@ -126,6 +136,9 @@ class PowerLoopPoint(widget.OWWidget):
         left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=385, height=520)
 
         oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
+
+        oasysgui.lineEdit(left_box_1, self, "auto_n_step", "(Auto) Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(left_box_1, self, "auto_perc_total_power", "(Auto) % Total Power", labelWidth=250, valueType=float, orientation="horizontal")
 
         gui.separator(left_box_1)
 
@@ -199,25 +212,86 @@ class PowerLoopPoint(widget.OWWidget):
 
         gui.rubber(self.controlArea)
 
+    def acceptExchangeData(self, exchange_data):
+        if not exchange_data is None:
+            try:
+                data = exchange_data.get_content("srw_data")
+
+                congruence.checkStrictlyPositiveNumber(self.auto_n_step, "(Auto) % Number of Steps")
+                congruence.checkStrictlyPositiveNumber(self.auto_perc_total_power, "(Auto) % Total Power")
+
+                energies = data[:, 0]
+                flux     = data[:, 1]
+
+                energy_step = energies[1]-energies[0]
+
+                power = flux * (1e3 * energy_step * codata.e)
+                cumulated_power = numpy.cumsum(power)
+
+                total_power = cumulated_power[-1]
+
+                good = numpy.where(cumulated_power < self.auto_perc_total_power*0.01*total_power)
+
+                energies        = energies[good]
+                cumulated_power = cumulated_power[good]
+
+                power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
+                power_values = power_values[1:]
+
+                interpolated_upper_energies = numpy.interp(power_values, cumulated_power, energies)
+                interpolated_upper_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
+
+                energy_bins = numpy.diff(interpolated_upper_energies)
+
+                power_values -= 0.5*(power_values[1]-power_values[0])
+
+                interpolated_central_energies = numpy.interp(power_values, cumulated_power, energies)
+
+                self.energy_binnings = []
+                self.total_new_objects = 0
+
+                text = "Binner Ouput\nCentral Energy, Energy Bin\n-------------------------"
+                for energy, energy_bin in zip(interpolated_central_energies, energy_bins):
+                    energy_binning = EnergyBinning(energy, -1, energy_bin)
+                    text += "\n" + str(round(energy, 2)) + ", " + str(round(energy_bin, 2))
+                    self.energy_binnings.append(energy_binning)
+                    self.total_new_objects += 1
+
+                self.text_area.setText(text)
+                self.text_area.setEnabled(False)
+
+                self.external_binning = True
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+        else:
+            self.energy_binnings = None
+            self.total_new_objects = 0
+            self.external_binning = False
+            self.text_area.setText("")
+            self.text_area.setEnabled(True)
+
     def calculate_energy_binnings(self):
+        if not self.external_binning:
+            self.total_new_objects = 0
 
-        self.total_new_objects = 0
+            rows = self.energies.split("\n")
+            for row in rows:
+                data = row.split(",")
+                if len(data) == 3:
+                    if self.energy_binnings is None: self.energy_binnings = []
 
-        rows = self.energies.split("\n")
-        for row in rows:
-            data = row.split(",")
-            if len(data) == 3:
-                if self.energy_binnings is None: self.energy_binnings = []
-
-                energy_binning = EnergyBinning(float(data[0].strip()), float(data[1].strip()), float(data[2].strip()))
-                self.energy_binnings.append(energy_binning)
-                self.total_new_objects += int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_value_step)
+                    energy_binning = EnergyBinning(float(data[0].strip()), float(data[1].strip()), float(data[2].strip()))
+                    self.energy_binnings.append(energy_binning)
+                    self.total_new_objects += int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_value_step)
 
     def calculate_number_of_new_objects(self):
         if len(self.energy_binnings) > 0:
-            energy_binning = self.energy_binnings[self.current_energy_binning]
+            if self.external_binning:
+                self.number_of_new_objects = 1
+            else:
+                energy_binning = self.energy_binnings[self.current_energy_binning]
 
-            self.number_of_new_objects = int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_value_step)
+                self.number_of_new_objects = int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_value_step)
         else:
             self.number_of_new_objects = 0
 
@@ -227,7 +301,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.current_energy_value = None
         self.current_energy_step = None
         self.current_energy_binning = 0
-        self.energy_binnings = None
+        if not self.external_binning: self.energy_binnings = None
         self.test_mode = False
 
     def startLoop(self):
@@ -483,13 +557,15 @@ class PowerLoopPoint(widget.OWWidget):
                     self.reset_values()
                     triggerOut =  TriggerOut(new_object=False)
         else:
-            self.current_new_object = 0
-            self.total_current_new_object = 0
-            self.current_energy_value = None
-            self.run_loop = True
-            triggerOut =  TriggerOut(new_object=False)
+            if not self.suspend_loop:
+                self.current_new_object = 0
+                self.total_current_new_object = 0
+                self.current_energy_value = None
 
-        print(text)
+            self.run_loop = True
+            self.suspend_loop = False
+
+            triggerOut =  TriggerOut(new_object=False)
 
         return triggerOut, text
 

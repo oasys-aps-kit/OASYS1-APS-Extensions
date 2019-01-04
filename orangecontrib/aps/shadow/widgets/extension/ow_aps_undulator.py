@@ -2,8 +2,7 @@ import numpy
 from numpy.matlib import repmat
 from scipy.signal import convolve2d
 
-from PyQt5 import QtGui, QtWidgets
-from PyQt5.QtWidgets import QApplication
+from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPalette, QColor, QFont
 from orangewidget import gui
 from orangewidget.settings import Setting
