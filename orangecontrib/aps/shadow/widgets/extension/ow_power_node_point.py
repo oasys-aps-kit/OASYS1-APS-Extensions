@@ -70,11 +70,11 @@ class PowerLoopPoint(widget.OWWidget):
     #################################
 
     def __init__(self):
-        self.runaction = OWAction("Start Loop", self)
+        self.runaction = OWAction("Start", self)
         self.runaction.triggered.connect(self.startLoop)
         self.addAction(self.runaction)
 
-        self.runaction = OWAction("Interrupt", self)
+        self.runaction = OWAction("Stop", self)
         self.runaction.triggered.connect(self.stopLoop)
         self.addAction(self.runaction)
 
@@ -91,15 +91,10 @@ class PowerLoopPoint(widget.OWWidget):
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
 
-        self.start_button = gui.button(button_box, self, "Start Loop", callback=self.startLoop)
+        self.start_button = gui.button(button_box, self, "Start", callback=self.startLoop)
         self.start_button.setFixedHeight(35)
 
-        self.test_button = gui.button(button_box, self, "Test Loop", callback=self.test_loop)
-        self.test_button.setFixedHeight(35)
-
-        button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
-
-        stop_button = gui.button(button_box, self, "Interrupt", callback=self.stopLoop)
+        stop_button = gui.button(button_box, self, "Stop", callback=self.stopLoop)
         stop_button.setFixedHeight(35)
         font = QFont(stop_button.font())
         font.setBold(True)
@@ -110,6 +105,8 @@ class PowerLoopPoint(widget.OWWidget):
 
         self.stop_button = stop_button
 
+        button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
+
         suspend_button = gui.button(button_box, self, "Suspend", callback=self.suspendLoop)
         suspend_button.setFixedHeight(35)
         font = QFont(suspend_button.font())
@@ -119,9 +116,12 @@ class PowerLoopPoint(widget.OWWidget):
         palette.setColor(QPalette.ButtonText, QColor('orange'))
         suspend_button.setPalette(palette) # assign new palette
 
-        self.re_start_button = gui.button(button_box, self, "Restart Loop", callback=self.restartLoop)
+        self.re_start_button = gui.button(button_box, self, "Restart", callback=self.restartLoop)
         self.re_start_button.setFixedHeight(35)
         self.re_start_button.setEnabled(False)
+
+        self.test_button = gui.button(button_box, self, "Test", callback=self.test_loop)
+        self.test_button.setFixedHeight(35)
 
         left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=385, height=520)
 
