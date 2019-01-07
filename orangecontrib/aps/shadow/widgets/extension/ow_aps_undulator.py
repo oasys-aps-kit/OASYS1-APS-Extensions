@@ -113,6 +113,7 @@ class APSUndulator(GenericElement):
     file_to_write_out = Setting(0)
 
     energy_step = None
+    power_step = None
     compute_power = False
     test_mode = False
 
@@ -542,6 +543,7 @@ class APSUndulator(GenericElement):
 
                 self.energy = trigger.get_additional_parameter("energy_value")
                 self.energy_step = trigger.get_additional_parameter("energy_step")
+                self.power_step = trigger.get_additional_parameter("power_step")
 
                 self.test_mode = trigger.has_additional_parameter("test_mode") and trigger.get_additional_parameter("test_mode") == True
 
@@ -798,14 +800,17 @@ class APSUndulator(GenericElement):
         srwl.CalcIntFromElecField(arI, wfrAngDist, 6, 1, 3, wfrAngDist.mesh.eStart, 0, 0)
 
         if self.compute_power:
-            x_power, z_power, intensity_power = self.transform_srw_array(arI, wfrAngDist.mesh)
-            x_power *= 1e3 # mm for power computations
-            z_power *= 1e3 # mm for power computations
+            if self.power_step > 0:
+                total_power = self.power_step
+            else:
+                x_power, z_power, intensity_power = self.transform_srw_array(arI, wfrAngDist.mesh)
+                x_power *= 1e3 # mm for power computations
+                z_power *= 1e3 # mm for power computations
 
-            dx = x_power[1] - x_power[0]
-            dy = z_power[1] - z_power[0]
+                dx = x_power[1] - x_power[0]
+                dy = z_power[1] - z_power[0]
 
-            total_power = intensity_power.sum() * dx * dy * (1e3 * self.energy_step * codata.e)
+                total_power = intensity_power.sum() * dx * dy * (1e3 * self.energy_step * codata.e)
         else:
             total_power = None
 

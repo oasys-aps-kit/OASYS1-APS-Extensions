@@ -27,7 +27,7 @@ class EnergyBinning(object):
         self.energy_value_step = energy_value_step
 
     def __str__(self):
-        return str(self.energy_value_from) + ", " + str(self.energy_value_to) + ", " + str(self.energy_value_step)
+        return str(self.energy_value_from) + ", " + str(self.energy_value_to) + ", " + str(self.energy_value_step) + ", " + str(self.power_step)
 
 class PowerLoopPoint(widget.OWWidget):
 
@@ -68,6 +68,8 @@ class PowerLoopPoint(widget.OWWidget):
     current_energy_binning = 0
     current_energy_value = None
     current_energy_step = None
+
+    power_step = None
 
     energy_binnings = None
 
@@ -238,12 +240,14 @@ class PowerLoopPoint(widget.OWWidget):
                 power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
                 power_values = power_values[1:]
 
+                self.power_step = power_values[1]-power_values[0]
+
                 interpolated_upper_energies = numpy.interp(power_values, cumulated_power, energies)
                 interpolated_upper_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
 
                 energy_bins = numpy.diff(interpolated_upper_energies)
 
-                power_values -= 0.5*(power_values[1]-power_values[0])
+                power_values -= 0.5*self.power_step
 
                 interpolated_central_energies = numpy.interp(power_values, cumulated_power, energies)
 
@@ -266,6 +270,7 @@ class PowerLoopPoint(widget.OWWidget):
         else:
             self.energy_binnings = None
             self.total_new_objects = 0
+            self.power_step = None
             self.external_binning = False
             self.text_area.setText("")
             self.text_area.setEnabled(True)
@@ -273,6 +278,7 @@ class PowerLoopPoint(widget.OWWidget):
     def calculate_energy_binnings(self):
         if not self.external_binning:
             self.total_new_objects = 0
+            self.power_step = None
 
             rows = self.energies.split("\n")
             for row in rows:
@@ -301,7 +307,10 @@ class PowerLoopPoint(widget.OWWidget):
         self.current_energy_value = None
         self.current_energy_step = None
         self.current_energy_binning = 0
+        self.current_power_step = None
+
         if not self.external_binning: self.energy_binnings = None
+
         self.test_mode = False
 
     def startLoop(self):
@@ -323,6 +332,7 @@ class PowerLoopPoint(widget.OWWidget):
             self.send("Trigger", TriggerOut(new_object=True,
                                             additional_parameters={"energy_value" : self.current_energy_value,
                                                                    "energy_step" : self.current_energy_step,
+                                                                   "power_step" : -1 if self.power_step is None else self.power_step,
                                                                    "seed_increment" : self.seed_increment}))
         except:
             pass
@@ -389,6 +399,7 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
                                 self.current_energy_value = round(energy_binning.energy_value_from, 8)
+
                             else:
                                 self.current_new_object += 1
                                 self.current_energy_value = round(self.current_energy_value + energy_binning.energy_value_step, 8)
@@ -400,6 +411,7 @@ class PowerLoopPoint(widget.OWWidget):
                             self.send("Trigger", TriggerOut(new_object=True,
                                                             additional_parameters={"energy_value" : self.current_energy_value,
                                                                                    "energy_step" : energy_binning.energy_value_step,
+                                                                                   "power_step" : -1 if self.power_step is None else self.power_step,
                                                                                    "seed_increment" : self.seed_increment,
                                                                                    "test_mode" : self.test_mode}))
                         else:
@@ -419,6 +431,7 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.send("Trigger", TriggerOut(new_object=True,
                                                                 additional_parameters={"energy_value" : self.current_energy_value,
                                                                                        "energy_step" : energy_binning.energy_value_step,
+                                                                                       "power_step" : -1 if self.power_step is None else self.power_step,
                                                                                        "seed_increment" : self.seed_increment,
                                                                                        "test_mode" : self.test_mode}))
                             else:
@@ -527,6 +540,7 @@ class PowerLoopPoint(widget.OWWidget):
                         triggerOut = TriggerOut(new_object=True,
                                                 additional_parameters={"energy_value" : self.current_energy_value,
                                                                        "energy_step" : energy_binning.energy_value_step,
+                                                                       "power_step" : -1 if self.power_step is None else self.power_step,
                                                                        "seed_increment" : self.seed_increment,
                                                                        "test_mode": True})
                     else:
@@ -544,6 +558,7 @@ class PowerLoopPoint(widget.OWWidget):
                             triggerOut = TriggerOut(new_object=True,
                                                     additional_parameters={"energy_value" : self.current_energy_value,
                                                                            "energy_step" : energy_binning.energy_value_step,
+                                                                           "power_step" : -1 if self.power_step is None else self.power_step,
                                                                            "seed_increment" : self.seed_increment,
                                                                            "test_mode": True})
                         else:
