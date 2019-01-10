@@ -474,16 +474,18 @@ class PowerPlotXYWidget(QWidget):
             ticket['nrays']     += ticket_to_add['nrays']
             ticket['good_rays'] += ticket_to_add['good_rays']
 
-        self.plot_power_density_ticket(ticket, var_x, var_y, cumulated_power, energy_min, energy_max, energy_step, show_image)
+        self.plot_power_density_ticket(ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image)
 
         return ticket
 
-    def plot_power_density_ticket(self, ticket, var_x, var_y, cumulated_power, energy_min, energy_max, energy_step, show_image=True):
+    def plot_power_density_ticket(self, ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image=True):
         if show_image:
+            average_power_density = numpy.average(ticket['histogram'])
+
             title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max+energy_step, 2)) + " [eV], Current Step: " + str(round(energy_step, 2)) + "\n" + \
                     "Plotted Power: " + str(round(self.cumulated_power_plot, 2)) + \
                     " [W], Incident Power: " + str(round(self.cumulated_previous_power_plot, 2)) + \
-                    " [W], Total Power: " + str(round(cumulated_power, 2)) + " [W]"
+                    " [W], <P.D.>: " + str(round(average_power_density, 2)) + " [W/mm\u00b2]"
 
             xx = ticket['bin_h_center']
             yy = ticket['bin_v_center']
