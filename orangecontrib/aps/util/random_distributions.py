@@ -247,6 +247,8 @@ def make_distribution_curve(inputSamples, outputSamples):
 
 	return curve
 
+import numpy
+import random
 
 ## This is a callable class that generates random numbers with an arbitrary distribution.
 # The distribution is specified
@@ -272,6 +274,18 @@ class Distribution2D():
 		y = self.y_curves[xi + 1](ry)
 
 		return x, y
+
+	def get_samples(self, N, seed=0):
+		random.seed(seed)
+
+		samples = numpy.zeros((N, 2))
+
+		for k in range(N):
+			coord = self(random.random(), random.random())
+			samples[k, 0] = coord[0]
+			samples[k, 1] = coord[1]
+
+		return samples
 
 	# @private
 	def make_distribution(self, matrix):

@@ -14,6 +14,9 @@ from oasys.util.oasys_util import TriggerOut, EmittingStream
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam, ShadowSource
 from orangecontrib.shadow.widgets.gui.ow_generic_element import GenericElement
 
+from orangecontrib.aps.util.random_distributions import Distribution2D, Grid2D, distribution_from_grid
+from orangecontrib.aps.util.custom_distribution import CustomDistribution
+
 import scipy.constants as codata
 
 m2ev = codata.c * codata.h / codata.e
@@ -72,8 +75,9 @@ class APSUndulator(GenericElement):
     vertical_range_modification_factor_at_resizing         = Setting(0.5)
     vertical_resolution_modification_factor_at_resizing    = Setting(5.0)
 
+    kind_of_sampler = Setting(1)
     save_srw_result = Setting(1)
-
+    
     # SRW FILE INPUT
 
     source_dimension_srw_file     = Setting("intensity_source_dimension.dat")
@@ -233,6 +237,9 @@ class APSUndulator(GenericElement):
         # SRW
 
         tabs_srw = oasysgui.tabWidget(self.srw_box)
+
+        gui.comboBox(self.srw_box, self, "kind_of_sampler", label="Random Generator", labelWidth=250,
+                     items=["Simple (Fast)", "Accurate (Slow)"], orientation="horizontal")
 
         gui.comboBox(self.srw_box, self, "save_srw_result", label="Save SRW results", labelWidth=310,
                      items=["No", "Yes"], orientation="horizontal", callback=self.set_SaveFileSRW)
@@ -482,18 +489,20 @@ class APSUndulator(GenericElement):
 
                 self.generate_user_defined_distribution_from_srw(beam_out=beam_out,
                                                                  coord_x=x,
-                                                                 coord_y=z,
+                                                                 coord_z=z,
                                                                  intensity=intensity_source_dimension,
                                                                  distribution_type=Distribution.POSITION,
+                                                                 kind_of_sampler=self.kind_of_sampler,
                                                                  seed=0 if self.seed==0 else self.seed+1)
 
                 self.progressBarSet(70)
 
                 self.generate_user_defined_distribution_from_srw(beam_out=beam_out,
                                                                  coord_x=x_first,
-                                                                 coord_y=z_first,
+                                                                 coord_z=z_first,
                                                                  intensity=intensity_angular_distribution,
                                                                  distribution_type=Distribution.DIVERGENCE,
+                                                                 kind_of_sampler=self.kind_of_sampler,
                                                                  seed=0 if self.seed==0 else self.seed+2)
 
                 self.setStatusMessage("Plotting Results")
@@ -763,9 +772,8 @@ class APSUndulator(GenericElement):
 
         magFldCnt = self.createUndulator()
         elecBeam = self.createElectronBeam()
-        wfrAngDist = self.createInitialWavefrontMesh(elecBeam)
-        wfrSouDim = self.createInitialWavefrontMesh(elecBeam)
-        optBLSouDim = self.createBeamlineSourceDimension(wfrSouDim)
+        wfr = self.createInitialWavefrontMesh(elecBeam)
+        optBLSouDim = self.createBeamlineSourceDimension(wfr)
 
         arPrecParSpec = self.createCalculationPrecisionSettings()
 
@@ -776,90 +784,122 @@ class APSUndulator(GenericElement):
         # 1 calculate intensity distribution ME convoluted for dimension size
 
         arPrecParSpec[6] = sampFactNxNyForProp #sampling factor for adjusting nx, ny (effective if > 0)
-        srwl.CalcElecFieldSR(wfrSouDim, 0, magFldCnt, arPrecParSpec)
+        srwl.CalcElecFieldSR(wfr, 0, magFldCnt, arPrecParSpec)
 
-        srwl.PropagElecField(wfrSouDim, optBLSouDim)
+        arI = array('f', [0]*wfr.mesh.nx*wfr.mesh.ny) #"flat" 2D array to take intensity data
+        srwl.CalcIntFromElecField(arI, wfr, 6, 1, 3, wfr.mesh.eStart, 0, 0)
 
-        arI = array('f', [0]*wfrSouDim.mesh.nx*wfrSouDim.mesh.ny) #"flat" 2D array to take intensity data
-        srwl.CalcIntFromElecField(arI, wfrSouDim, 6, 1, 3, wfrSouDim.mesh.eStart, 0, 0)
+        # from radiation at the slit we can calculate Angular Distribution and Power
 
-        if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrSouDim.mesh, self.source_dimension_srw_file)
-
-        x, z, intensity_source_dimension = self.transform_srw_array(arI, wfrSouDim.mesh)
-
-        # SWITCH FROM SRW METERS TO SHADOWOUI U.M.
-        x = x/self.workspace_units_to_m
-        z = z/self.workspace_units_to_m
-
-        # 2 calculate intensity distribution ME convoluted at far field to express it in angular coordinates
-
-        arPrecParSpec[6] = sampFactNxNyForProp #sampling factor for adjusting nx, ny (effective if > 0)
-        srwl.CalcElecFieldSR(wfrAngDist, 0, magFldCnt, arPrecParSpec)
-
-        arI = array('f', [0]*wfrAngDist.mesh.nx*wfrAngDist.mesh.ny) #"flat" array to take 2D intensity data
-        srwl.CalcIntFromElecField(arI, wfrAngDist, 6, 1, 3, wfrAngDist.mesh.eStart, 0, 0)
+        x, z, intensity_angular_distribution = self.transform_srw_array(arI, wfr.mesh)
 
         if self.compute_power:
             if self.power_step > 0:
                 total_power = self.power_step
             else:
-                x_power, z_power, intensity_power = self.transform_srw_array(arI, wfrAngDist.mesh)
-                x_power *= 1e3 # mm for power computations
-                z_power *= 1e3 # mm for power computations
+                dx = (x[1] - x[0])*1e3 # mm for power computations
+                dy = (z[1] - z[0])*1e3
 
-                dx = x_power[1] - x_power[0]
-                dy = z_power[1] - z_power[0]
-
-                total_power = intensity_power.sum() * dx * dy * (1e3 * self.energy_step * codata.e)
+                total_power = intensity_angular_distribution.sum() * dx * dy * (1e3 * self.energy_step * codata.e)
         else:
             total_power = None
 
-        distance = wfrAngDist.mesh.zStart + 0.5*(self.number_of_periods*self.undulator_period)
+        distance = wfr.mesh.zStart
 
-        wfrAngDist.mesh.xStart /= distance
-        wfrAngDist.mesh.xFin /= distance
-        wfrAngDist.mesh.yStart /= distance
-        wfrAngDist.mesh.yFin /= distance
+        x_first = numpy.arctan(x/distance)
+        z_first = numpy.arctan(z/distance)
+
+        wfrAngDist = self.createInitialWavefrontMesh(elecBeam)
+        wfrAngDist.mesh.xStart = numpy.arctan(wfr.mesh.xStart/distance)
+        wfrAngDist.mesh.xFin   = numpy.arctan(wfr.mesh.xFin  /distance)
+        wfrAngDist.mesh.yStart = numpy.arctan(wfr.mesh.yStart/distance)
+        wfrAngDist.mesh.yFin   = numpy.arctan(wfr.mesh.yFin  /distance)
 
         if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrAngDist.mesh, self.angular_distribution_srw_file)
 
-        x_first, z_first, intensity_angular_distribution = self.transform_srw_array(arI, wfrAngDist.mesh)
+        # for source dimension, back propagation to the source central position
+
+        srwl.PropagElecField(wfr, optBLSouDim)
+
+        arI = array('f', [0]*wfr.mesh.nx*wfr.mesh.ny) #"flat" 2D array to take intensity data
+        srwl.CalcIntFromElecField(arI, wfr, 6, 1, 3, wfr.mesh.eStart, 0, 0)
+
+        if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfr.mesh, self.source_dimension_srw_file)
+
+        x, z, intensity_source_dimension = self.transform_srw_array(arI, wfr.mesh)
+
+        # SWITCH FROM SRW METERS TO SHADOWOUI U.M.
+        x /= self.workspace_units_to_m
+        z /= self.workspace_units_to_m
 
         return x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power
+
 
     def generate_user_defined_distribution_from_srw(self,
                                                     beam_out,
                                                     coord_x,
-                                                    coord_y,
+                                                    coord_z,
                                                     intensity,
                                                     distribution_type=Distribution.POSITION,
+                                                    kind_of_sampler=0,
                                                     seed=0):
-
-
-        pdf = numpy.abs(intensity/numpy.max(intensity))
-        pdf /= pdf.sum()
-
-        distribution = CustomDistribution(pdf, seed=seed)
-
-        sampled = distribution(len(beam_out._beam.rays))
-
-        min_value_x = numpy.min(coord_x)
-        step_x = numpy.abs(coord_x[1]-coord_x[0])
-        min_value_y = numpy.min(coord_y)
-        step_y = numpy.abs(coord_y[1]-coord_y[0])
-
-        if distribution_type == Distribution.POSITION:
-            beam_out._beam.rays[:, 0] = min_value_x + sampled[0, :]*step_x
-            beam_out._beam.rays[:, 2] = min_value_y + sampled[1, :]*step_y
-
-        elif distribution_type == Distribution.DIVERGENCE:
-            alpha_x = min_value_x + sampled[0, :]*step_x
-            alpha_z = min_value_y + sampled[1, :]*step_y
-
-            beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
-            beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
-            beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
-
+        if kind_of_sampler == 0:
+            pdf = numpy.abs(intensity/numpy.max(intensity))
+            pdf /= pdf.sum()
+    
+            distribution = CustomDistribution(pdf, seed=seed)
+    
+            sampled = distribution(len(beam_out._beam.rays))
+    
+            min_value_x = numpy.min(coord_x)
+            step_x = numpy.abs(coord_x[1]-coord_x[0])
+            min_value_z = numpy.min(coord_z)
+            step_z = numpy.abs(coord_z[1]-coord_z[0])
+    
+            if distribution_type == Distribution.POSITION:
+                beam_out._beam.rays[:, 0] = min_value_x + sampled[0, :]*step_x
+                beam_out._beam.rays[:, 2] = min_value_z + sampled[1, :]*step_z
+    
+            elif distribution_type == Distribution.DIVERGENCE:
+                alpha_x = min_value_x + sampled[0, :]*step_x
+                alpha_z = min_value_z + sampled[1, :]*step_z
+    
+                beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
+                beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
+                beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
+        elif kind_of_sampler == 1:
+            min_x = numpy.min(coord_x)
+            max_x = numpy.max(coord_x)
+            delta_x = max_x - min_x
+    
+            min_z = numpy.min(coord_z)
+            max_z = numpy.max(coord_z)
+            delta_z = max_z - min_z
+    
+            dim_x = len(coord_x)
+            dim_z = len(coord_z)
+    
+            grid = Grid2D((dim_x, dim_z))
+            grid[..., ...] = intensity.tolist()
+    
+            d = Distribution2D(distribution_from_grid(grid, dim_x, dim_z), (0, 0), (dim_x, dim_z))
+    
+            samples = d.get_samples(len(beam_out._beam.rays), seed)
+    
+            if distribution_type == Distribution.POSITION:
+                beam_out._beam.rays[:, 0] = min_x + samples[:, 0]*delta_x
+                beam_out._beam.rays[:, 2] = min_z + samples[:, 1]*delta_z
+    
+            elif distribution_type == Distribution.DIVERGENCE:
+                alpha_x = min_x + samples[:, 0]*delta_x
+                alpha_z = min_z + samples[:, 1]*delta_z
+    
+                beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
+                beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
+                beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
+        else:
+            raise ValueError("Sampler not recognized")
+        
     def gamma(self):
         return 1e9*self.electron_energy_in_GeV / (codata.m_e *  codata.c**2 / codata.e)
 
@@ -1043,77 +1083,3 @@ class APSUndulator(GenericElement):
         return coord_x, coord_y, convoluted_intensity
 
 
-class CustomDistribution(object):
-    """
-    draws samples from a one dimensional probability distribution,
-    by means of inversion of a discrete inverstion of a cumulative density function
-
-    the pdf can be sorted first to prevent numerical error in the cumulative sum
-    this is set as default; for big density functions with high contrast,
-    it is absolutely necessary, and for small density functions,
-    the overhead is minimal
-
-    a call to this distibution object returns indices into density array
-    """
-    def __init__(self, pdf, sort = False, interpolation = False, transform = lambda x: x, seed=0):
-        self.shape          = pdf.shape
-        self.pdf            = pdf.ravel()
-        self.sort           = sort
-        self.interpolation  = interpolation
-        self.transform      = transform
-        self.seed = seed
-
-        #a pdf can not be negative
-        assert(numpy.all(pdf>=0))
-
-        #sort the pdf by magnitude
-        if self.sort:
-            self.sortindex = numpy.argsort(self.pdf, axis=None)
-            self.pdf = self.pdf[self.sortindex]
-        #construct the cumulative distribution function
-        self.cdf = numpy.cumsum(self.pdf)
-    @property
-    def ndim(self):
-        return len(self.shape)
-    @property
-    def sum(self):
-        """cached sum of all pdf values; the pdf need not sum to one, and is imlpicitly normalized"""
-        return self.cdf[-1]
-    def __call__(self, N):
-        if self.seed > 0: numpy.random.seed(self.seed)
-
-        """draw """
-        #pick numbers which are uniformly random over the cumulative distribution function
-        choice = numpy.random.uniform(high = self.sum, size = N)
-        #find the indices corresponding to this point on the CDF
-        index = numpy.searchsorted(self.cdf, choice)
-        #if necessary, map the indices back to their original ordering
-        if self.sort:
-            index = self.sortindex[index]
-        #map back to multi-dimensional indexing
-        index = numpy.unravel_index(index, self.shape)
-        index = numpy.vstack(index)
-        #is this a discrete or piecewise continuous distribution?
-        if self.interpolation:
-            index = index + numpy.random.uniform(size=index.shape)
-        return self.transform(index)
-
-
-if __name__ == "__main__":
-
-    x = numpy.linspace(-100, 100, 512)
-    p = numpy.exp(-x**2)
-    pdf = p[:,None]*p[None,:]     #2d gaussian
-    dist = CustomDistribution(pdf, transform=lambda i:i-256)
-
-    import matplotlib.pyplot as pp
-    pp.scatter(*dist(100000))
-    pp.show()
-
-    '''
-    a = QApplication(sys.argv)
-    ow = APSUndulator()
-    ow.show()
-    a.exec_()
-    ow.saveSettings()
-    '''
