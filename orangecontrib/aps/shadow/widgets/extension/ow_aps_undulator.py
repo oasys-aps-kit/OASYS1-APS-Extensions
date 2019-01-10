@@ -167,9 +167,9 @@ class APSUndulator(GenericElement):
         gui.comboBox(tab_spdiv, self, "distribution_source", label="Distribution Source", labelWidth=310,
                      items=["SRW Calculation", "SRW Files", "ASCII Files"], orientation="horizontal", callback=self.set_DistributionSource)
 
-        self.srw_box = oasysgui.widgetBox(tab_spdiv, "SRW Setting", addSpace=False, orientation="vertical", height=540)
-        self.srw_files_box = oasysgui.widgetBox(tab_spdiv, "SRW Files Load Setting", addSpace=False, orientation="vertical", height=540)
-        self.ascii_box = oasysgui.widgetBox(tab_spdiv, "ASCII Files Load Setting", addSpace=False, orientation="vertical", height=540)
+        self.srw_box = oasysgui.widgetBox(tab_spdiv, "", addSpace=False, orientation="vertical", height=550)
+        self.srw_files_box = oasysgui.widgetBox(tab_spdiv, "", addSpace=False, orientation="vertical", height=550)
+        self.ascii_box = oasysgui.widgetBox(tab_spdiv, "", addSpace=False, orientation="vertical", height=550)
 
         self.set_DistributionSource()
 
@@ -303,6 +303,8 @@ class APSUndulator(GenericElement):
         ####################################################################################
         # SRW FILES
 
+        gui.separator(self.srw_files_box)
+
         file_box = oasysgui.widgetBox(self.srw_files_box, "", addSpace=True, orientation="horizontal", height=45)
 
         self.le_source_dimension_srw_file = oasysgui.lineEdit(file_box, self, "source_dimension_srw_file", "Source Dimension File", labelWidth=180,  valueType=str, orientation="vertical")
@@ -318,6 +320,8 @@ class APSUndulator(GenericElement):
 
         ####################################################################################
         # ASCII FILES
+
+        gui.separator(self.ascii_box)
 
         file_box = oasysgui.widgetBox(self.ascii_box, "", addSpace=True, orientation="horizontal", height=45)
 
