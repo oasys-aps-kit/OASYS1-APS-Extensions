@@ -21,13 +21,17 @@ class EnergyBinning(object):
     def __init__(self,
                  energy_value_from = 0.0,
                  energy_value_to   = 0.0,
-                 energy_value_step = 0.0):
-        self.energy_value_from = energy_value_from
-        self.energy_value_to   = energy_value_to
-        self.energy_value_step = energy_value_step
+                 energy_value_central    = -1.0,
+                 energy_value_half_power = -1.0,
+                 energy_step = 0.0):
+        self.energy_value_from       = energy_value_from
+        self.energy_value_to         = energy_value_to
+        self.energy_value_central    = energy_value_central
+        self.energy_value_half_power = energy_value_half_power
+        self.energy_step       = energy_step
 
     def __str__(self):
-        return str(self.energy_value_from) + ", " + str(self.energy_value_to) + ", " + str(self.energy_value_step) + ", " + str(self.power_step)
+        return str(self.energy_value_from) + ", " + str(self.energy_value_to) + ", " + str(self.energy_step) + ", " + str(self.power_step)
 
 class PowerLoopPoint(widget.OWWidget):
 
@@ -67,8 +71,9 @@ class PowerLoopPoint(widget.OWWidget):
 
     current_energy_binning = 0
     current_energy_value = None
+    current_energy_value_central = None
+    current_energy_value_half_power = None
     current_energy_step = None
-
     power_step = None
 
     energy_binnings = None
@@ -132,9 +137,6 @@ class PowerLoopPoint(widget.OWWidget):
         self.re_start_button.setFixedHeight(35)
         self.re_start_button.setEnabled(False)
 
-        self.test_button = gui.button(button_box, self, "Test", callback=self.test_loop)
-        self.test_button.setFixedHeight(35)
-
         left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=385, height=520)
 
         oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
@@ -157,8 +159,6 @@ class PowerLoopPoint(widget.OWWidget):
         left_box_1.layout().addWidget(self.text_area)
 
         gui.separator(left_box_1)
-
-        gui.button(left_box_1, self, "Show Loop", callback=self.show_test_loop)
 
         self.le_number_of_new_objects = oasysgui.lineEdit(left_box_1, self, "total_new_objects", "Total Energy Values", labelWidth=250, valueType=int, orientation="horizontal")
         self.le_number_of_new_objects.setReadOnly(True)
@@ -222,42 +222,63 @@ class PowerLoopPoint(widget.OWWidget):
                 congruence.checkStrictlyPositiveNumber(self.auto_n_step, "(Auto) % Number of Steps")
                 congruence.checkStrictlyPositiveNumber(self.auto_perc_total_power, "(Auto) % Total Power")
 
-                energies = data[:, 0]
-                flux     = data[:, 1]
+                energies                     = data[:, 0]
+                flux_through_finite_aperture = data[:, 1]
 
                 energy_step = energies[1]-energies[0]
 
-                power = flux * (1e3 * energy_step * codata.e)
+                power = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
                 cumulated_power = numpy.cumsum(power)
+
+                from matplotlib import pyplot as plt
 
                 total_power = cumulated_power[-1]
 
-                good = numpy.where(cumulated_power < self.auto_perc_total_power*0.01*total_power)
+                plt.plot(energies, cumulated_power)
+                plt.title("Total: " + str(total_power))
+                plt.show()
+
+                good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 
                 energies        = energies[good]
                 cumulated_power = cumulated_power[good]
 
                 power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
-                power_values = power_values[1:]
+                power_values = power_values[1:] # interpolating power=0 doesn't make sense
 
                 self.power_step = power_values[1]-power_values[0]
 
-                interpolated_upper_energies = numpy.interp(power_values, cumulated_power, energies)
-                interpolated_upper_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
-
-                energy_bins = numpy.diff(interpolated_upper_energies)
-
-                power_values -= 0.5*self.power_step
-
-                interpolated_central_energies = numpy.interp(power_values, cumulated_power, energies)
+                interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
+                interpolated_half_power_energies = numpy.interp(power_values-0.5*self.power_step, cumulated_power, energies)
+                interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
+                energy_bins = numpy.diff(interpolated_lower_energies)
+                interpolated_lower_energies = interpolated_lower_energies[:-1]
+                interpolated_central_energies = interpolated_upper_energies - (energy_bins/2)
 
                 self.energy_binnings = []
                 self.total_new_objects = 0
 
-                text = "Binner Ouput\nCentral Energy, Energy Bin\n-------------------------"
-                for energy, energy_bin in zip(interpolated_central_energies, energy_bins):
-                    energy_binning = EnergyBinning(energy, -1, energy_bin)
-                    text += "\n" + str(round(energy, 2)) + ", " + str(round(energy_bin, 2))
+                text = "Automatic Binning with Power Step: " + str(self.power_step) + \
+                       "\nEnergy From, To, Central, Power/2, Energy Bin\n-------------------------"
+
+                for energy_from, energy_to, energy_central, energy_half_power, energy_bin in zip(interpolated_lower_energies,
+                                                                                                 interpolated_upper_energies,
+                                                                                                 interpolated_central_energies,
+                                                                                                 interpolated_half_power_energies,
+                                                                                                 energy_bins):
+                    energy_binning = EnergyBinning(energy_value_from=round(energy_from, 2),
+                                                   energy_value_to=round(energy_to, 2),
+                                                   energy_value_central=round(energy_central, 2),
+                                                   energy_value_half_power=round(energy_half_power, 2),
+                                                   energy_step=round(energy_bin, 3))
+
+                    text += "\n" + \
+                            str(round(energy_from, 2)) + ", " + \
+                            str(round(energy_to, 2)) + ", " + \
+                            str(round(energy_central, 2)) + ", " + \
+                            str(round(energy_half_power, 2)) + ", " + \
+                            str(round(energy_bin, 2))
+
                     self.energy_binnings.append(energy_binning)
                     self.total_new_objects += 1
 
@@ -286,9 +307,11 @@ class PowerLoopPoint(widget.OWWidget):
                 if len(data) == 3:
                     if self.energy_binnings is None: self.energy_binnings = []
 
-                    energy_binning = EnergyBinning(float(data[0].strip()), float(data[1].strip()), float(data[2].strip()))
+                    energy_binning = EnergyBinning(energy_value_from=float(data[0].strip()),
+                                                   energy_value_to=float(data[1].strip()),
+                                                   energy_step=float(data[2].strip()))
                     self.energy_binnings.append(energy_binning)
-                    self.total_new_objects += int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_value_step)
+                    self.total_new_objects += int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_step)
 
     def calculate_number_of_new_objects(self):
         if len(self.energy_binnings) > 0:
@@ -297,7 +320,7 @@ class PowerLoopPoint(widget.OWWidget):
             else:
                 energy_binning = self.energy_binnings[self.current_energy_binning]
 
-                self.number_of_new_objects = int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_value_step)
+                self.number_of_new_objects = int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_step)
         else:
             self.number_of_new_objects = 0
 
@@ -305,13 +328,13 @@ class PowerLoopPoint(widget.OWWidget):
         self.current_new_object = 0
         self.total_current_new_object = 0
         self.current_energy_value = None
+        self.current_energy_value_central = None
+        self.current_energy_value_half_power = None
         self.current_energy_step = None
         self.current_energy_binning = 0
         self.current_power_step = None
 
         if not self.external_binning: self.energy_binnings = None
-
-        self.test_mode = False
 
     def startLoop(self):
         try:
@@ -320,22 +343,26 @@ class PowerLoopPoint(widget.OWWidget):
             self.current_new_object = 1
             self.total_current_new_object = 1
             self.current_energy_binning = 0
-            self.current_energy_value = round(self.energy_binnings[0].energy_value_from, 8)
-            self.current_energy_step = round(self.energy_binnings[0].energy_value_step, 8)
+            self.current_energy_value       = round(self.energy_binnings[0].energy_value_from, 8)
+            self.current_energy_value_central    = round(self.energy_binnings[0].energy_value_central, 8)
+            self.current_energy_value_half_power = round(self.energy_binnings[0].energy_value_half_power, 8)
+            self.current_energy_step              = round(self.energy_binnings[0].energy_step, 8)
 
             self.calculate_number_of_new_objects()
 
             self.start_button.setEnabled(False)
-            self.test_button.setEnabled(False)
             self.text_area.setEnabled(False)
             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
             self.send("Trigger", TriggerOut(new_object=True,
-                                            additional_parameters={"energy_value" : self.current_energy_value,
-                                                                   "energy_step" : self.current_energy_step,
-                                                                   "power_step" : -1 if self.power_step is None else self.power_step,
-                                                                   "seed_increment" : self.seed_increment}))
-        except:
-            pass
+                                            additional_parameters={"energy_value_from"       : self.current_energy_value,
+                                                                   "energy_value_central"    : self.current_energy_value_central,
+                                                                   "energy_value_half_power" : self.current_energy_value_half_power,
+                                                                   "energy_step"             : self.current_energy_step,
+                                                                   "power_step"              : -1 if self.power_step is None else self.power_step,
+                                                                   "seed_increment"          : self.seed_increment}))
+        except Exception as e:
+            if self.IS_DEVELOP : raise e
+            else: pass
 
     def stopLoop(self):
         try:
@@ -343,8 +370,9 @@ class PowerLoopPoint(widget.OWWidget):
                 self.run_loop = False
                 self.reset_values()
                 self.setStatusMessage("Interrupted by user")
-        except:
-            pass
+        except Exception as e:
+            if self.IS_DEVELOP : raise e
+            else: pass
 
     def suspendLoop(self):
         try:
@@ -354,8 +382,9 @@ class PowerLoopPoint(widget.OWWidget):
                 self.stop_button.setEnabled(False)
                 self.re_start_button.setEnabled(True)
                 self.setStatusMessage("Suspended by user")
-        except:
-            pass
+        except Exception as e:
+            if self.IS_DEVELOP : raise e
+            else: pass
 
 
     def restartLoop(self):
@@ -365,16 +394,12 @@ class PowerLoopPoint(widget.OWWidget):
             self.stop_button.setEnabled(True)
             self.re_start_button.setEnabled(False)
             self.passTrigger(TriggerIn(new_object=True))
-        except:
-            pass
+        except Exception as e:
+            if self.IS_DEVELOP : raise e
+            else: pass
 
     def get_object_name(self):
         return "Beam"
-
-    def test_loop(self):
-        self.test_mode = True
-        self.setStatusMessage("Testing Loop")
-        self.startLoop()
 
     def passTrigger(self, trigger):
         if self.run_loop:
@@ -382,7 +407,6 @@ class PowerLoopPoint(widget.OWWidget):
                 if trigger.interrupt:
                     self.reset_values()
                     self.start_button.setEnabled(True)
-                    self.test_button.setEnabled(True)
                     self.text_area.setEnabled(True)
                     self.setStatusMessage("")
                     self.send("Trigger", TriggerOut(new_object=False))
@@ -398,22 +422,24 @@ class PowerLoopPoint(widget.OWWidget):
                             if self.current_energy_value is None:
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
-                                self.current_energy_value = round(energy_binning.energy_value_from, 8)
-
+                                self.current_energy_value            = round(energy_binning.energy_value_from, 8)
+                                self.current_energy_value_central    = round(energy_binning.energy_value_central, 8)
+                                self.current_energy_value_half_power = round(energy_binning.energy_value_half_power, 8)
                             else:
                                 self.current_new_object += 1
-                                self.current_energy_value = round(self.current_energy_value + energy_binning.energy_value_step, 8)
+                                self.current_energy_value = round(self.current_energy_value + energy_binning.energy_step, 8)
 
                             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                             self.start_button.setEnabled(False)
-                            self.test_button.setEnabled(False)
                             self.text_area.setEnabled(False)
                             self.send("Trigger", TriggerOut(new_object=True,
-                                                            additional_parameters={"energy_value" : self.current_energy_value,
-                                                                                   "energy_step" : energy_binning.energy_value_step,
+                                                            additional_parameters={"energy_value"            : self.current_energy_value,
+                                                                                   "energy_value_central"    : self.current_energy_value_central,
+                                                                                   "energy_value_half_power" : self.current_energy_value_half_power,
+                                                                                   "energy_step" : energy_binning.energy_step,
                                                                                    "power_step" : -1 if self.power_step is None else self.power_step,
                                                                                    "seed_increment" : self.seed_increment,
-                                                                                   "test_mode" : self.test_mode}))
+                                                                                   "test_mode" : False}))
                         else:
                             self.current_energy_binning += 1
 
@@ -423,28 +449,29 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
                                 self.current_energy_value = round(energy_binning.energy_value_from, 8)
+                                self.current_energy_value_central    = round(energy_binning.energy_value_central, 8)
+                                self.current_energy_value_half_power = round(energy_binning.energy_value_half_power, 8)
 
                                 self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                                 self.start_button.setEnabled(False)
-                                self.test_button.setEnabled(False)
                                 self.text_area.setEnabled(False)
                                 self.send("Trigger", TriggerOut(new_object=True,
                                                                 additional_parameters={"energy_value" : self.current_energy_value,
-                                                                                       "energy_step" : energy_binning.energy_value_step,
+                                                                                       "energy_value_central"    : self.current_energy_value_central,
+                                                                                       "energy_value_half_power" : self.current_energy_value_half_power,
+                                                                                       "energy_step" : energy_binning.energy_step,
                                                                                        "power_step" : -1 if self.power_step is None else self.power_step,
                                                                                        "seed_increment" : self.seed_increment,
-                                                                                       "test_mode" : self.test_mode}))
+                                                                                       "test_mode" : False}))
                             else:
                                 self.reset_values()
                                 self.start_button.setEnabled(True)
-                                self.test_button.setEnabled(True)
                                 self.text_area.setEnabled(True)
                                 self.setStatusMessage("")
                                 self.send("Trigger", TriggerOut(new_object=False))
                     else:
                         self.reset_values()
                         self.start_button.setEnabled(True)
-                        self.test_button.setEnabled(True)
                         self.text_area.setEnabled(True)
                         self.setStatusMessage("")
                         self.send("Trigger", TriggerOut(new_object=False))
@@ -452,137 +479,12 @@ class PowerLoopPoint(widget.OWWidget):
             if not self.suspend_loop:
                 self.reset_values()
                 self.start_button.setEnabled(True)
-                self.test_button.setEnabled(True)
                 self.text_area.setEnabled(True)
 
             self.send("Trigger", TriggerOut(new_object=False))
             self.setStatusMessage("")
             self.suspend_loop = False
             self.run_loop = True
-
-    def show_test_loop(self):
-        self.calculate_energy_binnings()
-
-        self.current_new_object = 1
-        self.total_current_new_object = 1
-        self.current_energy_binning = 0
-        self.current_energy_value = round(self.energy_binnings[0].energy_value_from, 8)
-        self.current_energy_step = round(self.energy_binnings[0].energy_value_step, 8)
-
-        self.calculate_number_of_new_objects()
-        self.start_button.setEnabled(False)
-        self.test_button.setEnabled(False)
-        self.text_area.setEnabled(False)
-        self.run_loop = True
-
-        self.setStatusMessage("Testing Loop")
-
-        try:
-            text = []
-
-            triggerOut, textOut = self.passTestTrigger(TriggerIn(new_object=True))
-
-            text.append(textOut)
-
-            while(triggerOut and triggerOut.new_object):
-                triggerOut, textOut = self.passTestTrigger(TriggerIn(new_object=True))
-                text.append(textOut)
-
-            from PyQt5.QtWidgets import QScrollArea, QWidget, QVBoxLayout, QLabel
-            class ScrollMessageBox(QMessageBox):
-               def __init__(self, text_array, title, *args, **kwargs):
-                  QMessageBox.__init__(self, *args, **kwargs)
-                  self.setWindowTitle(title)
-                  scroll = QScrollArea(self)
-                  scroll.setWidgetResizable(True)
-                  scroll.setStyleSheet("background-color: white; font-family: Courier, monospace;")
-                  self.content = QWidget()
-                  scroll.setWidget(self.content)
-                  lay = QVBoxLayout(self.content)
-                  for item in text_array: lay.addWidget(QLabel(item, self))
-                  self.layout().addWidget(scroll, 0, 0, 1, self.layout().columnCount())
-                  self.setStyleSheet("QScrollArea{min-width:300 px; min-height: 400px;}")
-
-            ScrollMessageBox(text, "Test Loop").exec_()
-        except:
-            pass
-
-        self.start_button.setEnabled(True)
-        self.test_button.setEnabled(True)
-        self.text_area.setEnabled(True)
-        self.setStatusMessage("")
-
-    def passTestTrigger(self, trigger):
-
-        text = ""
-        triggerOut = None
-
-        if self.run_loop:
-           if trigger.new_object:
-                if self.energy_binnings is None: self.calculate_energy_binnings()
-
-                if self.current_energy_binning < len(self.energy_binnings):
-                    energy_binning = self.energy_binnings[self.current_energy_binning]
-
-                    self.total_current_new_object += 1
-
-                    if self.current_new_object < self.number_of_new_objects:
-                        if self.current_energy_value is None:
-                            self.current_new_object = 1
-                            self.calculate_number_of_new_objects()
-                            self.current_energy_value = round(energy_binning.energy_value_from, 8)
-                        else:
-                            self.current_new_object += 1
-                            self.current_energy_value = round(self.current_energy_value + energy_binning.energy_value_step, 8)
-
-                        text = str(self.current_energy_value) + ", " + str(energy_binning.energy_value_step)
-
-                        triggerOut = TriggerOut(new_object=True,
-                                                additional_parameters={"energy_value" : self.current_energy_value,
-                                                                       "energy_step" : energy_binning.energy_value_step,
-                                                                       "power_step" : -1 if self.power_step is None else self.power_step,
-                                                                       "seed_increment" : self.seed_increment,
-                                                                       "test_mode": True})
-                    else:
-                        self.current_energy_binning += 1
-
-                        if self.current_energy_binning < len(self.energy_binnings):
-                            energy_binning = self.energy_binnings[self.current_energy_binning]
-
-                            self.current_new_object = 1
-                            self.calculate_number_of_new_objects()
-                            self.current_energy_value = round(energy_binning.energy_value_from, 8)
-
-                            text = str(self.current_energy_value) + ", " + str(energy_binning.energy_value_step)
-
-                            triggerOut = TriggerOut(new_object=True,
-                                                    additional_parameters={"energy_value" : self.current_energy_value,
-                                                                           "energy_step" : energy_binning.energy_value_step,
-                                                                           "power_step" : -1 if self.power_step is None else self.power_step,
-                                                                           "seed_increment" : self.seed_increment,
-                                                                           "test_mode": True})
-                        else:
-                            self.current_new_object = 0
-                            self.total_current_new_object = 0
-                            self.reset_values()
-                            triggerOut = TriggerOut(new_object=False)
-                else:
-                    self.current_new_object = 0
-                    self.total_current_new_object = 0
-                    self.reset_values()
-                    triggerOut =  TriggerOut(new_object=False)
-        else:
-            if not self.suspend_loop:
-                self.current_new_object = 0
-                self.total_current_new_object = 0
-                self.current_energy_value = None
-
-            self.run_loop = True
-            self.suspend_loop = False
-
-            triggerOut =  TriggerOut(new_object=False)
-
-        return triggerOut, text
 
 if __name__ == "__main__":
     a = QApplication(sys.argv)

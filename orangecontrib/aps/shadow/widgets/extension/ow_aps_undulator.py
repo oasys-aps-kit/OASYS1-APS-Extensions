@@ -512,7 +512,7 @@ class APSUndulator(GenericElement):
                 if self.test_mode:
                     additional_parameters["test_mode"] = True
 
-                    print("Energy", self.energy, "Step", self.energy_step)
+                print("Total Power", total_power)
 
                 beam_out.setScanningData(ShadowBeam.ScanningData("photon_energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
 
@@ -1023,8 +1023,6 @@ class APSUndulator(GenericElement):
 
         return numpy.array(distribution)
 
-
-
     def combine_distributions(self, distribution_x, distribution_y):
 
         coord_x = distribution_x[:, 0]
@@ -1057,7 +1055,7 @@ class CustomDistribution(object):
 
     a call to this distibution object returns indices into density array
     """
-    def __init__(self, pdf, sort = True, interpolation = True, transform = lambda x: x, seed=0):
+    def __init__(self, pdf, sort = False, interpolation = False, transform = lambda x: x, seed=0):
         self.shape          = pdf.shape
         self.pdf            = pdf.ravel()
         self.sort           = sort
