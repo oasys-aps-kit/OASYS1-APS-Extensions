@@ -103,6 +103,7 @@ class APSUndulator(GenericElement):
 
     use_harmonic = Setting(0)
     harmonic_number = Setting(1)
+    harmonic_energy = 0.0
     energy=Setting(10000.0)
 
     polarization = Setting(1)
@@ -115,6 +116,9 @@ class APSUndulator(GenericElement):
     max_number_of_rejected_rays = Setting(10000000)
 
     file_to_write_out = Setting(0)
+
+    auto_energy = Setting(0.0)
+    auto_harmonic_number = Setting(1)
 
     energy_step = None
     power_step = None
@@ -163,6 +167,7 @@ class APSUndulator(GenericElement):
 
         tab_shadow = oasysgui.createTabPage(tabs_setting, "Shadow Setting")
         tab_spdiv = oasysgui.createTabPage(tabs_setting, "Position/Divergence Setting")
+        tab_util = oasysgui.createTabPage(tabs_setting, "Utility")
 
         gui.comboBox(tab_spdiv, self, "distribution_source", label="Distribution Source", labelWidth=310,
                      items=["SRW Calculation", "SRW Files", "ASCII Files"], orientation="horizontal", callback=self.set_DistributionSource)
@@ -185,14 +190,22 @@ class APSUndulator(GenericElement):
                      items=["Harmonic", "Other"], labelWidth=260,
                      callback=self.set_WFUseHarmonic, sendSelectedValue=False, orientation="horizontal")
 
-        self.use_harmonic_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=30)
-        oasysgui.lineEdit(self.use_harmonic_box_1, self, "harmonic_number", "Harmonic #", labelWidth=260, valueType=int, orientation="horizontal")
+        self.use_harmonic_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=50)
+        oasysgui.lineEdit(self.use_harmonic_box_1, self, "harmonic_number", "Harmonic #", labelWidth=260, valueType=int, orientation="horizontal", callback=self.set_harmonic_energy)
+        le_he = oasysgui.lineEdit(self.use_harmonic_box_1, self, "harmonic_energy", "Harmonic Energy", labelWidth=260, valueType=float, orientation="horizontal")
+        le_he.setReadOnly(True)
+        font = QFont(le_he.font())
+        font.setBold(True)
+        le_he.setFont(font)
+        palette = QPalette(le_he.palette())
+        palette.setColor(QPalette.Text, QColor('dark blue'))
+        palette.setColor(QPalette.Base, QColor(243, 240, 160))
+        le_he.setPalette(palette)
 
-        self.use_harmonic_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=30)
+        self.use_harmonic_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=50)
         oasysgui.lineEdit(self.use_harmonic_box_2, self, "energy", "Photon Energy [eV]", labelWidth=260, valueType=float, orientation="horizontal")
 
         self.set_WFUseHarmonic()
-
 
         polarization_box = oasysgui.widgetBox(tab_shadow, "Polarization", addSpace=False, orientation="vertical", height=140)
 
@@ -267,13 +280,13 @@ class APSUndulator(GenericElement):
         left_box_1 = oasysgui.widgetBox(tab_ls, "Undulator Parameters", addSpace=False, orientation="vertical")
 
         oasysgui.lineEdit(left_box_1, self, "number_of_periods", "Number of Periods", labelWidth=260,  valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "undulator_period", "Undulator Period [m]", labelWidth=260,  valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "Kv", "K Vertical", labelWidth=260,  valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "Kh", "K Horizontal", labelWidth=260,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_1, self, "undulator_period", "Undulator Period [m]", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(left_box_1, self, "Kv", "K Vertical", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(left_box_1, self, "Kh", "K Horizontal", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
 
         left_box_2 = oasysgui.widgetBox(tab_ls, "Machine Parameters", addSpace=False, orientation="vertical")
 
-        oasysgui.lineEdit(left_box_2, self, "electron_energy_in_GeV", "Energy [GeV]", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_2, self, "electron_energy_in_GeV", "Energy [GeV]", labelWidth=260, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
         oasysgui.lineEdit(left_box_2, self, "electron_energy_spread", "Energy Spread", labelWidth=260, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_2, self, "ring_current", "Ring Current [A]", labelWidth=260, valueType=float, orientation="horizontal")
         
@@ -359,8 +372,20 @@ class APSUndulator(GenericElement):
         gui.comboBox(self.ascii_box, self, "combine_strategy", label="2D Distribution Creation Strategy", labelWidth=310,
                      items=["Sqrt(Product)", "Sqrt(Quadratic Sum)", "Convolution", "Average"], orientation="horizontal", callback=self.set_SaveFileSRW)
 
+        ####################################################################################
+        # Utility
+
+        left_box_1 = oasysgui.widgetBox(tab_util, "Auto Setting of Undulator", addSpace=False, orientation="vertical")
+
+        oasysgui.lineEdit(left_box_1, self, "auto_energy", "Set Undulator at Energy [eV]", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_1, self, "auto_harmonic_number", "As Harmonic #",  labelWidth=250, valueType=int, orientation="horizontal")
+
+        gui.button(left_box_1, self, "Set Kv value", callback=self.auto_set_undulator)
+
         gui.rubber(self.controlArea)
         gui.rubber(self.mainArea)
+
+
 
     ####################################################################################
     # GRAPHICS
@@ -368,6 +393,26 @@ class APSUndulator(GenericElement):
 
     def after_change_workspace_units(self):
         pass
+
+    def auto_set_undulator(self):
+        if not self.distribution_source == 0: raise Exception("This calculation can be performed only for explicit SRW Calculation")
+        congruence.checkStrictlyPositiveNumber(self.auto_energy, "Set Undulator at Energy")
+        congruence.checkStrictlyPositiveNumber(self.auto_harmonic_number, "As Harmonic #")
+        congruence.checkStrictlyPositiveNumber(self.electron_energy_in_GeV, "Energy")
+        congruence.checkStrictlyPositiveNumber(self.undulator_period, "Period Length")
+
+        wavelength = self.auto_harmonic_number*m2ev/self.auto_energy
+
+        self.Kv = round(numpy.sqrt(2*(((wavelength*2*self.gamma()**2)/self.undulator_period)-1)), 6)
+        self.Kh = 0
+
+        self.set_WFUseHarmonic()
+
+    def set_harmonic_energy(self):
+        if self.distribution_source==0 and self.use_harmonic==0:
+            self.harmonic_energy = round(self.resonance_energy(harmonic=self.harmonic_number), 2)
+        else:
+            self.harmonic_energy = numpy.nan
 
     def get_write_file_options(self):
         write_begin_file = 0
@@ -391,10 +436,14 @@ class APSUndulator(GenericElement):
         self.use_harmonic_box_1.setVisible(self.use_harmonic==0)
         self.use_harmonic_box_2.setVisible(self.use_harmonic==1)
 
+        self.set_harmonic_energy()
+
     def set_DistributionSource(self):
         self.srw_box.setVisible(self.distribution_source == 0)
         self.srw_files_box.setVisible(self.distribution_source == 1)
         self.ascii_box.setVisible(self.distribution_source == 2)
+
+        self.set_harmonic_energy()
 
     def set_Polarization(self):
         self.ewp_box_8.setVisible(self.polarization==1)
@@ -571,6 +620,8 @@ class APSUndulator(GenericElement):
         self.seed = congruence.checkPositiveNumber(self.seed, "Seed")
 
         if self.use_harmonic == 0:
+            if self.distribution_source != 0: raise Exception("Harmonic Energy can be computed only for explicit SRW Calculation")
+
             self.harmonic_number = congruence.checkStrictlyPositiveNumber(self.harmonic_number, "Harmonic Number")
         else:
             self.energy = congruence.checkPositiveNumber(self.energy, "Photon Energy")
