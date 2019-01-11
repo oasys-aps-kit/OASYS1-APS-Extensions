@@ -230,13 +230,13 @@ class PowerLoopPoint(widget.OWWidget):
                 power = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
                 cumulated_power = numpy.cumsum(power)
 
-                from matplotlib import pyplot as plt
-
                 total_power = cumulated_power[-1]
 
-                plt.plot(energies, cumulated_power)
-                plt.title("Total: " + str(total_power))
-                plt.show()
+                if self.IS_DEVELOP:
+                    from matplotlib import pyplot as plt
+                    plt.plot(energies, cumulated_power)
+                    plt.title("Total: " + str(total_power))
+                    plt.show()
 
                 good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 

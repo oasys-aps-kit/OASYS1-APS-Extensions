@@ -266,7 +266,6 @@ class PowerPlotXY(AutomaticElement):
             self.plot_canvas.plot_power_density_ticket(ticket=self.last_ticket,
                                                        var_x=self.x_column_index+1,
                                                        var_y=self.y_column_index+1,
-                                                       cumulated_power=self.cumulated_power,
                                                        energy_min=self.energy_min,
                                                        energy_max=self.energy_max,
                                                        energy_step=self.energy_step,

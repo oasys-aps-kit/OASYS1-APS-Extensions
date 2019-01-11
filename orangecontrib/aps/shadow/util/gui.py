@@ -480,7 +480,9 @@ class PowerPlotXYWidget(QWidget):
 
     def plot_power_density_ticket(self, ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image=True):
         if show_image:
-            average_power_density = numpy.average(ticket['histogram'])
+            histogram = ticket['histogram']
+
+            average_power_density = numpy.average(histogram[numpy.where(histogram > 0.0)])
 
             title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max+energy_step, 2)) + " [eV], Current Step: " + str(round(energy_step, 2)) + "\n" + \
                     "Plotted Power: " + str(round(self.cumulated_power_plot, 2)) + \
@@ -490,7 +492,7 @@ class PowerPlotXYWidget(QWidget):
             xx = ticket['bin_h_center']
             yy = ticket['bin_v_center']
 
-            self.plot_data2D(ticket['histogram'], xx, yy, title, self.get_label(var_x), self.get_label(var_y))
+            self.plot_data2D(histogram, xx, yy, title, self.get_label(var_x), self.get_label(var_y))
 
     def get_label(self, var):
         if var == 1: return "X [mm]"
