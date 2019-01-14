@@ -1,28 +1,31 @@
 import sys
 
+from PyQt5.QtGui import QImage, QPixmap,  QPalette, QFont, QColor, QTextCursor
+from PyQt5.QtWidgets import QLabel, QWidget, QHBoxLayout, QMessageBox, QFileDialog
+
+from orangewidget import gui
 from orangewidget.widget import OWAction
+from orangewidget.settings import Setting
+
 from oasys.widgets import widget
 from oasys.widgets import gui as oasysgui
 from oasys.widgets.gui import ConfirmDialog
-
-from orangewidget import gui
-from PyQt5.QtGui import QFont, QPalette, QColor
-from orangewidget.settings import Setting
 
 from oasys.util.oasys_util import TriggerIn, TriggerOut
 
 class ScanLoopPoint(widget.OWWidget):
 
-    name = "Scanning Variable Loop Point"
+    name = "Scanning File Loop Point"
     description = "Tools: LoopPoint"
     icon = "icons/cycle.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
-    priority = 5
+    priority = 6
     category = "User Defined"
     keywords = ["data", "file", "load", "read"]
 
-    inputs = [("Trigger", TriggerIn, "passTrigger")]
+    inputs = [("Trigger", TriggerIn, "passTrigger"),
+              ("Files", object, "setFiles")]
 
     outputs = [{"name":"Trigger",
                 "type":TriggerOut,
@@ -35,15 +38,12 @@ class ScanLoopPoint(widget.OWWidget):
     run_loop = True
     suspend_loop = False
 
+    files_area = None
 
-    variable_name = Setting("<variable name>")
+    variable_name         = Setting("<variable name>")
     variable_display_name = Setting("<variable display name>")
-    variable_value_from = Setting(0.0)
-    variable_value_to = Setting(0.0)
-    variable_value_step = 0.0
+    variable_files         = Setting([""])
 
-    variable_um = Setting("<u.m.>")
-    
     current_variable_value = None
 
     #################################
@@ -68,7 +68,7 @@ class ScanLoopPoint(widget.OWWidget):
         self.addAction(self.runaction)
 
         self.setFixedWidth(400)
-        self.setFixedHeight(400)
+        self.setFixedHeight(500)
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
 
@@ -101,26 +101,20 @@ class ScanLoopPoint(widget.OWWidget):
         self.re_start_button.setFixedHeight(35)
         self.re_start_button.setEnabled(False)
 
-        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=380, height=280)
+        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=380, height=380)
 
         oasysgui.lineEdit(left_box_1, self, "variable_name", "Variable Name", labelWidth=100, valueType=str, orientation="horizontal")
         oasysgui.lineEdit(left_box_1, self, "variable_display_name", "Variable Display Name", labelWidth=100, valueType=str, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "variable_um", "Variable Units", labelWidth=250, valueType=str, orientation="horizontal")
 
-        oasysgui.lineEdit(left_box_1, self, "variable_value_from", "Value From", labelWidth=250, valueType=float, orientation="horizontal", callback=self.calculate_step)
-        oasysgui.lineEdit(left_box_1, self, "variable_value_to", "Value to", labelWidth=250, valueType=float, orientation="horizontal", callback=self.calculate_step)
-        oasysgui.lineEdit(left_box_1, self, "number_of_new_objects", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal", callback=self.calculate_step)
+        box_files = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=170)
 
+        gui.button(box_files, self, "Select Height Error Profile Data Files", callback=self.select_files)
 
-        self.le_variable_value_step = oasysgui.lineEdit(left_box_1, self, "variable_value_step", "Step Value", labelWidth=250, valueType=float, orientation="horizontal")
-        self.le_variable_value_step.setReadOnly(True)
-        font = QFont(self.le_variable_value_step.font())
-        font.setBold(True)
-        self.le_variable_value_step.setFont(font)
-        palette = QPalette(self.le_variable_value_step.palette()) # make a copy of the palette
-        palette.setColor(QPalette.Text, QColor('dark blue'))
-        palette.setColor(QPalette.Base, QColor(243, 240, 160))
-        self.le_variable_value_step.setPalette(palette)
+        self.files_area = oasysgui.textArea(height=120, width=360)
+
+        self.refresh_files_text_area()
+
+        box_files.layout().addWidget(self.files_area)
 
         gui.separator(left_box_1)
 
@@ -134,7 +128,7 @@ class ScanLoopPoint(widget.OWWidget):
         palette.setColor(QPalette.Base, QColor(243, 240, 160))
         self.le_current_new_object.setPalette(palette)
 
-        self.le_current_new_object = oasysgui.lineEdit(left_box_1, self, "current_variable_value", "Current Variable Value", labelWidth=250, valueType=float, orientation="horizontal")
+        self.le_current_new_object = oasysgui.lineEdit(left_box_1, self, "current_variable_value", "Current Variable Value", labelWidth=250, valueType=str, orientation="horizontal")
         self.le_current_new_object.setReadOnly(True)
         font = QFont(self.le_current_new_object.font())
         font.setBold(True)
@@ -146,20 +140,46 @@ class ScanLoopPoint(widget.OWWidget):
 
         gui.rubber(self.controlArea)
 
-    def calculate_step(self):
-        self.variable_value_step = round((self.variable_value_to - self.variable_value_from) / self.number_of_new_objects, 8)
+    def select_files(self):
+        files, _ = QFileDialog.getOpenFileNames(self,
+                                                "Select Height Error Profiles", "", "Data Files (*.dat)",
+                                                options=QFileDialog.Options())
+        if files:
+            self.variable_files = files
+
+            self.refresh_files_text_area()
+
+    def setFiles(self, files_data):
+        if not files_data is None:
+            if isinstance(files_data, str):
+                self.variable_files.append(files_data)
+            elif isinstance(files_data, list):
+                self.variable_files = files_data
+            else:
+                raise ValueError("Error Profile Data File: format not recognized")
+
+            self.refresh_files_text_area()
+
+    def refresh_files_text_area(self):
+        text = ""
+        for file in self.variable_files:
+            text += file + "\n"
+        self.files_area.setText(text)
+
+        self.number_of_new_objects = len(self.variable_files)
 
     def startLoop(self):
         self.current_new_object = 1
-        self.current_variable_value = round(self.variable_value_from, 8)
-        self.calculate_step()
+        self.current_variable_value = self.variable_files[0]
+        self.number_of_new_objects = len(self.variable_files)
+
         self.start_button.setEnabled(False)
 
         self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.current_new_object) + " of " + str(self.number_of_new_objects))
         self.send("Trigger", TriggerOut(new_object=True, additional_parameters={"variable_name" : self.variable_name,
                                                                                 "variable_display_name" : self.variable_display_name,
                                                                                 "variable_value": self.current_variable_value,
-                                                                                "variable_um": self.variable_um}))
+                                                                                "variable_um": ""}))
     def stopLoop(self):
         if ConfirmDialog.confirmed(parent=self, message="Confirm Interruption of the Loop?"):
             self.run_loop = False
@@ -197,21 +217,20 @@ class ScanLoopPoint(widget.OWWidget):
                     self.setStatusMessage("")
                     self.send("Trigger", TriggerOut(new_object=False))
                 elif trigger.new_object:
-                    if self.current_new_object <= self.number_of_new_objects:
+                    if self.current_new_object < self.number_of_new_objects:
                         if self.current_variable_value is None:
                             self.current_new_object = 1
-                            self.calculate_step()
-                            self.current_variable_value = round(self.variable_value_from, 8)
                         else:
                             self.current_new_object += 1
-                            self.current_variable_value = round(self.current_variable_value + self.variable_value_step, 8)
+
+                        self.current_variable_value = self.variable_files[self.current_new_object-1]
 
                         self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.current_new_object) + " of " + str(self.number_of_new_objects))
                         self.start_button.setEnabled(False)
                         self.send("Trigger", TriggerOut(new_object=True, additional_parameters={"variable_name" : self.variable_name,
                                                                                                 "variable_display_name" : self.variable_display_name,
                                                                                                 "variable_value": self.current_variable_value,
-                                                                                                "variable_um": self.variable_um}))
+                                                                                                "variable_um": ""}))
                     else:
                         self.current_new_object = 0
                         self.current_variable_value = None
@@ -230,7 +249,7 @@ class ScanLoopPoint(widget.OWWidget):
             self.suspend_loop = False
             
     def get_object_name(self):
-        return "Object"
+        return "File"
 
 from PyQt5.QtWidgets import QApplication
 

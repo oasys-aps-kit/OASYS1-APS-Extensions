@@ -378,6 +378,10 @@ class Histogram(ow_automatic_element.AutomaticElement):
                 if not beam.scanned_variable_data is None:
                     self.last_ticket = None
                     self.histo_index += 1
+
+                    um = beam.scanned_variable_data.get_scanned_variable_um()
+                    um = " " + um if um.strip() == "" else " [" + um + "]"
+
                     histo_data = self.plot_canvas.plot_histo(beam=beam,
                                                              col=var,
                                                              nbins=self.number_of_bins,
@@ -385,7 +389,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                                              xtitle=xtitle,
                                                              ytitle=ytitle,
                                                              histo_index=self.histo_index,
-                                                             scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                             scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + um,
                                                              scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
                                                              offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
                                                              xrange=xrange,
@@ -393,7 +397,12 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                                              add_labels=self.add_labels==1,
                                                              has_colormap=self.has_colormap==1
                                                              )
-                    histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
+                    scanned_variable_value = beam.scanned_variable_data.get_scanned_variable_value()
+
+                    if isinstance(scanned_variable_value, str):
+                        histo_data.scan_value = self.histo_index + 1
+                    else:
+                        histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
 
                     if not histo_data.bins is None:
                         if self.current_histo_data is None:
@@ -412,7 +421,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                                       self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
                                                       self.current_stats.get_relative_intensities(),
                                                       "Statistics",
-                                                      beam.scanned_variable_data.get_scanned_variable_display_name() + " [" + beam.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                      beam.scanned_variable_data.get_scanned_variable_display_name() + um,
                                                       "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
                                                       "Relative Peak Intensity")
 
@@ -606,4 +615,4 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                            output_folder=output_folder)
 
 
-            QtWidgets.QMessageBox.information(self, "Export Scanning Results/Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
+            QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)

@@ -125,7 +125,10 @@ class StatisticalDataCollection(object):
         return self.data[2, :]
 
     def get_relative_intensities(self):
-        return self.data[3, :]/self.data[3, 0]
+        try:
+            return self.data[3, :]/self.data[3, 0]
+        except:
+            return -1
 
     def get_stats_data_number(self):
         return self.data.shape()[1]

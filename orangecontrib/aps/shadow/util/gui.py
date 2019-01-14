@@ -168,55 +168,58 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
         return HistogramData(histogram_stats, bins_stats, 0.0, xrange, fwhm, sigma, peak_intensity)
 
     def add_histo(self, scan_value, intensities, has_colormap, colormap, histo_index):
-            if self.xx is None: raise ValueError("Initialize X range first")
-            if self.xx.shape != intensities.shape: raise ValueError("Given Histogram has a different binning")
+        if self.xx is None: raise ValueError("Initialize X range first")
+        if self.xx.shape != intensities.shape: raise ValueError("Given Histogram has a different binning")
 
+        if isinstance(scan_value, str):
+            self.yy = numpy.array([1]) if self.yy is None else numpy.append(self.yy, len(self.yy)+1)
+        else:
             self.yy = numpy.array([scan_value]) if self.yy is None else numpy.append(self.yy, scan_value)
 
-            if self.zz is None:
-                self.zz = numpy.array([intensities])
+        if self.zz is None:
+            self.zz = numpy.array([intensities])
+        else:
+            self.zz = numpy.append(self.zz, intensities)
+
+        self.axis.clear()
+
+        self.restore_labels()
+
+        x_to_plot, y_to_plot = numpy.meshgrid(self.xx, self.yy)
+        zz_to_plot = self.zz.reshape(len(self.yy), len(self.xx))
+
+        if self.__type==Scan3DHistoWidget.PlotType.SURFACE:
+            if has_colormap:
+                self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
+                                       rstride=1, cstride=1, cmap=colormap, linewidth=0.5, antialiased=True)
             else:
-                self.zz = numpy.append(self.zz, intensities)
+                self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
+                                       rstride=1, cstride=1, color=self.__cc('black'), linewidth=0.5, antialiased=True)
 
-            self.axis.clear()
+        elif self.__type==Scan3DHistoWidget.PlotType.LINES:
 
-            self.restore_labels()
+            if has_colormap:
+                self.plot_lines_colormap(x_to_plot, y_to_plot, zz_to_plot, colormap, histo_index)
+            else:
+                self.plot_lines_black(x_to_plot, zz_to_plot)
 
-            x_to_plot, y_to_plot = numpy.meshgrid(self.xx, self.yy)
-            zz_to_plot = self.zz.reshape(len(self.yy), len(self.xx))
+            xmin = numpy.min(self.xx)
+            xmax = numpy.max(self.xx)
+            ymin = numpy.min(self.yy)
+            ymax = numpy.max(self.yy)
+            zmin = numpy.min(self.zz)
+            zmax = numpy.max(self.zz)
 
-            if self.__type==Scan3DHistoWidget.PlotType.SURFACE:
-                if has_colormap:
-                    self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
-                                           rstride=1, cstride=1, cmap=colormap, linewidth=0.5, antialiased=True)
-                else:
-                    self.axis.plot_surface(x_to_plot, y_to_plot, zz_to_plot,
-                                           rstride=1, cstride=1, color=self.__cc('black'), linewidth=0.5, antialiased=True)
+            self.axis.set_xlim(xmin,xmax)
+            self.axis.set_ylim(ymin,ymax)
+            self.axis.set_zlim(zmin,zmax)
 
-            elif self.__type==Scan3DHistoWidget.PlotType.LINES:
+        self.axis.mouse_init()
 
-                if has_colormap:
-                    self.plot_lines_colormap(x_to_plot, y_to_plot, zz_to_plot, colormap, histo_index)
-                else:
-                    self.plot_lines_black(x_to_plot, zz_to_plot)
-
-                xmin = numpy.min(self.xx)
-                xmax = numpy.max(self.xx)
-                ymin = numpy.min(self.yy)
-                ymax = numpy.max(self.yy)
-                zmin = numpy.min(self.zz)
-                zmax = numpy.max(self.zz)
-
-                self.axis.set_xlim(xmin,xmax)
-                self.axis.set_ylim(ymin,ymax)
-                self.axis.set_zlim(zmin,zmax)
-
-            self.axis.mouse_init()
-
-            try:
-                self.plot_canvas.draw()
-            except:
-                pass
+        try:
+            self.plot_canvas.draw()
+        except:
+            pass
 
     def add_empty_curve(self, histo_data):
         pass

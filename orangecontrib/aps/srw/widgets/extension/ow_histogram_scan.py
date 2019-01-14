@@ -302,13 +302,17 @@ class Histogram(SRWWidget):
                 if not wavefront.scanned_variable_data is None:
                     self.last_ticket = None
                     self.histo_index += 1
+
+                    um = wavefront.scanned_variable_data.get_scanned_variable_um()
+                    um = " " + um if um.strip() == "" else " [" + um + "]"
+
                     histo_data = self.plot_canvas.plot_histo(ticket,
                                                              col=var,
                                                              title=title,
                                                              xtitle=xtitle,
                                                              ytitle=ytitle,
                                                              histo_index=self.histo_index,
-                                                             scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + " [" + wavefront.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                             scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
                                                              scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
                                                              offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
                                                              xrange=xrange,
@@ -317,7 +321,13 @@ class Histogram(SRWWidget):
                                                              has_colormap=self.has_colormap==1,
                                                              use_default_factor=False
                                                              )
-                    histo_data.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
+
+                    scanned_variable_value = wavefront.scanned_variable_data.get_scanned_variable_value()
+
+                    if isinstance(scanned_variable_value, str):
+                        histo_data.scan_value = self.histo_index + 1
+                    else:
+                        histo_data.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
 
                     if not histo_data.bins is None:
                         if self.current_histo_data is None:
@@ -336,7 +346,7 @@ class Histogram(SRWWidget):
                                                       self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
                                                       self.current_stats.get_relative_intensities(),
                                                       "Statistics",
-                                                      wavefront.scanned_variable_data.get_scanned_variable_display_name() + " [" + wavefront.scanned_variable_data.get_scanned_variable_um() + "]",
+                                                      wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
                                                       "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
                                                       "Relative Peak Intensity")
 

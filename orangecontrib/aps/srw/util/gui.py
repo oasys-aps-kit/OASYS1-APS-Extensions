@@ -183,7 +183,10 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
         if self.xx is None: raise ValueError("Initialize X range first")
         if self.xx.shape != intensities.shape: raise ValueError("Given Histogram has a different binning")
 
-        self.yy = numpy.array([scan_value]) if self.yy is None else numpy.append(self.yy, scan_value)
+        if isinstance(scan_value, str):
+            self.yy = numpy.array([1]) if self.yy is None else numpy.append(self.yy, len(self.yy)+1)
+        else:
+            self.yy = numpy.array([scan_value]) if self.yy is None else numpy.append(self.yy, scan_value)
 
         if self.zz is None:
             self.zz = numpy.array([intensities])

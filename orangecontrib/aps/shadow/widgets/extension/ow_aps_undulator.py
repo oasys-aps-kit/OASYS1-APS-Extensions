@@ -580,9 +580,7 @@ class APSUndulator(GenericElement):
 
             self.send("Beam", beam_out)
         except Exception as exception:
-            QtWidgets.QMessageBox.critical(self, "Error",
-                                       str(exception),
-                QtWidgets.QMessageBox.Ok)
+            QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
 
             if self.IS_DEVELOP: raise exception
 
