@@ -51,7 +51,7 @@ class PowerLoopPoint(widget.OWWidget):
                 "type":TriggerOut,
                 "doc":"Trigger",
                 "id":"Trigger"}]
-    want_main_area = 0
+    want_main_area = 1
 
     current_new_object = 0
     number_of_new_objects = 0
@@ -65,6 +65,8 @@ class PowerLoopPoint(widget.OWWidget):
     energies = Setting("")
 
     seed_increment=Setting(1)
+
+    autobinning = Setting(1)
 
     auto_n_step = Setting(1001)
     auto_perc_total_power = Setting(99)
@@ -103,7 +105,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.runaction.triggered.connect(self.restartLoop)
         self.addAction(self.runaction)
 
-        self.setFixedWidth(400)
+        self.setFixedWidth(1000)
         self.setFixedHeight(680)
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=True, orientation="horizontal")
@@ -141,17 +143,25 @@ class PowerLoopPoint(widget.OWWidget):
 
         oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
 
-        oasysgui.lineEdit(left_box_1, self, "auto_n_step", "(Auto) Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "auto_perc_total_power", "(Auto) % Total Power", labelWidth=250, valueType=float, orientation="horizontal")
-
         gui.separator(left_box_1)
 
-        oasysgui.widgetLabel(left_box_1, "Energy From, Energy To, Energy Step [eV]")
+        gui.comboBox(left_box_1, self, "autobinning", label="Energy Binning",
+                                            items=["Manual", "Automatic"], labelWidth=260,
+                                            callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
+
+        self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=80)
+        self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=80)
+
+        oasysgui.lineEdit(self.autobinning_box_1, self, "auto_n_step", "(Auto) Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_1, self, "auto_perc_total_power", "(Auto) % Total Power", labelWidth=250, valueType=float, orientation="horizontal")
+        gui.button(self.autobinning_box_1, self, "Reload Spectrum", callback=self.read_spectrum_file)
+
+        oasysgui.widgetLabel(self.autobinning_box_2, "\n\n\n\nEnergy From, Energy To, Energy Step [eV]")
 
         def write_text():
             self.energies = self.text_area.toPlainText()
 
-        self.text_area = oasysgui.textArea(height=210, width=360, readOnly=False)
+        self.text_area = oasysgui.textArea(height=180, width=365, readOnly=False)
         self.text_area.setText(self.energies)
         self.text_area.setStyleSheet("background-color: white; font-family: Courier, monospace;")
         self.text_area.textChanged.connect(write_text)
@@ -214,78 +224,143 @@ class PowerLoopPoint(widget.OWWidget):
 
         gui.rubber(self.controlArea)
 
+        tabs = oasysgui.tabWidget(self.mainArea)
+        tabs.setFixedHeight(self.height()-15)
+        tabs.setFixedWidth(585)
+
+        tab_plot = oasysgui.createTabPage(tabs, "Cumulated Power")
+
+        self.cumulated_power_plot = oasysgui.plotWindow(tab_plot)
+        self.cumulated_power_plot.setFixedHeight(self.height()-20)
+        self.cumulated_power_plot.setFixedWidth(580)
+        self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
+        self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
+        self.cumulated_power_plot.setGraphTitle("Cumulated Power")
+
+        self.set_Autobinning()
+
+    def set_Autobinning(self):
+        self.autobinning_box_1.setVisible(self.autobinning==1)
+        self.autobinning_box_2.setVisible(self.autobinning==0)
+        self.text_area.setReadOnly(self.autobinning==1)
+        self.cumulated_power_plot.clear()
+        self.cumulated_power_plot.setEnabled(self.autobinning==1)
+
+    def read_spectrum_file(self):
+        try:
+            data = numpy.loadtxt("autobinning.dat", skiprows=1)
+
+            calculated_data = DataExchangeObject(program_name="ShadowOui", widget_name="PowerLoopPoint")
+            calculated_data.add_content("spectrum_data", data)
+
+            self.acceptExchangeData(calculated_data)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+            if self.IS_DEVELOP: raise e
+
+
     def acceptExchangeData(self, exchange_data):
         if not exchange_data is None:
             try:
-                data = exchange_data.get_content("srw_data")
+                write_file = True
 
-                congruence.checkStrictlyPositiveNumber(self.auto_n_step, "(Auto) % Number of Steps")
-                congruence.checkStrictlyPositiveNumber(self.auto_perc_total_power, "(Auto) % Total Power")
+                try:
+                    data = exchange_data.get_content("spectrum_data")
+                    write_file = False
+                except:
+                    try:
+                        data = exchange_data.get_content("srw_data")
+                    except:
+                        data = exchange_data.get_content("xoppy_data")
 
-                energies                     = data[:, 0]
-                flux_through_finite_aperture = data[:, 1]
+                energies = data[:, 0]
+                fluxes = data[:, 1]
 
-                energy_step = energies[1]-energies[0]
+                if write_file:
+                    file = open("autobinning.dat", "w")
+                    file.write("Energy Flux")
 
-                power = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
-                cumulated_power = numpy.cumsum(power)
+                    for energy, flux in zip(energies, fluxes):
+                        file.write("\n" + str(energy) + " " + str(flux))
 
-                total_power = cumulated_power[-1]
+                    file.flush()
+                    file.close()
 
-                if self.IS_DEVELOP:
-                    from matplotlib import pyplot as plt
-                    plt.plot(energies, cumulated_power)
-                    plt.title("Total: " + str(total_power))
-                    plt.show()
+                if self.autobinning==0:
+                    if write_file: QMessageBox.information(self, "Info", "File autobinning.dat written on working directory, switch to Automatic binning to load it", QMessageBox.Ok)
+                else:
+                    if write_file: QMessageBox.information(self, "Info", "File autobinning.dat written on working directory", QMessageBox.Ok)
 
-                good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
+                    congruence.checkStrictlyPositiveNumber(self.auto_n_step, "(Auto) % Number of Steps")
+                    congruence.checkStrictlyPositiveNumber(self.auto_perc_total_power, "(Auto) % Total Power")
 
-                energies        = energies[good]
-                cumulated_power = cumulated_power[good]
+                    energies                     = data[:, 0]
+                    flux_through_finite_aperture = data[:, 1]
 
-                power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
-                power_values = power_values[1:] # interpolating power=0 doesn't make sense
+                    energy_step = energies[1]-energies[0]
 
-                self.power_step = power_values[1]-power_values[0]
+                    power = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
+                    cumulated_power = numpy.cumsum(power)
 
-                interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
-                interpolated_half_power_energies = numpy.interp(power_values-0.5*self.power_step, cumulated_power, energies)
-                interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
-                energy_bins = numpy.diff(interpolated_lower_energies)
-                interpolated_lower_energies = interpolated_lower_energies[:-1]
-                interpolated_central_energies = interpolated_upper_energies - (energy_bins/2)
+                    total_power = cumulated_power[-1]
 
-                self.energy_binnings = []
-                self.total_new_objects = 0
+                    self.cumulated_power_plot.clear()
+                    self.cumulated_power_plot.addCurve(energies, cumulated_power, replace=False, replot=True, legend="Cumulated Power")
+                    self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
+                    self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
+                    self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(total_power, 2)) + " W")
 
-                text = "Automatic Binning with Power Step: " + str(self.power_step) + \
-                       "\nEnergy From, To, Central, Power/2, Energy Bin\n-------------------------"
+                    good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 
-                for energy_from, energy_to, energy_central, energy_half_power, energy_bin in zip(interpolated_lower_energies,
-                                                                                                 interpolated_upper_energies,
-                                                                                                 interpolated_central_energies,
-                                                                                                 interpolated_half_power_energies,
-                                                                                                 energy_bins):
-                    energy_binning = EnergyBinning(energy_value_from=round(energy_from, 2),
-                                                   energy_value_to=round(energy_to, 2),
-                                                   energy_value_central=round(energy_central, 2),
-                                                   energy_value_half_power=round(energy_half_power, 2),
-                                                   energy_step=round(energy_bin, 3))
+                    energies        = energies[good]
+                    cumulated_power = cumulated_power[good]
 
-                    text += "\n" + \
-                            str(round(energy_from, 2)) + ", " + \
-                            str(round(energy_to, 2)) + ", " + \
-                            str(round(energy_central, 2)) + ", " + \
-                            str(round(energy_half_power, 2)) + ", " + \
-                            str(round(energy_bin, 2))
+                    power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
+                    power_values = power_values[1:] # interpolating power=0 doesn't make sense
 
-                    self.energy_binnings.append(energy_binning)
-                    self.total_new_objects += 1
+                    self.power_step = power_values[1]-power_values[0]
 
-                self.text_area.setText(text)
-                self.text_area.setEnabled(False)
+                    interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
+                    interpolated_half_power_energies = numpy.interp(power_values-0.5*self.power_step, cumulated_power, energies)
+                    interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
+                    energy_bins = numpy.diff(interpolated_lower_energies)
+                    interpolated_lower_energies = interpolated_lower_energies[:-1]
+                    interpolated_central_energies = interpolated_upper_energies - (energy_bins/2)
 
-                self.external_binning = True
+                    self.energy_binnings = []
+                    self.total_new_objects = 0
+
+                    self.cumulated_power_plot.addCurve(interpolated_upper_energies, power_values, replace=False, replot=True, legend="Energy Binning",
+                                                       color="red", linestyle=" ", symbol="+")
+
+                    text = "Auto-Binning with Power Step: " + str(round(self.power_step, 3)) + \
+                           "\nEnergy From, To, Central, Power/2, Bin\n------------------------------------------"
+
+                    for energy_from, energy_to, energy_central, energy_half_power, energy_bin in zip(interpolated_lower_energies,
+                                                                                                     interpolated_upper_energies,
+                                                                                                     interpolated_central_energies,
+                                                                                                     interpolated_half_power_energies,
+                                                                                                     energy_bins):
+                        energy_binning = EnergyBinning(energy_value_from=round(energy_from, 2),
+                                                       energy_value_to=round(energy_to, 2),
+                                                       energy_value_central=round(energy_central, 2),
+                                                       energy_value_half_power=round(energy_half_power, 2),
+                                                       energy_step=round(energy_bin, 3))
+
+                        text += "\n" + \
+                                str(round(energy_from, 2)) + ", " + \
+                                str(round(energy_to, 2)) + ", " + \
+                                str(round(energy_central, 2)) + ", " + \
+                                str(round(energy_half_power, 2)) + ", " + \
+                                str(round(energy_bin, 2))
+
+                        self.energy_binnings.append(energy_binning)
+                        self.total_new_objects += 1
+
+                    self.text_area.setText(text)
+
+                    self.external_binning = True
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
         else:
@@ -294,7 +369,6 @@ class PowerLoopPoint(widget.OWWidget):
             self.power_step = None
             self.external_binning = False
             self.text_area.setText("")
-            self.text_area.setEnabled(True)
 
     def calculate_energy_binnings(self):
         if not self.external_binning:

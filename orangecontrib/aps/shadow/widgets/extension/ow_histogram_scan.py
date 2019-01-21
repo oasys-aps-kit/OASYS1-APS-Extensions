@@ -624,4 +624,4 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                                    suffix="",
                                                    output_folder=output_folder)
 
-            QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
+                QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
