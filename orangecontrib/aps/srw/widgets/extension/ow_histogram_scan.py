@@ -16,7 +16,7 @@ from orangecontrib.srw.util.srw_util import SRWPlot
 from orangecontrib.srw.util.srw_objects import SRWData
 from orangecontrib.srw.widgets.gui.ow_srw_widget import SRWWidget
 
-from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file
+from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file, write_histo_and_stats_file_hdf5
 from orangecontrib.aps.srw.util.gui import ScanHistoWidget, Scan3DHistoWidget, Column
 
 from wofrysrw.propagator.wavefront2D.srw_wavefront import PolarizationComponent, TypeOfDependence
@@ -148,7 +148,7 @@ class Histogram(SRWWidget):
                      items=["Sigma", "FWHM"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        gui.button(self.box_scan, self, "Export Scanning Results & Stats", callback=self.export_scanning_stats_analysis, height=30)
+        gui.button(self.box_scan, self, "Export Scanning Results/Stats", callback=self.export_scanning_stats_analysis, height=30)
 
         self.set_IterativeMode()
 
@@ -442,16 +442,26 @@ class Histogram(SRWWidget):
         self.shadow_output.setTextCursor(cursor)
         self.shadow_output.ensureCursorVisible()
 
-    def export_scanning_stats_analysis(self):
 
+    def export_scanning_stats_analysis(self):
         output_folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
 
         if output_folder:
             if not self.current_histo_data is None:
-                write_histo_and_stats_file(histo_data=self.current_histo_data,
-                                           stats=self.current_stats,
-                                           suffix="",
-                                           output_folder=output_folder)
+                items = ("Hdf5", "Text")
 
+                item, ok = QtWidgets.QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
 
-            QtWidgets.QMessageBox.information(self, "Export Scanning Results/Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
+                if ok and item:
+                    if item == "Hdf5":
+                        write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data,
+                                                        stats=self.current_stats,
+                                                        suffix="",
+                                                        output_folder=output_folder)
+                    else:
+                        write_histo_and_stats_file(histo_data=self.current_histo_data,
+                                                   stats=self.current_stats,
+                                                   suffix="",
+                                                   output_folder=output_folder)
+
+                QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
