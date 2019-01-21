@@ -1,4 +1,4 @@
-import numpy
+import copy, numpy
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 from PyQt5.QtCore import Qt
@@ -419,7 +419,7 @@ class PowerPlotXYWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
-    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_power, energy_min, energy_max, energy_step,
+    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, energy_min, energy_max, energy_step,
                            nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0, show_image=True):
 
         n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
@@ -472,6 +472,8 @@ class PowerPlotXYWidget(QWidget):
         ticket['histogram'] /= (bin_h_size * bin_v_size)  # power density
 
         if not ticket_to_add is None:
+            last_ticket = copy.deepcopy(ticket)
+
             ticket['histogram'] += ticket_to_add['histogram']
             ticket['intensity'] += ticket_to_add['intensity']
             ticket['nrays']     += ticket_to_add['nrays']
@@ -479,7 +481,10 @@ class PowerPlotXYWidget(QWidget):
 
         self.plot_power_density_ticket(ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image)
 
-        return ticket
+        if not ticket_to_add is None:
+            return ticket, last_ticket
+        else:
+            return ticket, None
 
     def plot_power_density_ticket(self, ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image=True):
         if show_image:

@@ -4,7 +4,7 @@ import time
 import copy
 import numpy
 
-from PyQt5 import QtGui, QtWidgets
+from PyQt5 import QtGui, QtWidgets, QtCore
 from orangewidget import gui
 from orangewidget.settings import Setting
 from oasys.widgets import gui as oasysgui
@@ -16,7 +16,7 @@ from orangecontrib.shadow.util.shadow_objects import ShadowBeam
 from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
 from orangecontrib.shadow.widgets.gui import ow_automatic_element
 
-from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file
+from orangecontrib.aps.util.gui import StatisticalDataCollection, HistogramDataCollection, DoublePlotWidget, write_histo_and_stats_file_hdf5, write_histo_and_stats_file
 from orangecontrib.aps.shadow.util.gui import ScanHistoWidget, Scan3DHistoWidget
 
 class Histogram(ow_automatic_element.AutomaticElement):
@@ -240,7 +240,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                      items=["Sigma", "FWHM"],
                      sendSelectedValue=False, orientation="horizontal")
 
-        gui.button(self.box_scan, self, "Export Scanning Results & Stats", callback=self.export_scanning_stats_analysis, height=30)
+        gui.button(self.box_scan, self, "Export Scanning Results/Stats", callback=self.export_scanning_stats_analysis, height=30)
 
         self.set_IterativeMode()
 
@@ -604,15 +604,24 @@ class Histogram(ow_automatic_element.AutomaticElement):
         return self.is_conversion_active==1
 
     def export_scanning_stats_analysis(self):
-
         output_folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
 
         if output_folder:
             if not self.current_histo_data is None:
-                write_histo_and_stats_file(histo_data=self.current_histo_data,
-                                           stats=self.current_stats,
-                                           suffix="",
-                                           output_folder=output_folder)
+                items = ("Hdf5", "Text")
 
+                item, ok = QtWidgets.QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
+
+                if ok and item:
+                    if item == "Hdf5":
+                        write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data,
+                                                        stats=self.current_stats,
+                                                        suffix="",
+                                                        output_folder=output_folder)
+                    else:
+                        write_histo_and_stats_file(histo_data=self.current_histo_data,
+                                                   stats=self.current_stats,
+                                                   suffix="",
+                                                   output_folder=output_folder)
 
             QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)

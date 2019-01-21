@@ -179,6 +179,30 @@ class DoublePlotWidget(QWidget):
         self.ax2.plot(x, y2, "r.-")
         self.ax2.set_ylabel(ylabel2, color="r")
 
+import h5py
+
+def write_histo_and_stats_file_hdf5(histo_data=HistogramDataCollection(),
+                                    stats=StatisticalDataCollection(),
+                                    suffix="",
+                                    output_folder=""):
+    file = h5py.File(os.path.join(output_folder, "variable_scan_histogram_and_statistics.hdf5"), "w")
+
+    histos = file.create_group("variable_scan_histograms")
+
+    for scan_value, positions, intensities in zip(histo_data.get_scan_values(), histo_data.get_positions(), histo_data.get_intensities()):
+        histogram = histos.create_group("histogram_" + str(scan_value) + suffix)
+        histogram.create_dataset("positions", data=positions)
+        histogram.create_dataset("intensities", data=intensities)
+
+    statistics = file.create_group("statistics")
+
+    statistics.create_dataset("scan_values", data=stats.get_scan_values())
+    statistics.create_dataset("fhwm", data=stats.get_fwhms())
+    statistics.create_dataset("sigma", data=stats.get_sigmas())
+    statistics.create_dataset("relative_intensity", data=stats.get_relative_intensities())
+
+    file.flush()
+    file.close()
 
 def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
                                stats=StatisticalDataCollection(),

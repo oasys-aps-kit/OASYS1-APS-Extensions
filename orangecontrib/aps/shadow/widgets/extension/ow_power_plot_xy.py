@@ -1,8 +1,6 @@
-import copy
 import sys
 import time
 
-import numpy
 from PyQt5 import QtGui, QtWidgets
 from orangewidget import gui
 from orangewidget.settings import Setting
@@ -13,7 +11,7 @@ from oasys.widgets.gui import ConfirmDialog
 from oasys.util.oasys_util import EmittingStream
 
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam
-from orangecontrib.shadow.util.shadow_util import ShadowCongruence
+from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPlot
 from orangecontrib.shadow.widgets.gui.ow_automatic_element import AutomaticElement
 from orangecontrib.aps.shadow.util.gui import PowerPlotXYWidget
 
@@ -58,8 +56,12 @@ class PowerPlotXY(AutomaticElement):
     title=Setting("X,Z")
 
     keep_result=Setting(1)
+    autosave_partial_results = Setting(0)
 
-    last_ticket=None
+    autosave = Setting(0)
+    autosave_file_name = Setting("autosave_power_density.hdf5")
+
+    cumulated_ticket=None
     energy_min = None
     energy_max = None
     energy_step = None
@@ -67,6 +69,8 @@ class PowerPlotXY(AutomaticElement):
     cumulated_power = None
 
     view_type=Setting(1)
+
+    autosave_file = None
 
     def __init__(self):
         super().__init__(show_automatic_box=False)
@@ -145,10 +149,30 @@ class PowerPlotXY(AutomaticElement):
                                     items=["Transmitted", "Absorbed"],
                                     sendSelectedValue=False, orientation="horizontal")
 
-        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="horizontal", height=80)
+        autosave_box = oasysgui.widgetBox(tab_gen, "Autosave", addSpace=True, orientation="vertical", height=85)
 
-        gui.checkBox(incremental_box, self, "keep_result", "Keep Result")
+        gui.comboBox(autosave_box, self, "autosave", label="Save automatically plot into file", labelWidth=250,
+                                         items=["No", "Yes"],
+                                         sendSelectedValue=False, orientation="horizontal", callback=self.set_autosave)
+
+        self.autosave_box_1 = oasysgui.widgetBox(autosave_box, "", addSpace=False, orientation="horizontal", height=25)
+        self.autosave_box_2 = oasysgui.widgetBox(autosave_box, "", addSpace=False, orientation="horizontal", height=25)
+
+        self.le_autsave_file_name = oasysgui.lineEdit(self.autosave_box_1, self, "autosave_file_name", "File Name", labelWidth=100,  valueType=str, orientation="horizontal")
+
+        gui.button(self.autosave_box_1, self, "...", callback=self.selectAutosaveFile)
+
+        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=120)
+
+        gui.comboBox(incremental_box, self, "keep_result", label="Keep Result", labelWidth=250,
+                     items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal", callback=self.set_autosave)
+
+        self.cb_autosave_partial_results = gui.comboBox(incremental_box, self, "autosave_partial_results", label="Save partial plots into file", labelWidth=250,
+                                                        items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal")
+
         gui.button(incremental_box, self, "Clear", callback=self.clearResults)
+
+        self.set_autosave()
 
         histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=90)
 
@@ -179,15 +203,25 @@ class PowerPlotXY(AutomaticElement):
 
         if proceed:
             self.input_beam = None
-            self.last_ticket = None
+            self.cumulated_ticket = None
             self.energy_min = None
             self.energy_max = None
             self.energy_step = None
             self.total_power = None
             self.cumulated_power = None
 
+            if not self.autosave_file is None:
+                self.autosave_file.close()
+                self.autosave_file = None
+
             if not self.plot_canvas is None:
                 self.plot_canvas.clear()
+
+    def set_autosave(self):
+        self.autosave_box_1.setVisible(self.autosave==1)
+        self.autosave_box_2.setVisible(self.autosave==0)
+
+        self.cb_autosave_partial_results.setEnabled(self.autosave==1 and self.keep_result==1)
 
     def set_ImagePlane(self):
         self.image_plane_box.setVisible(self.image_plane==1)
@@ -201,19 +235,71 @@ class PowerPlotXY(AutomaticElement):
         self.yrange_box.setVisible(self.y_range == 1)
         self.yrange_box_empty.setVisible(self.y_range == 0)
 
+    def selectAutosaveFile(self):
+        self.le_autsave_file_name.setText(oasysgui.selectFileFromDialog(self, self.autsave_file_name, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)"))
+
     def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost):
         if self.plot_canvas is None:
             self.plot_canvas = PowerPlotXYWidget()
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            self.last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                   self.total_power, self.cumulated_power, self.energy_min, self.energy_max, self.energy_step,
-                                                                   nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
-                                                                   ticket_to_add=self.last_ticket if self.keep_result==1 else None,
-                                                                   to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+            self.cumulated_ticket, last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
+                                                                                     self.total_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                                     nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
+                                                                                     ticket_to_add=self.cumulated_ticket if self.keep_result == 1 else None,
+                                                                                     to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+
+
+            if self.autosave == 1:
+                if self.autosave_file is None:
+                    self.autosave_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(self.autosave_file_name))
+                elif self.autosave_file.filename != congruence.checkFileName(self.autosave_file_name):
+                    self.autosave_file.close()
+                    self.autosave_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(self.autosave_file_name))
+
+            if self.keep_result == 1:
+                self.cumulated_ticket, last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
+                                                                                         self.total_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                                         nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
+                                                                                         ticket_to_add=self.cumulated_ticket,
+                                                                                         to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+
+                if self.autosave == 1:
+                    self.autosave_file.write_coordinates(self.cumulated_ticket)
+                    dataset_name = "power_density"
+
+                    self.autosave_file.add_plot_xy(self.cumulated_ticket, dataset_name=dataset_name)
+
+                    if self.autosave_partial_results == 1:
+                        if last_ticket is None:
+                            self.autosave_file.add_plot_xy(self.cumulated_ticket,
+                                                           plot_name="Energy Range: " + str(round(self.energy_max-self.energy_step, 2)) + "-" + str(round(self.energy_max, 2)),
+                                                           dataset_name=dataset_name)
+                        else:
+                            self.autosave_file.add_plot_xy(last_ticket,
+                                                           plot_name="Energy Range: " + str(round(self.energy_max-self.energy_step, 2)) + "-" + str(round(self.energy_max, 2)),
+                                                           dataset_name=dataset_name)
+
+                    self.autosave_file.flush()
+            else:
+                self.cumulated_ticket = None
+
+                ticket, _ = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
+                                                                self.total_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
+                                                                to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+
+                if self.autosave == 1:
+                    self.autosave_file.write_coordinates(ticket)
+                    self.autosave_file.add_plot_xy(ticket, dataset_name="power_density")
+                    self.autosave_file.flush()
+
         except Exception as e:
-            raise Exception("Data not plottable: No good rays or bad content: " + str(e))
+            if not self.IS_DEVELOP:
+                raise Exception("Data not plottable: No good rays or bad content")
+            else:
+                raise e
 
     def plot_xy(self, var_x, var_y):
         beam_to_plot = self.input_beam
@@ -262,8 +348,8 @@ class PowerPlotXY(AutomaticElement):
         return xrange, yrange
 
     def plot_cumulated_data(self):
-        if not self.last_ticket is None:
-            self.plot_canvas.plot_power_density_ticket(ticket=self.last_ticket,
+        if not self.cumulated_ticket is None:
+            self.plot_canvas.plot_power_density_ticket(ticket=self.cumulated_ticket,
                                                        var_x=self.x_column_index+1,
                                                        var_y=self.y_column_index+1,
                                                        energy_min=self.energy_min,
