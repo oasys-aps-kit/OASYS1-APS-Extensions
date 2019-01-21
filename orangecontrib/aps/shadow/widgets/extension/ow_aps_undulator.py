@@ -11,6 +11,12 @@ from oasys.widgets import congruence
 from orangewidget import widget
 from oasys.util.oasys_util import TriggerOut, EmittingStream
 
+from syned.beamline.beamline import Beamline
+from syned.beamline.optical_elements.absorbers.slit import Slit
+from syned.storage_ring.light_source import ElectronBeam, LightSource
+from syned.widget.widget_decorator import WidgetDecorator
+from syned.beamline.shape import Rectangle
+
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam, ShadowSource
 from orangecontrib.shadow.widgets.gui.ow_generic_element import GenericElement
 
@@ -40,7 +46,9 @@ class APSUndulator(GenericElement):
     category = "Sources"
     keywords = ["data", "file", "load", "read"]
 
-    inputs = [("Trigger", TriggerOut, "sendNewBeam")]
+    inputs = WidgetDecorator.syned_input_data()
+    inputs.append(("SynedData#2", Beamline, "receive_syned_data"))
+    inputs.append(("Trigger", TriggerOut, "sendNewBeam"))
 
     outputs = [{"name":"Beam",
                 "type":ShadowBeam,
@@ -475,6 +483,51 @@ class APSUndulator(GenericElement):
 
     def selectZDivergencesFile(self):
         self.le_z_divergences_file.setText(oasysgui.selectFileFromDialog(self, self.z_divergences_file, "Open Z Divergences File", file_extension_filter="*.dat, *.txt"))
+
+    ####################################################################################
+    # SYNED
+    ####################################################################################
+
+    def receive_syned_data(self, data):
+        if not data is None:
+            try:
+                if data.get_beamline_elements_number() > 0:
+                    slit_element = data.get_beamline_element_at(0)
+                    slit = slit_element.get_optical_element()
+                    coordinates = slit_element.get_coordinates()
+
+                    if isinstance(slit, Slit) and isinstance(slit.get_boundary_shape(), Rectangle):
+                        rectangle = slit.get_boundary_shape()
+
+                        self.source_dimension_wf_h_slit_gap = rectangle._x_right - rectangle._x_left
+                        self.source_dimension_wf_v_slit_gap = rectangle._y_top - rectangle._y_bottom
+                        self.source_dimension_wf_distance = coordinates.p()
+                elif not data._light_source is None and isinstance(data._light_source, LightSource):
+                    light_source = data._light_source
+
+                    self.electron_energy_in_GeV = light_source._electron_beam._energy_in_GeV
+                    self.electron_energy_spread = light_source._electron_beam._energy_spread
+                    self.ring_current = light_source._electron_beam._current
+
+                    x, xp, y, yp = light_source._electron_beam.get_sigmas_all()
+
+                    self.electron_beam_size_h = round(x, 9)
+                    self.electron_beam_size_v = round(y, 9)
+                    self.electron_beam_divergence_h = round(xp, 10)
+                    self.electron_beam_divergence_v = round(yp, 10)
+
+                    self.Kh = light_source._magnetic_structure._K_horizontal
+                    self.Kv = light_source._magnetic_structure._K_vertical
+                    self.undulator_period = light_source._magnetic_structure._period_length
+                    self.number_of_periods = light_source._magnetic_structure._number_of_periods
+                else:
+                    raise ValueError("Syned data not correct")
+            except Exception as exception:
+                QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
+
+    def receive_specific_syned_data(self, data):
+        raise NotImplementedError()
+
 
 
     ####################################################################################
