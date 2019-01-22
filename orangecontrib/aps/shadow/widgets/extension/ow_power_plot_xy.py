@@ -158,7 +158,7 @@ class PowerPlotXY(AutomaticElement):
         self.autosave_box_1 = oasysgui.widgetBox(autosave_box, "", addSpace=False, orientation="horizontal", height=25)
         self.autosave_box_2 = oasysgui.widgetBox(autosave_box, "", addSpace=False, orientation="horizontal", height=25)
 
-        self.le_autsave_file_name = oasysgui.lineEdit(self.autosave_box_1, self, "autosave_file_name", "File Name", labelWidth=100,  valueType=str, orientation="horizontal")
+        self.le_autosave_file_name = oasysgui.lineEdit(self.autosave_box_1, self, "autosave_file_name", "File Name", labelWidth=100,  valueType=str, orientation="horizontal")
 
         gui.button(self.autosave_box_1, self, "...", callback=self.selectAutosaveFile)
 
@@ -236,7 +236,7 @@ class PowerPlotXY(AutomaticElement):
         self.yrange_box_empty.setVisible(self.y_range == 0)
 
     def selectAutosaveFile(self):
-        self.le_autsave_file_name.setText(oasysgui.selectFileFromDialog(self, self.autsave_file_name, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)"))
+        self.le_autosave_file_name.setText(oasysgui.selectFileFromDialog(self, self.autosave_file_name, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)"))
 
     def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost):
         if self.plot_canvas is None:
