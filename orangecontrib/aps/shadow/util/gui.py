@@ -419,7 +419,7 @@ class PowerPlotXYWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
-    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, energy_min, energy_max, energy_step,
+    def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_total_power, energy_min, energy_max, energy_step,
                            nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0, show_image=True):
 
         n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
@@ -479,23 +479,24 @@ class PowerPlotXYWidget(QWidget):
             ticket['nrays']     += ticket_to_add['nrays']
             ticket['good_rays'] += ticket_to_add['good_rays']
 
-        self.plot_power_density_ticket(ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image)
+        self.plot_power_density_ticket(ticket, var_x, var_y, cumulated_total_power, energy_min, energy_max, energy_step, show_image)
 
         if not ticket_to_add is None:
             return ticket, last_ticket
         else:
             return ticket, None
 
-    def plot_power_density_ticket(self, ticket, var_x, var_y, energy_min, energy_max, energy_step, show_image=True):
+    def plot_power_density_ticket(self, ticket, var_x, var_y, cumulated_total_power, energy_min, energy_max, energy_step, show_image=True):
         if show_image:
             histogram = ticket['histogram']
 
             average_power_density = numpy.average(histogram[numpy.where(histogram > 0.0)])
 
             title = "Power Density [W/mm\u00b2] from " + str(round(energy_min, 2)) + " to " + str(round(energy_max+energy_step, 2)) + " [eV], Current Step: " + str(round(energy_step, 2)) + "\n" + \
-                    "Plotted Power: " + str(round(self.cumulated_power_plot, 2)) + \
-                    " [W], Incident Power: " + str(round(self.cumulated_previous_power_plot, 2)) + \
-                    " [W], <P.D.>: " + str(round(average_power_density, 2)) + " [W/mm\u00b2]"
+                    "Power: Plotted=" + str(round(self.cumulated_power_plot, 2)) + \
+                    " [W], Incident=" + str(round(self.cumulated_previous_power_plot, 2)) + \
+                    " [W], <P.D.>=" + str(round(average_power_density, 2)) + \
+                    " [W/mm\u00b2], Total=" + str(round(cumulated_total_power, 2))
 
             xx = ticket['bin_h_center']
             yy = ticket['bin_v_center']

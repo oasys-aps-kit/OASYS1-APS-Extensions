@@ -274,14 +274,14 @@ class PowerLoopPoint(widget.OWWidget):
                     except:
                         data = exchange_data.get_content("xoppy_data")
 
-                energies = data[:, 0]
-                fluxes = data[:, 1]
+                energies                     = data[:, 0]
+                flux_through_finite_aperture = data[:, 1]
 
                 if write_file:
                     file = open("autobinning.dat", "w")
                     file.write("Energy Flux")
 
-                    for energy, flux in zip(energies, fluxes):
+                    for energy, flux in zip(energies, flux_through_finite_aperture):
                         file.write("\n" + str(energy) + " " + str(flux))
 
                     file.flush()
@@ -294,9 +294,6 @@ class PowerLoopPoint(widget.OWWidget):
 
                     congruence.checkStrictlyPositiveNumber(self.auto_n_step, "(Auto) % Number of Steps")
                     congruence.checkStrictlyPositiveNumber(self.auto_perc_total_power, "(Auto) % Total Power")
-
-                    energies                     = data[:, 0]
-                    flux_through_finite_aperture = data[:, 1]
 
                     energy_step = energies[1]-energies[0]
 

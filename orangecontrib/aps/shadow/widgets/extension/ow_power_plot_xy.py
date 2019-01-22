@@ -67,7 +67,7 @@ class PowerPlotXY(AutomaticElement):
     energy_max = None
     energy_step = None
     total_power = None
-    cumulated_power = None
+    cumulated_total_power = None
 
     view_type=Setting(1)
 
@@ -213,7 +213,7 @@ class PowerPlotXY(AutomaticElement):
             self.energy_max = None
             self.energy_step = None
             self.total_power = None
-            self.cumulated_power = None
+            self.cumulated_total_power = None
 
             if not self.autosave_file is None:
                 self.autosave_file.close()
@@ -270,7 +270,8 @@ class PowerPlotXY(AutomaticElement):
 
         try:
             self.cumulated_ticket, last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                                     self.total_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                                     self.total_power, self.cumulated_total_power,
+                                                                                     self.energy_min, self.energy_max, self.energy_step,
                                                                                      nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                                      ticket_to_add=self.cumulated_ticket if self.keep_result == 1 else None,
                                                                                      to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
@@ -286,7 +287,8 @@ class PowerPlotXY(AutomaticElement):
 
             if self.keep_result == 1:
                 self.cumulated_ticket, last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                                         self.total_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                                         self.total_power, self.cumulated_total_power,
+                                                                                         self.energy_min, self.energy_max, self.energy_step,
                                                                                          nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                                          ticket_to_add=self.cumulated_ticket,
                                                                                          to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
@@ -310,7 +312,8 @@ class PowerPlotXY(AutomaticElement):
                     self.autosave_file.flush()
             else:
                 ticket, _ = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                self.total_power, self.energy_min, self.energy_max, self.energy_step,
+                                                                self.total_power, self.cumulated_total_power,
+                                                                self.energy_min, self.energy_max, self.energy_step,
                                                                 nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                 to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
 
@@ -379,6 +382,7 @@ class PowerPlotXY(AutomaticElement):
             self.plot_canvas.plot_power_density_ticket(ticket=self.cumulated_ticket,
                                                        var_x=self.x_column_index+1,
                                                        var_y=self.y_column_index+1,
+                                                       cumulated_total_power=self.cumulated_total_power,
                                                        energy_min=self.energy_min,
                                                        energy_max=self.energy_max,
                                                        energy_step=self.energy_step,
@@ -412,9 +416,9 @@ class PowerPlotXY(AutomaticElement):
 
                 if self.energy_min is None:
                     self.energy_min  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
-                    self.cumulated_power = self.total_power
+                    self.cumulated_total_power = self.total_power
                 else:
-                    self.cumulated_power += self.total_power
+                    self.cumulated_total_power += self.total_power
 
                 self.energy_step = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
                 self.energy_max  = self.input_beam.scanned_variable_data.get_scanned_variable_value()
