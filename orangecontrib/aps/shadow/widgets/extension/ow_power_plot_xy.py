@@ -62,6 +62,7 @@ class PowerPlotXY(AutomaticElement):
     autosave_file_name = Setting("autosave_power_density.hdf5")
 
     cumulated_ticket=None
+    plotted_ticket   = None
     energy_min = None
     energy_max = None
     energy_step = None
@@ -75,7 +76,10 @@ class PowerPlotXY(AutomaticElement):
     def __init__(self):
         super().__init__(show_automatic_box=False)
 
-        gui.button(self.controlArea, self, "Plot Cumulated Data", callback=self.plot_cumulated_data, height=45)
+        button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=False, orientation="horizontal")
+
+        gui.button(button_box, self, "Plot Cumulated Data", callback=self.plot_cumulated_data, height=45)
+        gui.button(button_box, self, "Save Current Plot", callback=self.save_cumulated_data, height=45)
 
         gui.separator(self.controlArea, 10)
 
@@ -204,6 +208,7 @@ class PowerPlotXY(AutomaticElement):
         if proceed:
             self.input_beam = None
             self.cumulated_ticket = None
+            self.plotted_ticket = None
             self.energy_min = None
             self.energy_max = None
             self.energy_step = None
@@ -238,6 +243,26 @@ class PowerPlotXY(AutomaticElement):
     def selectAutosaveFile(self):
         self.le_autosave_file_name.setText(oasysgui.selectFileFromDialog(self, self.autosave_file_name, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)"))
 
+    def save_cumulated_data(self):
+        if not self.plotted_ticket is None:
+            try:
+                file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
+
+                if not file_name is None and not file_name.strip()=="":
+                    if not (file_name.endswith("hd5") or file_name.endswith("hdf5") or file_name.endswith("hdf")):
+                        file_name += ".hdf5"
+
+                    save_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(file_name))
+
+                    save_file.write_coordinates(self.plotted_ticket)
+                    save_file.add_plot_xy(self.plotted_ticket, dataset_name="power_density")
+
+                    save_file.close()
+            except Exception as exception:
+                QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise exception
+
     def replace_fig(self, shadow_beam, var_x, var_y, xrange, yrange, nbins, nolost):
         if self.plot_canvas is None:
             self.plot_canvas = PowerPlotXYWidget()
@@ -250,6 +275,7 @@ class PowerPlotXY(AutomaticElement):
                                                                                      ticket_to_add=self.cumulated_ticket if self.keep_result == 1 else None,
                                                                                      to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
 
+            self.plotted_ticket = self.cumulated_ticket
 
             if self.autosave == 1:
                 if self.autosave_file is None:
@@ -283,12 +309,13 @@ class PowerPlotXY(AutomaticElement):
 
                     self.autosave_file.flush()
             else:
-                self.cumulated_ticket = None
-
                 ticket, _ = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
                                                                 self.total_power, self.energy_min, self.energy_max, self.energy_step,
                                                                 nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                 to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+
+                self.cumulated_ticket = None
+                self.plotted_ticket = ticket
 
                 if self.autosave == 1:
                     self.autosave_file.write_coordinates(ticket)
