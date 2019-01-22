@@ -8,7 +8,7 @@ except AttributeError:
     from setuptools import find_packages, setup
 
 NAME = 'OASYS1-APS-Extensions'
-VERSION = '0.0.40'
+VERSION = '0.0.41'
 ISRELEASED = False
 
 DESCRIPTION = 'ShadowOui/SRW extensions for the APS'
@@ -71,6 +71,7 @@ ENTRY_POINTS = {
         "Shadow APS Extension = orangecontrib.aps.shadow.widgets.extension",
         "SRW APS Extension = orangecontrib.aps.srw.widgets.extension",
     ),
+    'oasys.menus' : ("apsshadowmenu = orangecontrib.aps.shadow.menu",)
 }
 
 if __name__ == '__main__':
