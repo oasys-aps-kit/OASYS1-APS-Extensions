@@ -430,7 +430,8 @@ class PowerLoopPoint(widget.OWWidget):
                                                                    "energy_value_half_power" : self.current_energy_value_half_power,
                                                                    "energy_step"             : self.current_energy_step,
                                                                    "power_step"              : -1 if self.power_step is None else self.power_step,
-                                                                   "seed_increment"          : self.seed_increment}))
+                                                                   "seed_increment"          : self.seed_increment,
+                                                                   "test_mode" : False}))
         except Exception as e:
             if self.IS_DEVELOP : raise e
             else: pass

@@ -269,14 +269,6 @@ class PowerPlotXY(AutomaticElement):
             self.image_box.layout().addWidget(self.plot_canvas)
 
         try:
-            self.cumulated_ticket, last_ticket = self.plot_canvas.plot_power_density(shadow_beam, var_x, var_y,
-                                                                                     self.total_power, self.cumulated_total_power,
-                                                                                     self.energy_min, self.energy_max, self.energy_step,
-                                                                                     nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
-                                                                                     ticket_to_add=self.cumulated_ticket if self.keep_result == 1 else None,
-                                                                                     to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
-
-            self.plotted_ticket = self.cumulated_ticket
 
             if self.autosave == 1:
                 if self.autosave_file is None:
@@ -292,6 +284,7 @@ class PowerPlotXY(AutomaticElement):
                                                                                          nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                                          ticket_to_add=self.cumulated_ticket,
                                                                                          to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+                self.plotted_ticket = self.cumulated_ticket
 
                 if self.autosave == 1:
                     self.autosave_file.write_coordinates(self.cumulated_ticket)
