@@ -2,6 +2,7 @@ recursive-include orangecontrib *.pyx
 recursive-include orangecontrib *.py
 
 recursive-include orangecontrib/aps/oasys/widgets *.png *.svg *.ico *.jpg *.bmp
+recursive-include orangecontrib/aps/syned/widgets *.png *.svg *.ico *.jpg *.bmp
 recursive-include orangecontrib/aps/shadow/widgets *.png *.svg *.ico *.jpg *.bmp
 recursive-include orangecontrib/aps/srw/widgets *.png *.svg *.ico *.jpg *.bmp
 
