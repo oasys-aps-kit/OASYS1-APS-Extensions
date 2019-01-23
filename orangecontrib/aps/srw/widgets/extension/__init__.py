@@ -2,7 +2,7 @@ NAME = "APS SRW Extension"
 
 DESCRIPTION = "Widgets for APS SRW Extension."
 
-BACKGROUND = "#798a8e"#"#0099ff"
+BACKGROUND = "#b8bcdb"#"#798a8e"#
 
 ICON = "icons/extension.png"
 

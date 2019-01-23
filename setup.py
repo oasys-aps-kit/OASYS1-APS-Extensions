@@ -8,10 +8,10 @@ except AttributeError:
     from setuptools import find_packages, setup
 
 NAME = 'OASYS1-APS-Extensions'
-VERSION = '0.0.42'
+VERSION = '0.0.43'
 ISRELEASED = False
 
-DESCRIPTION = 'ShadowOui/SRW extensions for the APS'
+DESCRIPTION = 'ShadowOui/SRW extension for the APS'
 README_FILE = os.path.join(os.path.dirname(__file__), 'README.txt')
 LONG_DESCRIPTION = open(README_FILE).read()
 AUTHOR = 'Luca Rebuffi'
@@ -47,6 +47,7 @@ PACKAGES = find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests'))
 
 PACKAGE_DATA = {
     "orangecontrib.aps.oasys.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
+    "orangecontrib.aps.syned.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
     "orangecontrib.aps.shadow.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
     "orangecontrib.aps.srw.widgets.extension":["icons/*.png", "icons/*.jpg", "misc/*.png"],
 }
@@ -54,20 +55,24 @@ PACKAGE_DATA = {
 NAMESPACE_PACAKGES = ["orangecontrib",
                       "orangecontrib.aps",
                       "orangecontrib.aps.oasys",
+                      "orangecontrib.aps.syned",
                       "orangecontrib.aps.shadow",
                       "orangecontrib.aps.srw",
                       "orangecontrib.aps.oasys.widgets",
+                      "orangecontrib.aps.syned.widgets",
                       "orangecontrib.aps.shadow.widgets",
                       "orangecontrib.aps.srw.widgets",
                       ]
 
 ENTRY_POINTS = {
     'oasys.addons' : ("Oasys APS Extension = orangecontrib.aps.oasys",
+                      "SYNED APS Extension = orangecontrib.aps.syned",
                       "Shadow APS Extension = orangecontrib.aps.shadow",
                       "SRW APS Extension = orangecontrib.aps.srw",
                       ),
     'oasys.widgets' : (
         "Oasys APS Extension = orangecontrib.aps.oasys.widgets.extension",
+        "SYNED APS Extension = orangecontrib.aps.syned.widgets.extension",
         "Shadow APS Extension = orangecontrib.aps.shadow.widgets.extension",
         "SRW APS Extension = orangecontrib.aps.srw.widgets.extension",
     ),

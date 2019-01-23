@@ -9,8 +9,6 @@ from matplotlib import cm
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
-import orangecanvas.resources as resources
-
 from orangewidget import gui, widget
 from orangewidget.settings import Setting
 
@@ -45,11 +43,11 @@ class OWAbstractMultipleHeightProfileSimulatorT(OWWidget):
     kind_of_profile_x = Setting(0)
     kind_of_profile_y = Setting(0)
 
-    step_x = Setting(1.0)
-    step_y = Setting(1.0)
+    step_x = Setting(0.001)
+    step_y = Setting(0.01)
 
-    dimension_x = Setting(20.1)
-    dimension_y = Setting(200.1)
+    dimension_x = Setting(0.021)
+    dimension_y = Setting(0.201)
 
     power_law_exponent_beta_x = Setting(3.0)
     power_law_exponent_beta_y = Setting(3.0)
@@ -94,7 +92,9 @@ class OWAbstractMultipleHeightProfileSimulatorT(OWWidget):
 
     renormalize_y = 1
 
-    heigth_profile_file_name = Setting('mirror.dat')
+    heigth_profile_file_name = Setting('height_error_profile')
+
+    inputs=[("DABAM 1D Profile", numpy.ndarray, "receive_dabam_profile")]
 
     def __init__(self):
         super().__init__()
@@ -456,6 +456,33 @@ class OWAbstractMultipleHeightProfileSimulatorT(OWWidget):
         self.modify_box_1_2.setVisible(self.modify_x == 1)
         self.modify_box_1_3.setVisible(self.modify_x == 2)
 
+    def receive_dabam_profile(self, dabam_profile):
+        if not dabam_profile is None:
+            try:
+                file_name = "dabam_profile_" + str(id(self)) + ".dat"
+
+                file = open(file_name, "w")
+
+                for element in dabam_profile:
+                    file.write(str(element[0]) + " " + str(element[1]) + "\n")
+
+                file.flush()
+                file.close()
+
+                self.kind_of_profile_y = 2
+                self.heigth_profile_1D_file_name_y = file_name
+                self.delimiter_y = 0
+                self.conversion_factor_y_x = 1.0
+                self.conversion_factor_y_y = 1.0
+
+                self.set_KindOfProfileY()
+
+            except Exception as exception:
+                QMessageBox.critical(self, "Error", exception.args[0], QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise exception
+
+
     def calculate_heigth_profile_ni(self):
         self.calculate_heigth_profile(not_interactive_mode=True)
 
@@ -723,7 +750,7 @@ class OWAbstractMultipleHeightProfileSimulatorT(OWWidget):
                 for zz, xx, yy in zip(self.zz, self.xx, self.yy):
                     profile_number += 1
 
-                    outFile = heigth_profile_file_name + "_T_" + str(profile_number) + ".dat"
+                    outFile = heigth_profile_file_name + "_T_" + str(profile_number) + self.get_file_format()
 
                     self.write_error_profile_file(zz, xx, yy, outFile)
 
@@ -829,6 +856,9 @@ class OWAbstractMultipleHeightProfileSimulatorT(OWWidget):
 
     def get_axis_um(self):
         return "m"
+
+    def get_file_format(self):
+        return ".hdf5"
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

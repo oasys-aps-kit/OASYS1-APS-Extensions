@@ -25,7 +25,7 @@ class ScanLoopPoint(widget.OWWidget):
     keywords = ["data", "file", "load", "read"]
 
     inputs = [("Trigger", TriggerIn, "passTrigger"),
-              ("Files", object, "setFiles")]
+              ("Files", list, "setFiles")]
 
     outputs = [{"name":"Trigger",
                 "type":TriggerOut,

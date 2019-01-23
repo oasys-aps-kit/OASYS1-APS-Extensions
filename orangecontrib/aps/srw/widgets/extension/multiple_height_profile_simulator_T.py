@@ -45,7 +45,11 @@ class OWMultipleHeightProfileSimulatorT(OWAbstractMultipleHeightProfileSimulator
     outputs = [{"name": "PreProcessor_Data",
                 "type": SRWPreProcessorData,
                 "doc": "PreProcessor Data",
-                "id": "PreProcessor_Data"}]
+                "id": "PreProcessor_Data"},
+               {"name":"Files",
+                "type":list,
+                "doc":"Files",
+                "id":"Files"}]
 
     usage_path = os.path.join(resources.package_dirname("orangecontrib.srw.widgets.gui"), "misc", "height_error_profile_usage.png")
 
@@ -62,4 +66,8 @@ class OWMultipleHeightProfileSimulatorT(OWAbstractMultipleHeightProfileSimulator
         self.send("PreProcessor_Data", SRWPreProcessorData(error_profile_data=SRWErrorProfileData(error_profile_data_file=height_profile_file_names,
                                                                                                   error_profile_x_dim=dimension_x,
                                                                                                   error_profile_y_dim=dimension_y)))
+        self.send("Files", height_profile_file_names)
 
+
+    def get_file_format(self):
+        return ".dat"
