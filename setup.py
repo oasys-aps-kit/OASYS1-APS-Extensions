@@ -8,7 +8,7 @@ except AttributeError:
     from setuptools import find_packages, setup
 
 NAME = 'OASYS1-APS-Extensions'
-VERSION = '0.0.44'
+VERSION = '0.0.45'
 ISRELEASED = False
 
 DESCRIPTION = 'ShadowOui/SRW extension for the APS'
