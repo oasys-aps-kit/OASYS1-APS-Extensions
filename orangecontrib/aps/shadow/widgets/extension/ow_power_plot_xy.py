@@ -19,7 +19,7 @@ class PowerPlotXY(AutomaticElement):
 
     name = "Power Plot XY"
     description = "Display Data Tools: Power Plot XY"
-    icon = "icons/plot_xy.png"
+    icon = "icons/plot_xy_power.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
     priority = 5

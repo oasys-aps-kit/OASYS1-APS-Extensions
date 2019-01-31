@@ -13,7 +13,7 @@ from orangecontrib.shadow.util.shadow_objects import ShadowBeam, ShadowOpticalEl
 class FootprintFileReader(oasyswidget.OWWidget):
     name = "Footprint File Reader"
     description = "Utility: Footprint File Reader"
-    icon = "icons/beam_file_reader.png"
+    icon = "icons/footprint_reader.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
     priority = 5
