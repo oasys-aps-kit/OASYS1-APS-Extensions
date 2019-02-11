@@ -1,8 +1,9 @@
 import sys, numpy, copy
 
 from oasys.widgets import widget
+from oasys.util.oasys_util import TriggerIn
 
-from orangewidget import  gui
+from orangewidget import gui
 
 from PyQt5 import QtGui
 
@@ -25,7 +26,11 @@ class BeamCleaner(widget.OWWidget):
     outputs = [{"name":"Beam",
                 "type":ShadowBeam,
                 "doc":"Shadow Beam",
-                "id":"beam"}]
+                "id":"beam"},
+               {"name":"Trigger",
+                "type": TriggerIn,
+                "doc":"Feedback signal to start a new beam simulation",
+                "id":"Trigger"}]
 
     want_main_area = 0
     want_control_area = 1
@@ -46,6 +51,7 @@ class BeamCleaner(widget.OWWidget):
             beam._beam.rays = copy.deepcopy(beam._beam.rays[good])
 
             self.send("Beam", beam)
+            self.send("Trigger", TriggerIn(new_object=True))
 
 if __name__ == "__main__":
     a = QtGui.QApplication(sys.argv)
