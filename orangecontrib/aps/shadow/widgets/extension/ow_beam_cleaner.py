@@ -46,11 +46,12 @@ class BeamCleaner(widget.OWWidget):
 
     def setBeam(self, beam):
         if ShadowCongruence.checkEmptyBeam(beam):
+            output_beam = beam.duplicate(history=True)
 
-            good = numpy.where(beam._beam.rays[:, 9] == 1)
-            beam._beam.rays = copy.deepcopy(beam._beam.rays[good])
+            good = numpy.where(output_beam._beam.rays[:, 9] == 1)
+            output_beam._beam.rays = copy.deepcopy(output_beam._beam.rays[good])
 
-            self.send("Beam", beam)
+            self.send("Beam", output_beam)
             self.send("Trigger", TriggerIn(new_object=True))
 
 if __name__ == "__main__":
