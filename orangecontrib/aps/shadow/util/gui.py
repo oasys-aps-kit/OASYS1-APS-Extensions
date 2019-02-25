@@ -464,7 +464,7 @@ class PowerPlotXYWidget(QWidget):
         bin_h_size = (ticket['bin_h_center'][1] - ticket['bin_h_center'][0])
         bin_v_size = (ticket['bin_v_center'][1] - ticket['bin_v_center'][0])
 
-        if poor_statistics==1 and limit < len(beam.rays[:, 1]):
+        if poor_statistics==1 and len(beam.rays[:, 1] < limit):
             for x_index in range(nbins):
                 for y_index in range(nbins):
                     ticket['histogram'][x_index, y_index] = PowerPlotXYWidget.get_gaussian_2d(ticket['bin_h_center'][x_index],
