@@ -61,6 +61,12 @@ class PowerPlotXY(AutomaticElement):
     autosave = Setting(0)
     autosave_file_name = Setting("autosave_power_density.hdf5")
 
+
+    replace_poor_statistic = Setting(0)
+    good_rays_limit = Setting(100)
+    sigma_x = Setting(0.0)
+    sigma_y = Setting(0.0)
+
     cumulated_ticket=None
     plotted_ticket   = None
     energy_min = None
@@ -178,9 +184,25 @@ class PowerPlotXY(AutomaticElement):
 
         self.set_autosave()
 
-        histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=90)
+        histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=200)
 
         oasysgui.lineEdit(histograms_box, self, "number_of_bins", "Number of Bins", labelWidth=250, valueType=int, orientation="horizontal")
+
+        gui.separator(histograms_box)
+
+        gui.comboBox(histograms_box, self, "replace_poor_statistic", label="Manage Poor Statistics", labelWidth=250,
+                     items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal", callback=self.set_manage_poor_statistics)
+
+
+        self.poor_statistics_box_1 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=100)
+        self.poor_statistics_box_2 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=100)
+
+        self.le_autosave_file_name = oasysgui.lineEdit(self.poor_statistics_box_1, self, "good_rays_limit", "Good Rays Limit", labelWidth=100,  valueType=int, orientation="horizontal")
+        oasysgui.widgetLabel(self.poor_statistics_box_1, "Distribute Power on a Gaussian:")
+        self.le_sigma_x = oasysgui.lineEdit(self.poor_statistics_box_1, self, "sigma_x", "Sigma H", labelWidth=100,  valueType=float, orientation="horizontal")
+        self.le_sigma_y = oasysgui.lineEdit(self.poor_statistics_box_1, self, "sigma_y", "Sigma V", labelWidth=100,  valueType=float, orientation="horizontal")
+
+        self.set_manage_poor_statistics()
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
@@ -221,6 +243,10 @@ class PowerPlotXY(AutomaticElement):
 
             if not self.plot_canvas is None:
                 self.plot_canvas.clear()
+
+    def set_manage_poor_statistics(self):
+        self.poor_statistics_box_1.setVisible(self.replace_poor_statistic==1)
+        self.poor_statistics_box_2.setVisible(self.replace_poor_statistic==0)
 
     def set_autosave(self):
         self.autosave_box_1.setVisible(self.autosave==1)
@@ -283,7 +309,12 @@ class PowerPlotXY(AutomaticElement):
                                                                                          self.energy_min, self.energy_max, self.energy_step,
                                                                                          nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                                          ticket_to_add=self.cumulated_ticket,
-                                                                                         to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+                                                                                         to_mm=self.workspace_units_to_mm,
+                                                                                         show_image=self.view_type==1,
+                                                                                         poor_statistics=self.replace_poor_statistic,
+                                                                                         limit=self.good_rays_limit,
+                                                                                         sigma_x=self.sigma_x,
+                                                                                         sigma_y=self.sigma_y)
                 self.plotted_ticket = self.cumulated_ticket
 
                 if self.autosave == 1:
@@ -308,7 +339,12 @@ class PowerPlotXY(AutomaticElement):
                                                                 self.total_power, self.cumulated_total_power,
                                                                 self.energy_min, self.energy_max, self.energy_step,
                                                                 nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
-                                                                to_mm=self.workspace_units_to_mm, show_image=self.view_type==1)
+                                                                to_mm=self.workspace_units_to_mm,
+                                                                show_image=self.view_type==1,
+                                                                poor_statistics=self.replace_poor_statistic,
+                                                                limit=self.good_rays_limit,
+                                                                sigma_x=self.sigma_x,
+                                                                sigma_y=self.sigma_y)
 
                 self.cumulated_ticket = None
                 self.plotted_ticket = ticket
@@ -379,7 +415,11 @@ class PowerPlotXY(AutomaticElement):
                                                        energy_min=self.energy_min,
                                                        energy_max=self.energy_max,
                                                        energy_step=self.energy_step,
-                                                       show_image=self.view_type==1)
+                                                       show_image=self.view_type==1,
+                                                       poor_statistics=self.replace_poor_statistic,
+                                                       limit=self.good_rays_limit,
+                                                       sigma_x=self.sigma_x,
+                                                       sigma_y=self.sigma_y)
 
     def plot_results(self):
         try:
