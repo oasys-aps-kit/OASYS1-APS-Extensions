@@ -415,11 +415,7 @@ class PowerPlotXY(AutomaticElement):
                                                        energy_min=self.energy_min,
                                                        energy_max=self.energy_max,
                                                        energy_step=self.energy_step,
-                                                       show_image=self.view_type==1,
-                                                       poor_statistics=self.replace_poor_statistic,
-                                                       limit=self.good_rays_limit,
-                                                       sigma_x=self.sigma_x,
-                                                       sigma_y=self.sigma_y)
+                                                       show_image=self.view_type==1)
 
     def plot_results(self):
         try:
