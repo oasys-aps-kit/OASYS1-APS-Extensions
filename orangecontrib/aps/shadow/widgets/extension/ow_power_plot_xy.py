@@ -61,11 +61,14 @@ class PowerPlotXY(AutomaticElement):
     autosave = Setting(0)
     autosave_file_name = Setting("autosave_power_density.hdf5")
 
-
+    kind_of_calculation = Setting(0)
     replace_poor_statistic = Setting(0)
     good_rays_limit = Setting(100)
+    center_x = Setting(0.0)
+    center_y = Setting(0.0)
     sigma_x = Setting(0.0)
     sigma_y = Setting(0.0)
+    gamma = Setting(0.0)
 
     cumulated_ticket=None
     plotted_ticket   = None
@@ -184,25 +187,37 @@ class PowerPlotXY(AutomaticElement):
 
         self.set_autosave()
 
-        histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=200)
+        histograms_box = oasysgui.widgetBox(tab_gen, "Histograms settings", addSpace=True, orientation="vertical", height=270)
 
         oasysgui.lineEdit(histograms_box, self, "number_of_bins", "Number of Bins", labelWidth=250, valueType=int, orientation="horizontal")
 
         gui.separator(histograms_box)
 
-        gui.comboBox(histograms_box, self, "replace_poor_statistic", label="Manage Poor Statistics", labelWidth=250,
-                     items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal", callback=self.set_manage_poor_statistics)
+        gui.comboBox(histograms_box, self, "kind_of_calculation", label="Kind of Calculation", labelWidth=200,
+                     items=["From Rays", "Flat Distribution", "Gaussian Distribution", "Lorentzian Distribution"], sendSelectedValue=False, orientation="horizontal", callback=self.set_kind_of_calculation)
 
+        self.poor_statics_cb = gui.comboBox(histograms_box, self, "replace_poor_statistic", label="Activate on Poor Statistics", labelWidth=250,
+                                            items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal", callback=self.set_manage_poor_statistics)
 
-        self.poor_statistics_box_1 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=100)
-        self.poor_statistics_box_2 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=100)
+        self.poor_statistics_box_1 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=30)
+        self.poor_statistics_box_2 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=30)
 
         self.le_autosave_file_name = oasysgui.lineEdit(self.poor_statistics_box_1, self, "good_rays_limit", "Good Rays Limit", labelWidth=100,  valueType=int, orientation="horizontal")
-        oasysgui.widgetLabel(self.poor_statistics_box_1, "Distribute Power on a Gaussian:")
-        self.le_sigma_x = oasysgui.lineEdit(self.poor_statistics_box_1, self, "sigma_x", "Sigma H", labelWidth=100,  valueType=float, orientation="horizontal")
-        self.le_sigma_y = oasysgui.lineEdit(self.poor_statistics_box_1, self, "sigma_y", "Sigma V", labelWidth=100,  valueType=float, orientation="horizontal")
 
-        self.set_manage_poor_statistics()
+        self.kind_of_calculation_box_1 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=110)
+        self.kind_of_calculation_box_2 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=110)
+        self.kind_of_calculation_box_3 = oasysgui.widgetBox(histograms_box, "", addSpace=False, orientation="vertical", height=110)
+
+        self.le_g_sigma_x = oasysgui.lineEdit(self.kind_of_calculation_box_2, self, "sigma_x", "Sigma H", labelWidth=100,  valueType=float, orientation="horizontal")
+        self.le_g_sigma_y = oasysgui.lineEdit(self.kind_of_calculation_box_2, self, "sigma_y", "Sigma V", labelWidth=100,  valueType=float, orientation="horizontal")
+        self.le_g_center_x = oasysgui.lineEdit(self.kind_of_calculation_box_2, self, "center_x", "Center H", labelWidth=100,  valueType=float, orientation="horizontal")
+        self.le_g_center_y = oasysgui.lineEdit(self.kind_of_calculation_box_2, self, "center_y", "Center V", labelWidth=100,  valueType=float, orientation="horizontal")
+
+        self.le_l_gamma = oasysgui.lineEdit(self.kind_of_calculation_box_3, self, "gamma", "Gamma", labelWidth=100,  valueType=float, orientation="horizontal")
+        self.le_l_center_x = oasysgui.lineEdit(self.kind_of_calculation_box_3, self, "center_x", "Center H", labelWidth=100,  valueType=float, orientation="horizontal")
+        self.le_l_center_y = oasysgui.lineEdit(self.kind_of_calculation_box_3, self, "center_y", "Center V", labelWidth=100,  valueType=float, orientation="horizontal")
+
+        self.set_kind_of_calculation()
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
@@ -243,6 +258,19 @@ class PowerPlotXY(AutomaticElement):
 
             if not self.plot_canvas is None:
                 self.plot_canvas.clear()
+
+    def set_kind_of_calculation(self):
+        self.kind_of_calculation_box_1.setVisible(self.kind_of_calculation<=1)
+        self.kind_of_calculation_box_2.setVisible(self.kind_of_calculation==2)
+        self.kind_of_calculation_box_3.setVisible(self.kind_of_calculation==3)
+
+        if self.kind_of_calculation > 0:
+            self.poor_statics_cb.setEnabled(True)
+        else:
+            self.poor_statics_cb.setEnabled(False)
+            self.replace_poor_statistic = 0
+
+        self.set_manage_poor_statistics()
 
     def set_manage_poor_statistics(self):
         self.poor_statistics_box_1.setVisible(self.replace_poor_statistic==1)
@@ -311,10 +339,14 @@ class PowerPlotXY(AutomaticElement):
                                                                                          ticket_to_add=self.cumulated_ticket,
                                                                                          to_mm=self.workspace_units_to_mm,
                                                                                          show_image=self.view_type==1,
-                                                                                         poor_statistics=self.replace_poor_statistic,
-                                                                                         limit=self.good_rays_limit,
+                                                                                         kind_of_calculation=self.kind_of_calculation,
+                                                                                         replace_poor_statistic=self.replace_poor_statistic,
+                                                                                         good_rays_limit=self.good_rays_limit,
+                                                                                         center_x=self.center_x,
+                                                                                         center_y=self.center_y,
                                                                                          sigma_x=self.sigma_x,
-                                                                                         sigma_y=self.sigma_y)
+                                                                                         sigma_y=self.sigma_y,
+                                                                                         gamma=self.gamma)
                 self.plotted_ticket = self.cumulated_ticket
 
                 if self.autosave == 1:
@@ -341,10 +373,14 @@ class PowerPlotXY(AutomaticElement):
                                                                 nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost,
                                                                 to_mm=self.workspace_units_to_mm,
                                                                 show_image=self.view_type==1,
-                                                                poor_statistics=self.replace_poor_statistic,
-                                                                limit=self.good_rays_limit,
+                                                                kind_of_calculation=self.kind_of_calculation,
+                                                                replace_poor_statistic=self.replace_poor_statistic,
+                                                                good_rays_limit=self.good_rays_limit,
+                                                                center_x=self.center_x,
+                                                                center_y=self.center_y,
                                                                 sigma_x=self.sigma_x,
-                                                                sigma_y=self.sigma_y)
+                                                                sigma_y=self.sigma_y,
+                                                                gamma=self.gamma)
 
                 self.cumulated_ticket = None
                 self.plotted_ticket = ticket

@@ -422,7 +422,14 @@ class PowerPlotXYWidget(QWidget):
 
     def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_total_power, energy_min, energy_max, energy_step,
                            nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0, show_image=True,
-                           poor_statistics=0, limit=100, sigma_x=0.0, sigma_y=0.0):
+                           kind_of_calculation=0,
+                           replace_poor_statistic=0,
+                           good_rays_limit=100,
+                           center_x = 0.0,
+                           center_y = 0.0,
+                           sigma_x=1.0,
+                           sigma_y=1.0,
+                           gamma=1.0):
 
         n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
 
@@ -464,18 +471,20 @@ class PowerPlotXYWidget(QWidget):
         bin_h_size = (ticket['bin_h_center'][1] - ticket['bin_h_center'][0])
         bin_v_size = (ticket['bin_v_center'][1] - ticket['bin_v_center'][0])
 
-        if poor_statistics==1 and len(beam.rays[:, 1] < limit):
-            for x_index in range(nbins):
-                for y_index in range(nbins):
-                    ticket['histogram'][x_index, y_index] = PowerPlotXYWidget.get_gaussian_2d(ticket['bin_h_center'][x_index],
-                                                                                              ticket['bin_v_center'][y_index],
-                                                                                              sigma_x,
-                                                                                              sigma_y)
-            # rinormalization
-            ticket['histogram'] /= numpy.sum(ticket['histogram'])
-            ticket['histogram'] *= ticket['intensity']
-            ticket['histogram'][numpy.where(ticket['histogram'] < 1e-9)] = 0.0
+        if kind_of_calculation > 0:
+            if replace_poor_statistic == 0 or (replace_poor_statistic==1 and len(beam.rays[:, 1]) < good_rays_limit):
+                if kind_of_calculation == 1: # FLAT
+                    PowerPlotXYWidget.get_flat_2d(ticket['histogram'], ticket['bin_h_center'], ticket['bin_v_center'])
+                elif kind_of_calculation == 2: # GAUSSIAN
+                    PowerPlotXYWidget.get_gaussian_2d(ticket['histogram'], ticket['bin_h_center'], ticket['bin_v_center'],
+                                                       sigma_x, sigma_y, center_x, center_y)
+                elif kind_of_calculation == 3: #LORENTZIAN
+                    PowerPlotXYWidget.get_lorentzian_2d(ticket['histogram'], ticket['bin_h_center'], ticket['bin_v_center'],
+                                                        gamma, center_x, center_y)
+                # rinormalization
+                ticket['histogram'] *= ticket['intensity']
 
+        ticket['histogram'][numpy.where(ticket['histogram'] < 1e-9)] = 0.0
         ticket['histogram'] *= (total_power / n_rays)  # power
 
         if ticket_to_add == None:
@@ -570,9 +579,28 @@ class PowerPlotXYWidget(QWidget):
             self.cumulated_previous_power_plot = 0.0
 
     @classmethod
-    def get_gaussian_2d(cls, x, y, sigma_x, sigma_y):
-        return numpy.exp(-1*(0.5*(x/sigma_x)**2 + 0.5*(y/sigma_y)**2))/(sigma_y*sigma_x*numpy.sqrt(2*numpy.pi))
+    def get_flat_2d(cls, z, x, y):
+        for i in range(len(x)):
+            z[i, :] = 1
 
+        norm = numpy.sum(z)
+        z[:,:] /= norm
+
+    @classmethod
+    def get_gaussian_2d(cls, z, x, y, sigma_x, sigma_y, center_x=0.0, center_y=0.0):
+        for i in range(len(x)):
+            z[i, :] = numpy.exp(-1*(0.5*((x[i]-center_x)/sigma_x)**2 + 0.5*((y-center_y)/sigma_y)**2))
+
+        norm = numpy.sum(z)
+        z[:,:] /= norm
+
+    @classmethod
+    def get_lorentzian_2d(cls, z, x, y, gamma, center_x=0.0, center_y=0.0):
+        for i in range(len(x)):
+            z[i, :] = gamma/(((x[i]-center_x)**2 + (y-center_y)**2 + gamma**2))
+
+        norm = numpy.sum(z)
+        z[:,:] /= norm
 
 
 if __name__=="__main__":
@@ -580,20 +608,17 @@ if __name__=="__main__":
     x2 = numpy.linspace(-0.00015, 0.00015, 100)
     y2 = numpy.linspace(-0.00015, 0.00015, 100)
 
-
     x, y = numpy.meshgrid(x2, y2)
+    z = numpy.ones((100, 100))
 
-    z = numpy.zeros((len(x2), len(y2)))
-
-    for i in range(len(x2)):
-        for j in range(len(y2)):
-            z[i, j] = PowerPlotXYWidget.get_gaussian_2d(x2[i], y2[j], 1e-5, 1e-5)
-
-    z /= numpy.sum(z)
+    #PowerPlotXYWidget.get_gaussian_2d(z, x2, y2, 1e-5, 2e-5)
+    PowerPlotXYWidget.get_lorentzian_2d(z, x2, y2, 2e-5)
+    #z = PowerPlotXYWidget.get_flat_2d(x2, y2)
 
     from matplotlib import pyplot as plt
 
     fig=plt.figure();
-    ax=fig.add_subplot(111,projection='3d')
+    ax=fig.add_subplot(111, projection='3d')
     surf=ax.plot_surface(x, y, z)
+
     plt.show()
