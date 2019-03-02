@@ -605,14 +605,14 @@ class PowerPlotXYWidget(QWidget):
 
 if __name__=="__main__":
 
-    x2 = numpy.linspace(-0.00015, 0.00015, 100)
-    y2 = numpy.linspace(-0.00015, 0.00015, 100)
+    x2 = numpy.linspace(-40e-6, 40e-6, 100)
+    y2 = numpy.linspace(-40e-6, 40e-6, 100)
 
     x, y = numpy.meshgrid(x2, y2)
     z = numpy.ones((100, 100))
 
     #PowerPlotXYWidget.get_gaussian_2d(z, x2, y2, 1e-5, 2e-5)
-    PowerPlotXYWidget.get_lorentzian_2d(z, x2, y2, 2e-5)
+    PowerPlotXYWidget.get_lorentzian_2d(z, x2, y2, 1.5e-6)
     #z = PowerPlotXYWidget.get_flat_2d(x2, y2)
 
     from matplotlib import pyplot as plt
