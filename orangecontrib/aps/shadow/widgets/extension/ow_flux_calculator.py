@@ -79,10 +79,6 @@ class FluxCalculator(AutomaticElement):
 
         usage_box.layout().addWidget(label)
 
-
-
-
-
         gui.rubber(self.controlArea)
 
     def setBeam(self, beam):
