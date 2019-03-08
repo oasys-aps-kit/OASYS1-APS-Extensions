@@ -72,6 +72,14 @@ class APSUndulator(GenericElement):
     electron_beam_divergence_h = Setting(2.9e-06)
     electron_beam_divergence_v = Setting(1.5e-06)
 
+    type_of_initialization = Setting(0)
+
+    moment_x = Setting(0.0)
+    moment_y = Setting(0.0)
+    moment_z = Setting(0.0)
+    moment_xp = Setting(0.0)
+    moment_yp = Setting(0.0)
+
     source_dimension_wf_h_slit_gap = Setting(0.0015)
     source_dimension_wf_v_slit_gap = Setting(0.0015)
     source_dimension_wf_h_slit_points=Setting(301)
@@ -292,18 +300,43 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(left_box_1, self, "Kv", "K Vertical", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
         oasysgui.lineEdit(left_box_1, self, "Kh", "K Horizontal", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
 
-        left_box_2 = oasysgui.widgetBox(tab_ls, "Machine Parameters", addSpace=False, orientation="vertical")
+        tab_und = oasysgui.tabWidget(tab_ls)
 
-        oasysgui.lineEdit(left_box_2, self, "electron_energy_in_GeV", "Energy [GeV]", labelWidth=260, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
-        oasysgui.lineEdit(left_box_2, self, "electron_energy_spread", "Energy Spread", labelWidth=260, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_2, self, "ring_current", "Ring Current [A]", labelWidth=260, valueType=float, orientation="horizontal")
+        tab_mach = oasysgui.createTabPage(tab_und, "Machine Parameters")
+        tab_traj = oasysgui.createTabPage(tab_und, "Trajectory")
+
+        oasysgui.lineEdit(tab_mach, self, "electron_energy_in_GeV", "Energy [GeV]", labelWidth=260, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(tab_mach, self, "electron_energy_spread", "Energy Spread", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_mach, self, "ring_current", "Ring Current [A]", labelWidth=260, valueType=float, orientation="horizontal")
         
-        #gui.separator(left_box_2)
-        
-        oasysgui.lineEdit(left_box_2, self, "electron_beam_size_h",       "Horizontal Beam Size [m]", labelWidth=230, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_2, self, "electron_beam_size_v",       "Vertical Beam Size [m]",  labelWidth=230, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_2, self, "electron_beam_divergence_h", "Horizontal Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_2, self, "electron_beam_divergence_v", "Vertical Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
+        gui.separator(tab_mach)
+
+        oasysgui.lineEdit(tab_mach, self, "electron_beam_size_h",       "Horizontal Beam Size [m]", labelWidth=230, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_mach, self, "electron_beam_size_v",       "Vertical Beam Size [m]",  labelWidth=230, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_mach, self, "electron_beam_divergence_h", "Horizontal Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_mach, self, "electron_beam_divergence_v", "Vertical Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
+
+
+        gui.comboBox(tab_traj, self, "type_of_initialization", label="Trajectory Initialization", labelWidth=140,
+                     items=["At Zero Point", "At Fixed Position", "Sampled from Phase Space"],
+                     callback=self.set_TypeOfInitialization,
+                     sendSelectedValue=False, orientation="horizontal")
+
+        self.left_box_3_1 = oasysgui.widgetBox(tab_traj, "", addSpace=False, orientation="vertical", height=160)
+        self.left_box_3_2 = oasysgui.widgetBox(tab_traj, "", addSpace=False, orientation="vertical", height=160)
+
+        oasysgui.lineEdit(self.left_box_3_1, self, "moment_x", "x\u2080 [m]", labelWidth=200, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.left_box_3_1, self, "moment_y", "y\u2080 [m]", labelWidth=200, valueType=float, orientation="horizontal")
+
+        box = oasysgui.widgetBox(self.left_box_3_1, "", addSpace=False, orientation="horizontal")
+
+        oasysgui.lineEdit(box, self, "moment_z", "z\u2080 [m]", labelWidth=160, valueType=float, orientation="horizontal")
+        gui.button(box, self, "Auto", width=35, callback=self.set_z0Default)
+
+        oasysgui.lineEdit(self.left_box_3_1, self, "moment_xp", "x'\u2080 [rad]", labelWidth=200, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.left_box_3_1, self, "moment_yp", "y'\u2080 [rad]", labelWidth=200, valueType=float, orientation="horizontal")
+
+        self.set_TypeOfInitialization()
 
         left_box_3 = oasysgui.widgetBox(tab_wf, "Wavefront Propagation Parameters", addSpace=False, orientation="vertical")
 
@@ -319,7 +352,6 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(left_box_4, self, "horizontal_resolution_modification_factor_at_resizing", "H resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_4, self, "vertical_range_modification_factor_at_resizing", "V range modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_4, self, "vertical_resolution_modification_factor_at_resizing", "V resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
-
 
         ####################################################################################
         # SRW FILES
@@ -401,6 +433,13 @@ class APSUndulator(GenericElement):
 
     def after_change_workspace_units(self):
         pass
+
+    def set_TypeOfInitialization(self):
+        self.left_box_3_1.setVisible(self.type_of_initialization==1)
+        self.left_box_3_2.setVisible(self.type_of_initialization!=1)
+
+    def set_z0Default(self):
+        self.moment_z =  -0.5*self.undulator_period*(self.number_of_periods + 4) # initial Longitudinal Coordinate (set before the ID)
 
     def auto_set_undulator(self):
         if not self.distribution_source == 0: raise Exception("This calculation can be performed only for explicit SRW Calculation")
@@ -794,12 +833,24 @@ class APSUndulator(GenericElement):
         #***********Electron Beam
         elecBeam = SRWLPartBeam()
 
-        elecBeam.partStatMom1.x = 0. #Initial Transverse Coordinates (initial Longitudinal Coordinate will be defined later on) [m]
-        elecBeam.partStatMom1.y = 0. #-0.00025
-        # Roughly ! check!
-        elecBeam.partStatMom1.z = -0.5*self.undulator_period*(self.number_of_periods + 8) #Initial Longitudinal Coordinate (set before the ID)
-        elecBeam.partStatMom1.xp = 0. #Initial Relative Transverse Velocities
-        elecBeam.partStatMom1.yp = 0.
+        if self.type_of_initialization == 0: # zero
+            self.moment_x = 0.0
+            self.moment_y = 0.0
+            self.moment_z = self.get_default_initial_z()
+            self.moment_xp = 0.0
+            self.moment_yp = 0.0
+        elif self.type_of_initialization == 2: # sampled
+            self.moment_x = numpy.random.normal(0.0, self.electron_beam_size_h)
+            self.moment_y = numpy.random.normal(0.0, self.electron_beam_size_v)
+            self.moment_z = self.get_default_initial_z()
+            self.moment_xp = numpy.random.normal(0.0, self.electron_beam_divergence_h)
+            self.moment_yp = numpy.random.normal(0.0, self.electron_beam_divergence_v)
+
+        elecBeam.partStatMom1.x = self.moment_x
+        elecBeam.partStatMom1.y = self.moment_y
+        elecBeam.partStatMom1.z = self.moment_z
+        elecBeam.partStatMom1.xp = self.moment_xp
+        elecBeam.partStatMom1.yp = self.moment_yp
         elecBeam.partStatMom1.gamma = self.gamma()
 
         elecBeam.Iavg = self.ring_current #Average Current [A]
