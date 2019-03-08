@@ -393,8 +393,6 @@ class ScanHistoWidget(AbstractScanHistoWidget):
 
         self.plot_canvas.setActiveCurveColor(color="#00008B")
 
-        self.plot_canvas.setDrawModeEnabled(True, 'rectangle')
-        self.plot_canvas.setInteractiveMode('zoom',color='orange')
         self.plot_canvas.resetZoom()
         self.plot_canvas.replot()
 
