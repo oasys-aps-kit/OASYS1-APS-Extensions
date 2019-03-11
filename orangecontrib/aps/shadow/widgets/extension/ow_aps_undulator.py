@@ -439,7 +439,11 @@ class APSUndulator(GenericElement):
         self.left_box_3_2.setVisible(self.type_of_initialization!=1)
 
     def set_z0Default(self):
-        self.moment_z =  -0.5*self.undulator_period*(self.number_of_periods + 4) # initial Longitudinal Coordinate (set before the ID)
+        self.moment_z = self.get_default_initial_z()
+
+    def get_default_initial_z(self):
+        return -0.5*self.undulator_period*(self.number_of_periods + 4) # initial Longitudinal Coordinate (set before the ID)
+
 
     def auto_set_undulator(self):
         if not self.distribution_source == 0: raise Exception("This calculation can be performed only for explicit SRW Calculation")
@@ -566,8 +570,6 @@ class APSUndulator(GenericElement):
 
     def receive_specific_syned_data(self, data):
         raise NotImplementedError()
-
-
 
     ####################################################################################
     # PROCEDURES
