@@ -303,7 +303,7 @@ class PowerLoopPoint(widget.OWWidget):
                     total_power = cumulated_power[-1]
 
                     self.cumulated_power_plot.clear()
-                    self.cumulated_power_plot.addCurve(energies, cumulated_power, replace=False, replot=True, legend="Cumulated Power")
+                    self.cumulated_power_plot.addCurve(energies, cumulated_power, replace=True, legend="Cumulated Power")
                     self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
                     self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
                     self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(total_power, 2)) + " W")
@@ -328,7 +328,7 @@ class PowerLoopPoint(widget.OWWidget):
                     self.energy_binnings = []
                     self.total_new_objects = 0
 
-                    self.cumulated_power_plot.addCurve(interpolated_upper_energies, power_values, replace=False, replot=True, legend="Energy Binning",
+                    self.cumulated_power_plot.addCurve(interpolated_upper_energies, power_values, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
                     text = "Auto-Binning with Power Step: " + str(round(self.power_step, 3)) + \
