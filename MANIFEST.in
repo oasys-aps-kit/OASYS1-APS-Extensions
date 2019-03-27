@@ -7,3 +7,5 @@ recursive-include orangecontrib/aps/shadow/widgets *.png *.svg *.ico *.jpg *.bmp
 recursive-include orangecontrib/aps/srw/widgets *.png *.svg *.ico *.jpg *.bmp
 
 include README.txt
+include README.md
+include LICENSE.pdf
