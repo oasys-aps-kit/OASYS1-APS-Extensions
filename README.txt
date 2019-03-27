@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # #########################################################################
 # Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.         #
 #                                                                         #
