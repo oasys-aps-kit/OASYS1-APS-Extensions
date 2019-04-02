@@ -472,7 +472,7 @@ class PowerLoopPoint(widget.OWWidget):
             self.text_area.setEnabled(False)
             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
             self.send("Trigger", TriggerOut(new_object=True,
-                                            additional_parameters={"energy_value_from"       : self.current_energy_value,
+                                            additional_parameters={"energy_value"            : self.current_energy_value,
                                                                    "energy_value_central"    : self.current_energy_value_central,
                                                                    "energy_value_half_power" : self.current_energy_value_half_power,
                                                                    "energy_step"             : self.current_energy_step,
