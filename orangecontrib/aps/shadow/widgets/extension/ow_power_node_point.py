@@ -276,6 +276,7 @@ class PowerLoopPoint(widget.OWWidget):
         tabs.setFixedWidth(585)
 
         tab_plot = oasysgui.createTabPage(tabs, "Cumulated Power")
+        tab_flux = oasysgui.createTabPage(tabs, "Spectral Flux")
 
         self.cumulated_power_plot = oasysgui.plotWindow(tab_plot)
         self.cumulated_power_plot.setFixedHeight(self.height()-20)
@@ -283,6 +284,13 @@ class PowerLoopPoint(widget.OWWidget):
         self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
         self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
         self.cumulated_power_plot.setGraphTitle("Cumulated Power")
+
+        self.spectral_flux_plot = oasysgui.plotWindow(tab_flux)
+        self.spectral_flux_plot.setFixedHeight(self.height()-20)
+        self.spectral_flux_plot.setFixedWidth(580)
+        self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
+        self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
+        self.spectral_flux_plot.setGraphTitle("Spectral Flux")
 
         self.set_Autobinning()
 
@@ -292,6 +300,8 @@ class PowerLoopPoint(widget.OWWidget):
         self.text_area.setReadOnly(self.autobinning==1)
         self.cumulated_power_plot.clear()
         self.cumulated_power_plot.setEnabled(self.autobinning==1)
+        self.spectral_flux_plot.clear()
+        self.spectral_flux_plot.setEnabled(self.autobinning==1)
 
     def read_spectrum_file(self):
         try:
@@ -354,6 +364,12 @@ class PowerLoopPoint(widget.OWWidget):
                     self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
                     self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
                     self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(total_power, 2)) + " W")
+
+                    self.spectral_flux_plot.clear()
+                    self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture, replace=True, legend="Spectral Flux")
+                    self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
+                    self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
+                    self.spectral_flux_plot.setGraphTitle("Spectral Flux")
 
                     good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 
