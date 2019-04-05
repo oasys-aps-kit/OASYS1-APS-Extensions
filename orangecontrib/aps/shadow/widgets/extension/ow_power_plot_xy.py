@@ -69,7 +69,7 @@ class PowerPlotXY(AutomaticElement):
     icon = "icons/plot_xy_power.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
-    priority = 5
+    priority = 5.1
     category = "Display Data Tools"
     keywords = ["data", "file", "load", "read"]
 

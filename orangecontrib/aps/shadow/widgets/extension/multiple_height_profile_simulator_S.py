@@ -66,7 +66,7 @@ class OWMultipleHeightProfileSimulatorS(OWAbstractMultipleHeightProfileSimulator
     description = "Calculation of mirror surface height profile"
     author = "Luca Rebuffi"
     maintainer_email = "lrebuffi@anl.gov"
-    priority = 4
+    priority = 7.2
     category = ""
     keywords = ["height_profile_simulator"]
 

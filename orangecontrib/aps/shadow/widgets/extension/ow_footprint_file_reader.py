@@ -63,7 +63,7 @@ class FootprintFileReader(oasyswidget.OWWidget):
     icon = "icons/footprint_reader.png"
     maintainer = "Luca Rebuffi"
     maintainer_email = "lrebuffi(@at@)anl.gov"
-    priority = 5
+    priority = 5.2
     category = "Utility"
     keywords = ["data", "file", "load", "read"]
 

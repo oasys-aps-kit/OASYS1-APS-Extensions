@@ -193,7 +193,7 @@ class PowerLoopPoint(widget.OWWidget):
         gui.separator(left_box_1)
 
         gui.comboBox(left_box_1, self, "autobinning", label="Energy Binning",
-                                            items=["Manual", "Automatic"], labelWidth=260,
+                                            items=["Manual", "Automatic (Cumulated Power)", "Automatic (Around Harmonics)"], labelWidth=150,
                                             callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
 
         self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=80)
