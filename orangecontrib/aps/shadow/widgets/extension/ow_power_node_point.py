@@ -627,3 +627,132 @@ if __name__ == "__main__":
     ow.show()
     a.exec_()
     ow.saveSettings()
+
+'''
+import numpy
+
+import scipy.constants as codata
+m2ev = codata.c * codata.h / codata.e      # lambda(m)  = m2eV / energy(eV)
+
+spectral_flux = numpy.loadtxt("/Users/lrebuffi/Oasys/APS-U/XPCS/Power_Density/WB/autobinning.dat", skiprows=1)
+
+minimum_energy_of_spectrum = spectral_flux[0, 0]
+maximum_energy_of_spectrum = spectral_flux[-1, 0]
+
+electron_energy = 6.0
+K_vertical = 1.943722
+K_horizontal = 0.0
+period_length = 0.025
+theta_x=0.0
+theta_z=0.0
+
+gamma = 1e9*electron_energy / (codata.m_e *  codata.c**2 / codata.e)
+resonance_wavelength = (period_length / (2.0*gamma **2)) * (1 + K_vertical**2 / 2.0 + K_horizontal**2 / 2.0 + gamma**2 * (theta_x**2 + theta_z ** 2))
+resonance_energy = m2ev / resonance_wavelength
+
+current_harmonic_nr = 2
+current_harmonic = resonance_energy
+harmonics = [current_harmonic]
+
+while current_harmonic < maximum_energy_of_spectrum:
+    current_harmonic_nr += 1
+    current_harmonic = resonance_energy * current_harmonic_nr
+    harmonics.append(current_harmonic)
+
+number_of_harmonics = len(harmonics)
+
+total_points = 1000
+percentage_of_points_around_harmonics = 0.9
+percentage_of_energy_for_step = 0.0001
+
+number_of_point_per_harmonic = int(total_points * percentage_of_points_around_harmonics / (2 * number_of_harmonics)) * 2 + 1
+
+energy_bins = []
+harmonic_bins = []
+has_gap = True
+total_point_for_harmonics = 0
+number_of_gaps = 0
+
+for index in range (number_of_harmonics):
+    harmonic_energy = harmonics[index]
+    step = harmonic_energy * percentage_of_energy_for_step
+
+    bins = []
+
+    if len(harmonic_bins) > 0:
+        minimum_energy = harmonic_energy - step * ((number_of_point_per_harmonic - 1) / 2)
+        has_gap = minimum_energy > harmonic_bins[-1][1] # energy "to" of the last binning
+
+    if has_gap: number_of_gaps += 1
+
+    for j in range(number_of_point_per_harmonic):
+        energy_of_the_bin = harmonic_energy - step * ((number_of_point_per_harmonic - 1) / 2) + j * step
+
+        if (has_gap or (not has_gap and energy_of_the_bin > harmonic_bins[-1][0])) \
+            and \
+           (minimum_energy_of_spectrum < energy_of_the_bin < maximum_energy_of_spectrum):
+            bins.append(energy_of_the_bin)
+            total_point_for_harmonics += 1
+
+    if len(bins)> 0: harmonic_bins.append([bins[0], bins[-1], step, has_gap])
+
+remaining_points = total_points - total_point_for_harmonics
+number_of_points_per_gap = int(remaining_points / number_of_gaps)
+
+harmonic_bins_last_energy = harmonic_bins[-1][1]
+harmonic_bins_first_energy = harmonic_bins[0][0]
+
+add_gap_at_beginning = False
+add_gap_at_end = False
+
+if (harmonic_bins_first_energy > minimum_energy_of_spectrum) and \
+    abs(minimum_energy_of_spectrum-harmonic_bins_first_energy) > number_of_points_per_gap*percentage_of_energy_for_step*harmonic_bins_first_energy:
+    number_of_gaps += 1 # first interval
+    add_gap_at_beginning = True
+
+if (harmonic_bins_last_energy < maximum_energy_of_spectrum) and \
+    abs(maximum_energy_of_spectrum-harmonic_bins_last_energy) > number_of_points_per_gap*percentage_of_energy_for_step*harmonic_bins_last_energy:
+    number_of_gaps += 1 # last interval
+    add_gap_at_end = False
+
+number_of_points_per_gap = int(remaining_points / number_of_gaps)
+
+if add_gap_at_beginning:
+    energy_bins.append([minimum_energy_of_spectrum, harmonic_bins_first_energy, abs(minimum_energy_of_spectrum-harmonic_bins_first_energy) / number_of_points_per_gap])
+else:
+    energy_bins.append([minimum_energy_of_spectrum, harmonic_bins_first_energy, abs(minimum_energy_of_spectrum-harmonic_bins_first_energy)/2])
+
+print("Number of Points per Harmonic: ", number_of_point_per_harmonic)
+print("Number of Points per Gap: ", number_of_points_per_gap)
+
+size = len(harmonic_bins)
+last_index = size-1
+
+for index in range(size):
+    current_bin = harmonic_bins[index]
+
+    energy_bins.append(current_bin[0:-1])
+
+    if not index == last_index and current_bin[3] == True:
+        energy_from = current_bin[1]
+        energy_to = harmonic_bins[index+1][0]
+        step = abs(energy_to-energy_from) / number_of_points_per_gap
+        energy_bins.append([energy_from, energy_to, step])
+
+if add_gap_at_end:
+    energy_bins.append([harmonic_bins_last_energy, maximum_energy_of_spectrum, abs(maximum_energy_of_spectrum-harmonic_bins_last_energy) / number_of_points_per_gap])
+else:
+    energy_bins.append([harmonic_bins_last_energy, maximum_energy_of_spectrum, abs(maximum_energy_of_spectrum-harmonic_bins_last_energy)/2])
+
+
+text = ""
+
+for energy_bin in energy_bins:
+    text += str(round(energy_bin[0], 2)) + ", " + \
+        str(round(energy_bin[1], 2)) + ", " + \
+        str(round(energy_bin[2], 2)) + "\n"
+
+print(text)
+
+'''
+
