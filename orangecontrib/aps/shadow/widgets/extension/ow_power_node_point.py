@@ -62,20 +62,16 @@ from oasys.widgets import congruence
 from oasys.util.oasys_util import TriggerIn, TriggerOut
 from oasys.widgets.exchange import DataExchangeObject
 
-import scipy.constants as codata
-
 class EnergyBinning(object):
     def __init__(self,
                  energy_value_from = 0.0,
                  energy_value_to   = 0.0,
-                 energy_value_central    = -1.0,
-                 energy_value_half_power = -1.0,
-                 energy_step = 0.0):
+                 energy_step       = 0.0,
+                 power_step        = None):
         self.energy_value_from       = energy_value_from
         self.energy_value_to         = energy_value_to
-        self.energy_value_central    = energy_value_central
-        self.energy_value_half_power = energy_value_half_power
-        self.energy_step       = energy_step
+        self.energy_step             = energy_step
+        self.power_step              = power_step
 
     def __str__(self):
         return str(self.energy_value_from) + ", " + str(self.energy_value_to) + ", " + str(self.energy_step) + ", " + str(self.power_step)
@@ -118,12 +114,15 @@ class PowerLoopPoint(widget.OWWidget):
     auto_n_step = Setting(1001)
     auto_perc_total_power = Setting(99)
 
+    refine_around_harmonic = Setting(1)
+    number_of_points_around_harmonic = Setting(10)
+
     current_energy_binning = 0
     current_energy_value = None
     current_energy_value_central = None
     current_energy_value_half_power = None
     current_energy_step = None
-    power_step = None
+    current_power_step = None
 
     energy_binnings = None
 
@@ -193,7 +192,7 @@ class PowerLoopPoint(widget.OWWidget):
         gui.separator(left_box_1)
 
         gui.comboBox(left_box_1, self, "autobinning", label="Energy Binning",
-                                            items=["Manual", "Automatic (Cumulated Power)", "Automatic (Around Harmonics)"], labelWidth=150,
+                                            items=["Manual", "Automatic"], labelWidth=150,
                                             callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
 
         self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=80)
@@ -379,14 +378,13 @@ class PowerLoopPoint(widget.OWWidget):
                     power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
                     power_values = power_values[1:] # interpolating power=0 doesn't make sense
 
-                    self.power_step = power_values[1]-power_values[0]
-
                     interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
-                    interpolated_half_power_energies = numpy.interp(power_values-0.5*self.power_step, cumulated_power, energies)
                     interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
                     energy_bins = numpy.diff(interpolated_lower_energies)
                     interpolated_lower_energies = interpolated_lower_energies[:-1]
-                    interpolated_central_energies = interpolated_upper_energies - (energy_bins/2)
+                    power_steps = numpy.ones(len(energy_bins))*(power_values[1]-power_values[0])
+
+                    #indexes_harmonics = (numpy.abs(interpolated_upper_energies - v)).argmin()
 
                     self.energy_binnings = []
                     self.total_new_objects = 0
@@ -394,26 +392,24 @@ class PowerLoopPoint(widget.OWWidget):
                     self.cumulated_power_plot.addCurve(interpolated_upper_energies, power_values, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
-                    text = "Auto-Binning with Power Step: " + str(round(self.power_step, 3)) + \
-                           "\nEnergy From, To, Central, Power/2, Bin\n------------------------------------------"
+                    text = "Auto-Binning with Power Step: " + str(round(power_steps[0], 3)) + \
+                           "\nEnergy From, To, Bin\n------------------------------------------"
 
-                    for energy_from, energy_to, energy_central, energy_half_power, energy_bin in zip(interpolated_lower_energies,
-                                                                                                     interpolated_upper_energies,
-                                                                                                     interpolated_central_energies,
-                                                                                                     interpolated_half_power_energies,
-                                                                                                     energy_bins):
-                        energy_binning = EnergyBinning(energy_value_from=round(energy_from, 2),
-                                                       energy_value_to=round(energy_to, 2),
-                                                       energy_value_central=round(energy_central, 2),
-                                                       energy_value_half_power=round(energy_half_power, 2),
-                                                       energy_step=round(energy_bin, 3))
+                    for energy_from, energy_to, energy_bin, power_step in zip(interpolated_lower_energies,
+                                                                              interpolated_upper_energies,
+                                                                              energy_bins,
+                                                                              power_steps
+                                                                              ):
+                        energy_binning = EnergyBinning(energy_value_from=round(energy_from, 3),
+                                                       energy_value_to=round(energy_to, 3),
+                                                       energy_step=round(energy_bin, 3),
+                                                       power_step=round(power_step, 4))
 
                         text += "\n" + \
-                                str(round(energy_from, 2)) + ", " + \
-                                str(round(energy_to, 2)) + ", " + \
-                                str(round(energy_central, 2)) + ", " + \
-                                str(round(energy_half_power, 2)) + ", " + \
-                                str(round(energy_bin, 2))
+                                str(round(energy_from, 3)) + ", " + \
+                                str(round(energy_to, 3))   + ", " + \
+                                str(round(energy_bin, 3))  + ", " + \
+                                str(round(power_step, 4))
 
                         self.energy_binnings.append(energy_binning)
                         self.total_new_objects += 1
@@ -426,14 +422,12 @@ class PowerLoopPoint(widget.OWWidget):
         else:
             self.energy_binnings = None
             self.total_new_objects = 0
-            self.power_step = None
             self.external_binning = False
             self.text_area.setText("")
 
     def calculate_energy_binnings(self):
         if not self.external_binning:
             self.total_new_objects = 0
-            self.power_step = None
 
             rows = self.energies.split("\n")
             for row in rows:
@@ -477,24 +471,20 @@ class PowerLoopPoint(widget.OWWidget):
             self.current_new_object = 1
             self.total_current_new_object = 1
             self.current_energy_binning = 0
-            self.current_energy_value       = round(self.energy_binnings[0].energy_value_from, 8)
-            self.current_energy_value_central    = round(self.energy_binnings[0].energy_value_central, 8)
-            self.current_energy_value_half_power = round(self.energy_binnings[0].energy_value_half_power, 8)
+            self.current_energy_value             = round(self.energy_binnings[0].energy_value_from, 8)
             self.current_energy_step              = round(self.energy_binnings[0].energy_step, 8)
-
+            self.current_power_step               = None if self.energy_binnings[0].power_step is None else round(self.energy_binnings[0].power_step, 8)
             self.calculate_number_of_new_objects()
 
             self.start_button.setEnabled(False)
             self.text_area.setEnabled(False)
             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
             self.send("Trigger", TriggerOut(new_object=True,
-                                            additional_parameters={"energy_value"            : self.current_energy_value,
-                                                                   "energy_value_central"    : self.current_energy_value_central,
-                                                                   "energy_value_half_power" : self.current_energy_value_half_power,
-                                                                   "energy_step"             : self.current_energy_step,
-                                                                   "power_step"              : -1 if self.power_step is None else self.power_step,
-                                                                   "seed_increment"          : self.seed_increment,
-                                                                   "test_mode" : False}))
+                                            additional_parameters={"energy_value"   : self.current_energy_value,
+                                                                   "energy_step"    : self.current_energy_step,
+                                                                   "power_step"     : -1 if self.current_power_step is None else self.current_power_step,
+                                                                   "seed_increment" : self.seed_increment,
+                                                                   "test_mode"      : False}))
         except Exception as e:
             if self.IS_DEVELOP : raise e
             else: pass
@@ -557,24 +547,22 @@ class PowerLoopPoint(widget.OWWidget):
                             if self.current_energy_value is None:
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
-                                self.current_energy_value            = round(energy_binning.energy_value_from, 8)
-                                self.current_energy_value_central    = round(energy_binning.energy_value_central, 8)
-                                self.current_energy_value_half_power = round(energy_binning.energy_value_half_power, 8)
+                                self.current_energy_value = round(energy_binning.energy_value_from, 8)
                             else:
                                 self.current_new_object += 1
                                 self.current_energy_value = round(self.current_energy_value + energy_binning.energy_step, 8)
+
+                            self.current_power_step = None if energy_binning.power_step is None else round(energy_binning.power_step, 8)
 
                             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                             self.start_button.setEnabled(False)
                             self.text_area.setEnabled(False)
                             self.send("Trigger", TriggerOut(new_object=True,
-                                                            additional_parameters={"energy_value"            : self.current_energy_value,
-                                                                                   "energy_value_central"    : self.current_energy_value_central,
-                                                                                   "energy_value_half_power" : self.current_energy_value_half_power,
-                                                                                   "energy_step" : energy_binning.energy_step,
-                                                                                   "power_step" : -1 if self.power_step is None else self.power_step,
+                                                            additional_parameters={"energy_value"   : self.current_energy_value,
+                                                                                   "energy_step"    : energy_binning.energy_step,
+                                                                                   "power_step"     : -1 if self.current_power_step is None else self.current_power_step,
                                                                                    "seed_increment" : self.seed_increment,
-                                                                                   "test_mode" : False}))
+                                                                                   "test_mode"      : False}))
                         else:
                             self.current_energy_binning += 1
 
@@ -584,20 +572,17 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
                                 self.current_energy_value = round(energy_binning.energy_value_from, 8)
-                                self.current_energy_value_central    = round(energy_binning.energy_value_central, 8)
-                                self.current_energy_value_half_power = round(energy_binning.energy_value_half_power, 8)
+                                self.current_power_step = None if energy_binning.power_step is None else round(energy_binning.power_step, 8)
 
                                 self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                                 self.start_button.setEnabled(False)
                                 self.text_area.setEnabled(False)
                                 self.send("Trigger", TriggerOut(new_object=True,
-                                                                additional_parameters={"energy_value" : self.current_energy_value,
-                                                                                       "energy_value_central"    : self.current_energy_value_central,
-                                                                                       "energy_value_half_power" : self.current_energy_value_half_power,
-                                                                                       "energy_step" : energy_binning.energy_step,
-                                                                                       "power_step" : -1 if self.power_step is None else self.power_step,
+                                                                additional_parameters={"energy_value"   : self.current_energy_value,
+                                                                                       "energy_step"    : energy_binning.energy_step,
+                                                                                       "power_step"     : -1 if self.current_power_step is None else self.current_power_step,
                                                                                        "seed_increment" : self.seed_increment,
-                                                                                       "test_mode" : False}))
+                                                                                       "test_mode"      : False}))
                             else:
                                 self.reset_values()
                                 self.start_button.setEnabled(True)
@@ -621,138 +606,20 @@ class PowerLoopPoint(widget.OWWidget):
             self.suspend_loop = False
             self.run_loop = True
 
+import scipy.constants as codata
+m2ev = codata.c * codata.h / codata.e
+
+def __get_resonance_energy(electron_energy, period_length, K_vertical, K_horizontal=0.0, theta_x=0.0, theta_z=0.0, harmonic_number = 1):
+    gamma = 1e9*electron_energy / (codata.m_e *  codata.c**2 / codata.e)
+
+    resonance_wavelength = (period_length / (2.0*gamma**2)) * (1 + K_vertical**2 / 2.0 + K_horizontal**2 / 2.0 + gamma**2 * (theta_x**2 + theta_z ** 2))
+
+    return harmonic_number*m2ev/resonance_wavelength
+
 if __name__ == "__main__":
     a = QApplication(sys.argv)
     ow = PowerLoopPoint()
     ow.show()
     a.exec_()
     ow.saveSettings()
-
-'''
-import numpy
-
-import scipy.constants as codata
-m2ev = codata.c * codata.h / codata.e      # lambda(m)  = m2eV / energy(eV)
-
-spectral_flux = numpy.loadtxt("/Users/lrebuffi/Oasys/APS-U/XPCS/Power_Density/WB/autobinning.dat", skiprows=1)
-
-minimum_energy_of_spectrum = spectral_flux[0, 0]
-maximum_energy_of_spectrum = spectral_flux[-1, 0]
-
-electron_energy = 6.0
-K_vertical = 1.943722
-K_horizontal = 0.0
-period_length = 0.025
-theta_x=0.0
-theta_z=0.0
-
-gamma = 1e9*electron_energy / (codata.m_e *  codata.c**2 / codata.e)
-resonance_wavelength = (period_length / (2.0*gamma **2)) * (1 + K_vertical**2 / 2.0 + K_horizontal**2 / 2.0 + gamma**2 * (theta_x**2 + theta_z ** 2))
-resonance_energy = m2ev / resonance_wavelength
-
-current_harmonic_nr = 2
-current_harmonic = resonance_energy
-harmonics = [current_harmonic]
-
-while current_harmonic < maximum_energy_of_spectrum:
-    current_harmonic_nr += 1
-    current_harmonic = resonance_energy * current_harmonic_nr
-    harmonics.append(current_harmonic)
-
-number_of_harmonics = len(harmonics)
-
-total_points = 1000
-percentage_of_points_around_harmonics = 0.9
-percentage_of_energy_for_step = 0.0001
-
-number_of_point_per_harmonic = int(total_points * percentage_of_points_around_harmonics / (2 * number_of_harmonics)) * 2 + 1
-
-energy_bins = []
-harmonic_bins = []
-has_gap = True
-total_point_for_harmonics = 0
-number_of_gaps = 0
-
-for index in range (number_of_harmonics):
-    harmonic_energy = harmonics[index]
-    step = harmonic_energy * percentage_of_energy_for_step
-
-    bins = []
-
-    if len(harmonic_bins) > 0:
-        minimum_energy = harmonic_energy - step * ((number_of_point_per_harmonic - 1) / 2)
-        has_gap = minimum_energy > harmonic_bins[-1][1] # energy "to" of the last binning
-
-    if has_gap: number_of_gaps += 1
-
-    for j in range(number_of_point_per_harmonic):
-        energy_of_the_bin = harmonic_energy - step * ((number_of_point_per_harmonic - 1) / 2) + j * step
-
-        if (has_gap or (not has_gap and energy_of_the_bin > harmonic_bins[-1][0])) \
-            and \
-           (minimum_energy_of_spectrum < energy_of_the_bin < maximum_energy_of_spectrum):
-            bins.append(energy_of_the_bin)
-            total_point_for_harmonics += 1
-
-    if len(bins)> 0: harmonic_bins.append([bins[0], bins[-1], step, has_gap])
-
-remaining_points = total_points - total_point_for_harmonics
-number_of_points_per_gap = int(remaining_points / number_of_gaps)
-
-harmonic_bins_last_energy = harmonic_bins[-1][1]
-harmonic_bins_first_energy = harmonic_bins[0][0]
-
-add_gap_at_beginning = False
-add_gap_at_end = False
-
-if (harmonic_bins_first_energy > minimum_energy_of_spectrum) and \
-    abs(minimum_energy_of_spectrum-harmonic_bins_first_energy) > number_of_points_per_gap*percentage_of_energy_for_step*harmonic_bins_first_energy:
-    number_of_gaps += 1 # first interval
-    add_gap_at_beginning = True
-
-if (harmonic_bins_last_energy < maximum_energy_of_spectrum) and \
-    abs(maximum_energy_of_spectrum-harmonic_bins_last_energy) > number_of_points_per_gap*percentage_of_energy_for_step*harmonic_bins_last_energy:
-    number_of_gaps += 1 # last interval
-    add_gap_at_end = False
-
-number_of_points_per_gap = int(remaining_points / number_of_gaps)
-
-if add_gap_at_beginning:
-    energy_bins.append([minimum_energy_of_spectrum, harmonic_bins_first_energy, abs(minimum_energy_of_spectrum-harmonic_bins_first_energy) / number_of_points_per_gap])
-else:
-    energy_bins.append([minimum_energy_of_spectrum, harmonic_bins_first_energy, abs(minimum_energy_of_spectrum-harmonic_bins_first_energy)/2])
-
-print("Number of Points per Harmonic: ", number_of_point_per_harmonic)
-print("Number of Points per Gap: ", number_of_points_per_gap)
-
-size = len(harmonic_bins)
-last_index = size-1
-
-for index in range(size):
-    current_bin = harmonic_bins[index]
-
-    energy_bins.append(current_bin[0:-1])
-
-    if not index == last_index and current_bin[3] == True:
-        energy_from = current_bin[1]
-        energy_to = harmonic_bins[index+1][0]
-        step = abs(energy_to-energy_from) / number_of_points_per_gap
-        energy_bins.append([energy_from, energy_to, step])
-
-if add_gap_at_end:
-    energy_bins.append([harmonic_bins_last_energy, maximum_energy_of_spectrum, abs(maximum_energy_of_spectrum-harmonic_bins_last_energy) / number_of_points_per_gap])
-else:
-    energy_bins.append([harmonic_bins_last_energy, maximum_energy_of_spectrum, abs(maximum_energy_of_spectrum-harmonic_bins_last_energy)/2])
-
-
-text = ""
-
-for energy_bin in energy_bins:
-    text += str(round(energy_bin[0], 2)) + ", " + \
-        str(round(energy_bin[1], 2)) + ", " + \
-        str(round(energy_bin[2], 2)) + "\n"
-
-print(text)
-
-'''
 

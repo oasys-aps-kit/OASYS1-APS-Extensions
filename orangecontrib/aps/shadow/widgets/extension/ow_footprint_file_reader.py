@@ -72,7 +72,7 @@ class FootprintFileReader(oasyswidget.OWWidget):
     beam_file_name = None
     input_beam = None
 
-    inputs = [("Input Beam", ShadowBeam, "setBeam")]
+    inputs = [("Footprint", list, "setBeam")]
 
     outputs = [{"name": "Beam",
                 "type": ShadowBeam,
@@ -107,81 +107,74 @@ class FootprintFileReader(oasyswidget.OWWidget):
         gui.rubber(self.controlArea)
 
     def setBeam(self, beam):
-        if ShadowCongruence.checkEmptyBeam(beam) and ShadowCongruence.checkGoodBeam(beam):
-            if beam.scanned_variable_data and beam.scanned_variable_data.has_additional_parameter("total_power"):
-                self.input_beam = beam
+        if ShadowCongruence.checkEmptyBeam(beam[0]) and ShadowCongruence.checkGoodBeam(beam[0]):
+            if beam[0].scanned_variable_data and beam[0].scanned_variable_data.has_additional_parameter("total_power"):
+                self.input_beam = beam[0]
+                self.footprint_beam = beam[1]
 
-                self.beam_file_name = "mirr." + (str(beam._oe_number) if beam._oe_number > 9 else "0" + str(beam._oe_number))
+                self.calculate_footprint()
 
-                self.read_file()
-
-    def read_file(self):
+    def calculate_footprint(self):
         self.setStatusMessage("")
 
         try:
-            if congruence.checkFileName(self.beam_file_name):
-                beam_out = ShadowBeam()
-                beam_out.loadFromFile(self.beam_file_name)
-                beam_out.history.append(ShadowOEHistoryItem()) # fake Source
-                beam_out._oe_number = 0
+            beam_out = self.footprint_beam.duplicate()
+            beam_out.history.append(ShadowOEHistoryItem()) # fake Source
+            beam_out._oe_number = 0
 
-                # just to create a safe history for possible re-tracing
-                beam_out.traceFromOE(beam_out, self.create_dummy_oe(), history=True)
+            # just to create a safe history for possible re-tracing
+            beam_out.traceFromOE(beam_out, self.create_dummy_oe(), history=True)
 
-                path, file_name = os.path.split(self.beam_file_name)
+            total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
 
-                self.setStatusMessage("Current: " + file_name)
+            additional_parameters = {}
+            additional_parameters["total_power"]        = total_power
+            additional_parameters["photon_energy_step"] = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
+            additional_parameters["is_footprint"] = True
 
-                total_power = self.input_beam.scanned_variable_data.get_additional_parameter("total_power")
+            n_rays = len(beam_out._beam.rays[:, 0]) # lost and good!
 
-                additional_parameters = {}
-                additional_parameters["total_power"]        = total_power
-                additional_parameters["photon_energy_step"] = self.input_beam.scanned_variable_data.get_additional_parameter("photon_energy_step")
-                additional_parameters["is_footprint"] = True
+            history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
 
-                n_rays = len(beam_out._beam.rays[:, 0]) # lost and good!
+            incident_beam = history_entry._input_beam
 
-                history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
+            ticket = incident_beam._beam.histo2(2, 1, nbins=100, xrange=None, yrange=None, nolost=1, ref=23)
+            ticket['histogram'] *= (total_power/n_rays) # power
 
-                incident_beam = history_entry._input_beam
+            additional_parameters["incident_power"] = ticket['histogram'].sum()
 
-                ticket = incident_beam._beam.histo2(2, 1, nbins=100, xrange=None, yrange=None, nolost=1, ref=23)
-                ticket['histogram'] *= (total_power/n_rays) # power
+            if self.kind_of_power == 0: # incident
+                beam_out._beam.rays[:, 6]  = incident_beam._beam.rays[:, 6]
+                beam_out._beam.rays[:, 7]  = incident_beam._beam.rays[:, 7]
+                beam_out._beam.rays[:, 8]  = incident_beam._beam.rays[:, 8]
+                beam_out._beam.rays[:, 15] = incident_beam._beam.rays[:, 15]
+                beam_out._beam.rays[:, 16] = incident_beam._beam.rays[:, 16]
+                beam_out._beam.rays[:, 17] = incident_beam._beam.rays[:, 17]
+            elif self.kind_of_power == 1: # absorbed
+                # need a trick: put the whole intensity of one single component
 
-                additional_parameters["incident_power"] = ticket['histogram'].sum()
+                incident_intensity = incident_beam._beam.rays[:, 6]**2 + incident_beam._beam.rays[:, 7]**2 + incident_beam._beam.rays[:, 8]**2 +\
+                                     incident_beam._beam.rays[:, 15]**2 + incident_beam._beam.rays[:, 16]**2 + incident_beam._beam.rays[:, 17]**2
+                transmitted_intensity = beam_out._beam.rays[:, 6]**2 + beam_out._beam.rays[:, 7]**2 + beam_out._beam.rays[:, 8]**2 +\
+                                        beam_out._beam.rays[:, 15]**2 + beam_out._beam.rays[:, 16]**2 + beam_out._beam.rays[:, 17]**2
 
-                if self.kind_of_power == 0: # incident
-                    beam_out._beam.rays[:, 6]  = incident_beam._beam.rays[:, 6]
-                    beam_out._beam.rays[:, 7]  = incident_beam._beam.rays[:, 7]
-                    beam_out._beam.rays[:, 8]  = incident_beam._beam.rays[:, 8]
-                    beam_out._beam.rays[:, 15] = incident_beam._beam.rays[:, 15]
-                    beam_out._beam.rays[:, 16] = incident_beam._beam.rays[:, 16]
-                    beam_out._beam.rays[:, 17] = incident_beam._beam.rays[:, 17]
-                elif self.kind_of_power == 1: # absorbed
-                    # need a trick: put the whole intensity of one single component
-                    
-                    incident_intensity = incident_beam._beam.rays[:, 6]**2 + incident_beam._beam.rays[:, 7]**2 + incident_beam._beam.rays[:, 8]**2 +\
-                                         incident_beam._beam.rays[:, 15]**2 + incident_beam._beam.rays[:, 16]**2 + incident_beam._beam.rays[:, 17]**2
-                    transmitted_intensity = beam_out._beam.rays[:, 6]**2 + beam_out._beam.rays[:, 7]**2 + beam_out._beam.rays[:, 8]**2 +\
-                                            beam_out._beam.rays[:, 15]**2 + beam_out._beam.rays[:, 16]**2 + beam_out._beam.rays[:, 17]**2
+                electric_field = numpy.sqrt(incident_intensity - transmitted_intensity)
 
-                    electric_field = numpy.sqrt(incident_intensity - transmitted_intensity)
+                electric_field[numpy.where(electric_field == numpy.nan)] = 0.0
 
-                    electric_field[numpy.where(electric_field == numpy.nan)] = 0.0
+                beam_out._beam.rays[:, 6]  = electric_field
+                beam_out._beam.rays[:, 7]  = 0.0
+                beam_out._beam.rays[:, 8]  = 0.0
+                beam_out._beam.rays[:, 15] = 0.0
+                beam_out._beam.rays[:, 16] = 0.0
+                beam_out._beam.rays[:, 17] = 0.0
 
-                    beam_out._beam.rays[:, 6]  = electric_field
-                    beam_out._beam.rays[:, 7]  = 0.0
-                    beam_out._beam.rays[:, 8]  = 0.0
-                    beam_out._beam.rays[:, 15] = 0.0
-                    beam_out._beam.rays[:, 16] = 0.0
-                    beam_out._beam.rays[:, 17] = 0.0
-
-                beam_out.setScanningData(ShadowBeam.ScanningData(self.input_beam.scanned_variable_data.get_scanned_variable_name(),
-                                                                 self.input_beam.scanned_variable_data.get_scanned_variable_value(),
-                                                                 self.input_beam.scanned_variable_data.get_scanned_variable_display_name(),
-                                                                 self.input_beam.scanned_variable_data.get_scanned_variable_um(),
-                                                                 additional_parameters))
-                self.send("Beam", beam_out)
+            beam_out.setScanningData(ShadowBeam.ScanningData(self.input_beam.scanned_variable_data.get_scanned_variable_name(),
+                                                             self.input_beam.scanned_variable_data.get_scanned_variable_value(),
+                                                             self.input_beam.scanned_variable_data.get_scanned_variable_display_name(),
+                                                             self.input_beam.scanned_variable_data.get_scanned_variable_um(),
+                                                             additional_parameters))
+            self.send("Beam", beam_out)
         except Exception as exception:
             QtWidgets.QMessageBox.critical(self, "Error",
                                        str(exception), QtWidgets.QMessageBox.Ok)
