@@ -47,6 +47,9 @@
 
 import sys, numpy
 
+import scipy.constants as codata
+m2ev = codata.c * codata.h / codata.e
+
 from PyQt5.QtGui import QPalette, QFont, QColor
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
@@ -61,6 +64,12 @@ from oasys.widgets import congruence
 
 from oasys.util.oasys_util import TriggerIn, TriggerOut
 from oasys.widgets.exchange import DataExchangeObject
+
+from syned.beamline.beamline import Beamline
+from syned.beamline.optical_elements.absorbers.slit import Slit
+from syned.storage_ring.light_source import ElectronBeam, LightSource
+from syned.widget.widget_decorator import WidgetDecorator
+from syned.beamline.shape import Rectangle
 
 class EnergyBinning(object):
     def __init__(self,
@@ -87,8 +96,9 @@ class PowerLoopPoint(widget.OWWidget):
     category = "User Defined"
     keywords = ["data", "file", "load", "read"]
 
-    inputs = [("Trigger", TriggerIn, "passTrigger"),
-              ("ExchangeData", DataExchangeObject, "acceptExchangeData" )]
+    inputs = WidgetDecorator.syned_input_data()
+    inputs.append(("Trigger", TriggerIn, "passTrigger"))
+    inputs.append(("ExchangeData", DataExchangeObject, "acceptExchangeData" ))
 
     outputs = [{"name":"Trigger",
                 "type":TriggerOut,
@@ -115,7 +125,16 @@ class PowerLoopPoint(widget.OWWidget):
     auto_perc_total_power = Setting(99)
 
     refine_around_harmonic = Setting(1)
-    number_of_points_around_harmonic = Setting(10)
+    number_of_points_around_harmonic = Setting(30)
+    number_of_points_last = Setting(3)
+
+    electron_energy = Setting(6.0)
+    K_vertical = Setting(1.943722)
+    K_horizontal = Setting(0.0)
+    period_length = Setting(0.025)
+    number_of_periods = Setting(184)
+    theta_x=Setting(0.0)
+    theta_z=Setting(0.0)
 
     current_energy_binning = 0
     current_energy_value = None
@@ -185,7 +204,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.re_start_button.setFixedHeight(35)
         self.re_start_button.setEnabled(False)
 
-        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=385, height=520)
+        left_box_1 = oasysgui.widgetBox(self.controlArea, "Loop Management", addSpace=True, orientation="vertical", width=385, height=560)
 
         oasysgui.lineEdit(left_box_1, self, "seed_increment", "Source Montecarlo Seed Increment", labelWidth=250, valueType=int, orientation="horizontal")
 
@@ -195,19 +214,32 @@ class PowerLoopPoint(widget.OWWidget):
                                             items=["Manual", "Automatic"], labelWidth=150,
                                             callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
 
-        self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=80)
-        self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=80)
+        self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=200)
+        self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=20)
 
-        oasysgui.lineEdit(self.autobinning_box_1, self, "auto_n_step", "(Auto) Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(self.autobinning_box_1, self, "auto_perc_total_power", "(Auto) % Total Power", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_1, self, "auto_n_step", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_1, self, "auto_perc_total_power", "% Total Power", labelWidth=250, valueType=float, orientation="horizontal")
+
+        gui.comboBox(self.autobinning_box_1, self, "refine_around_harmonic", label="Increment Points around Harmonic",
+                                            items=["No", "Yes"], labelWidth=250,
+                                            callback=self.set_RefineAroundHarmonic, sendSelectedValue=False, orientation="horizontal")
+
+        self.autobinning_box_1_1 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=50)
+        self.autobinning_box_1_2 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=50)
+
+        oasysgui.lineEdit(self.autobinning_box_1_1, self, "number_of_points_around_harmonic", "Number of Points Around Harmonic", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_1_1, self, "number_of_points_last", "Number Of Points After last Harmonic", labelWidth=250, valueType=float, orientation="horizontal")
+
         gui.button(self.autobinning_box_1, self, "Reload Spectrum", callback=self.read_spectrum_file)
 
-        oasysgui.widgetLabel(self.autobinning_box_2, "\n\n\n\nEnergy From, Energy To, Energy Step [eV]")
+        oasysgui.widgetLabel(self.autobinning_box_1, "Energy From, Energy To, Energy Step [eV], Power [W]")
+
+        oasysgui.widgetLabel(self.autobinning_box_2, "Energy From, Energy To, Energy Step [eV]")
 
         def write_text():
             self.energies = self.text_area.toPlainText()
 
-        self.text_area = oasysgui.textArea(height=180, width=365, readOnly=False)
+        self.text_area = oasysgui.textArea(height=110, width=365, readOnly=False)
         self.text_area.setText(self.energies)
         self.text_area.setStyleSheet("background-color: white; font-family: Courier, monospace;")
         self.text_area.textChanged.connect(write_text)
@@ -297,10 +329,17 @@ class PowerLoopPoint(widget.OWWidget):
         self.autobinning_box_1.setVisible(self.autobinning==1)
         self.autobinning_box_2.setVisible(self.autobinning==0)
         self.text_area.setReadOnly(self.autobinning==1)
+        self.text_area.setFixedHeight(110 if self.autobinning==1 else 280)
         self.cumulated_power_plot.clear()
         self.cumulated_power_plot.setEnabled(self.autobinning==1)
         self.spectral_flux_plot.clear()
         self.spectral_flux_plot.setEnabled(self.autobinning==1)
+
+        self.set_RefineAroundHarmonic()
+
+    def set_RefineAroundHarmonic(self):
+        self.autobinning_box_1_1.setVisible(self.refine_around_harmonic==1)
+        self.autobinning_box_1_2.setVisible(self.refine_around_harmonic==0)
 
     def read_spectrum_file(self):
         try:
@@ -315,6 +354,27 @@ class PowerLoopPoint(widget.OWWidget):
 
             if self.IS_DEVELOP: raise e
 
+    def receive_syned_data(self, data):
+        if not data is None:
+            try:
+                if not data._light_source is None and isinstance(data._light_source, LightSource):
+                    light_source = data._light_source
+
+                    self.electron_energy = light_source._electron_beam._energy_in_GeV
+
+                    self.K_horizontal = light_source._magnetic_structure._K_horizontal
+                    self.K_vertical = light_source._magnetic_structure._K_vertical
+                    self.period_length = light_source._magnetic_structure._period_length
+                    self.number_of_periods = light_source._magnetic_structure._number_of_periods
+                else:
+                    raise ValueError("Syned data not correct")
+            except Exception as exception:
+                QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise exception
+
+    def receive_specific_syned_data(self, data):
+        raise NotImplementedError()
 
     def acceptExchangeData(self, exchange_data):
         if not exchange_data is None:
@@ -332,6 +392,30 @@ class PowerLoopPoint(widget.OWWidget):
 
                 energies                     = data[:, 0]
                 flux_through_finite_aperture = data[:, 1]
+
+                if self.refine_around_harmonic == 1:
+                    minimum_energy_of_spectrum = energies[0]
+                    maximum_energy_of_spectrum = energies[-1]
+
+                    first_harmonic_energy = self.__get_resonance_energy()
+                    red_shifted_energy = self.__get_red_shifted_energy(first_harmonic_energy)
+
+                    harmonics = []
+                    red_shifted_energies = []
+
+                    current_harmonic_nr = 1
+                    current_harmonic = first_harmonic_energy
+                    current_red_shifted = red_shifted_energy
+
+                    while current_harmonic < maximum_energy_of_spectrum:
+                        if current_harmonic > minimum_energy_of_spectrum: harmonics.append(current_harmonic)
+                        if current_red_shifted > minimum_energy_of_spectrum: red_shifted_energies.append(current_red_shifted)
+                        else: red_shifted_energies.append(minimum_energy_of_spectrum) # to manage incomplete patterns as well/
+
+                        current_harmonic_nr += 1
+                        current_harmonic = first_harmonic_energy * current_harmonic_nr
+                        current_red_shifted = self.__get_red_shifted_energy(first_harmonic_energy, current_harmonic_nr)
+
 
                 if write_file:
                     file = open("autobinning.dat", "w")
@@ -353,8 +437,7 @@ class PowerLoopPoint(widget.OWWidget):
 
                     energy_step = energies[1]-energies[0]
 
-                    power = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
-                    cumulated_power = numpy.cumsum(power)
+                    cumulated_power = numpy.cumsum(flux_through_finite_aperture * (1e3 * energy_step * codata.e))
 
                     total_power = cumulated_power[-1]
 
@@ -375,16 +458,56 @@ class PowerLoopPoint(widget.OWWidget):
                     energies        = energies[good]
                     cumulated_power = cumulated_power[good]
 
-                    power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
-                    power_values = power_values[1:] # interpolating power=0 doesn't make sense
+                    if self.refine_around_harmonic == 0:
+                        power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
+                        power_values = power_values[1:] # interpolating power=0 doesn't make sense
 
-                    interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
-                    interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
-                    energy_bins = numpy.diff(interpolated_lower_energies)
-                    interpolated_lower_energies = interpolated_lower_energies[:-1]
-                    power_steps = numpy.ones(len(energy_bins))*(power_values[1]-power_values[0])
+                        interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
+                        interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
+                        energy_bins = numpy.diff(interpolated_lower_energies)
+                        interpolated_lower_energies = interpolated_lower_energies[:-1]
+                        power_steps = numpy.ones(len(energy_bins))*(power_values[1]-power_values[0])
+                    else:
+                        total_n_points_harmonics = len(harmonics) * self.number_of_points_around_harmonic
+                        n_points_out_harmonic = int((self.auto_n_step - total_n_points_harmonics)/len(harmonics))
 
-                    #indexes_harmonics = (numpy.abs(interpolated_upper_energies - v)).argmin()
+                        if n_points_out_harmonic <= 1:
+                            self.auto_n_step = len(harmonics) + total_n_points_harmonics
+
+                        previous_after_harmonic = minimum_energy_of_spectrum
+
+                        power_values = numpy.array([])
+
+                        for red_shifted, harmonic in zip(red_shifted_energies, harmonics):
+                            delta_e = harmonic-red_shifted
+
+                            before = numpy.where(numpy.logical_and(previous_after_harmonic < energies, energies <= red_shifted))
+                            after = numpy.where(numpy.logical_and(red_shifted < energies, energies <= harmonic + delta_e))
+
+                            cumulated_power_before = cumulated_power[before]
+                            cumulated_power_after = cumulated_power[after]
+
+                            power_values = numpy.append(power_values,
+                                                        numpy.linspace(start=cumulated_power_before[0], stop=cumulated_power_before[-1], num=n_points_out_harmonic))
+                            power_values = numpy.append(power_values,
+                                                        numpy.linspace(start=cumulated_power_after[0], stop=cumulated_power_after[-1], num=self.number_of_points_around_harmonic))
+
+                            previous_after_harmonic = harmonic + delta_e
+
+                        last = numpy.where(numpy.logical_and(previous_after_harmonic < energies, energies <= maximum_energy_of_spectrum))
+
+                        cumulated_power_last = cumulated_power[last]
+
+                        power_values = numpy.append(power_values,
+                                                    numpy.linspace(start=cumulated_power_last[0], stop=cumulated_power_last[-1], num=self.number_of_points_last))
+
+                        interpolated_upper_energies = numpy.interp(power_values, cumulated_power, energies)
+                        interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
+                        energy_bins                 = numpy.diff(interpolated_lower_energies)
+                        interpolated_lower_energies = interpolated_lower_energies[:-1]
+                        power_steps                 = numpy.ediff1d(numpy.append(numpy.zeros(1), power_values))
+
+                    flux_steps = numpy.interp(interpolated_upper_energies, energies, flux_through_finite_aperture)
 
                     self.energy_binnings = []
                     self.total_new_objects = 0
@@ -392,8 +515,10 @@ class PowerLoopPoint(widget.OWWidget):
                     self.cumulated_power_plot.addCurve(interpolated_upper_energies, power_values, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
-                    text = "Auto-Binning with Power Step: " + str(round(power_steps[0], 3)) + \
-                           "\nEnergy From, To, Bin\n------------------------------------------"
+                    self.spectral_flux_plot.addCurve(interpolated_upper_energies, flux_steps, replace=False, legend="Energy Binning",
+                                                       color="red", linestyle=" ", symbol="+")
+
+                    text = ""
 
                     for energy_from, energy_to, energy_bin, power_step in zip(interpolated_lower_energies,
                                                                               interpolated_upper_energies,
@@ -405,11 +530,10 @@ class PowerLoopPoint(widget.OWWidget):
                                                        energy_step=round(energy_bin, 3),
                                                        power_step=round(power_step, 4))
 
-                        text += "\n" + \
-                                str(round(energy_from, 3)) + ", " + \
+                        text += str(round(energy_from, 3)) + ", " + \
                                 str(round(energy_to, 3))   + ", " + \
                                 str(round(energy_bin, 3))  + ", " + \
-                                str(round(power_step, 4))
+                                str(round(power_step, 4)) + "\n"
 
                         self.energy_binnings.append(energy_binning)
                         self.total_new_objects += 1
@@ -419,6 +543,8 @@ class PowerLoopPoint(widget.OWWidget):
                     self.external_binning = True
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
         else:
             self.energy_binnings = None
             self.total_new_objects = 0
@@ -606,15 +732,16 @@ class PowerLoopPoint(widget.OWWidget):
             self.suspend_loop = False
             self.run_loop = True
 
-import scipy.constants as codata
-m2ev = codata.c * codata.h / codata.e
 
-def __get_resonance_energy(electron_energy, period_length, K_vertical, K_horizontal=0.0, theta_x=0.0, theta_z=0.0, harmonic_number = 1):
-    gamma = 1e9*electron_energy / (codata.m_e *  codata.c**2 / codata.e)
+    def __get_resonance_energy(self, harmonic_number=1):
+        gamma = 1e9*self.electron_energy / (codata.m_e *  codata.c**2 / codata.e)
 
-    resonance_wavelength = (period_length / (2.0*gamma**2)) * (1 + K_vertical**2 / 2.0 + K_horizontal**2 / 2.0 + gamma**2 * (theta_x**2 + theta_z ** 2))
+        resonance_wavelength = (self.period_length / (2.0*gamma**2)) * (1 + self.K_vertical**2 / 2.0 + self.K_horizontal**2 / 2.0 + gamma**2 * (self.theta_x**2 + self.theta_z ** 2))
 
-    return harmonic_number*m2ev/resonance_wavelength
+        return harmonic_number*m2ev/resonance_wavelength
+
+    def __get_red_shifted_energy(self, first_harmonic_energy, harmonic_number=1):
+        return harmonic_number*first_harmonic_energy*(1 - (1/(harmonic_number*self.number_of_periods)))
 
 if __name__ == "__main__":
     a = QApplication(sys.argv)
