@@ -125,7 +125,7 @@ class PowerLoopPoint(widget.OWWidget):
     auto_perc_total_power = Setting(99)
 
     refine_around_harmonic = Setting(1)
-    number_of_points_around_harmonic = Setting(30)
+    percentage_of_points_around_harmonic = Setting(30)
     number_of_points_last = Setting(3)
 
     electron_energy = Setting(6.0)
@@ -227,8 +227,8 @@ class PowerLoopPoint(widget.OWWidget):
         self.autobinning_box_1_1 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=50)
         self.autobinning_box_1_2 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=50)
 
-        oasysgui.lineEdit(self.autobinning_box_1_1, self, "number_of_points_around_harmonic", "Number of Points Around Harmonic", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(self.autobinning_box_1_1, self, "number_of_points_last", "Number Of Points After last Harmonic", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_1_1, self, "percentage_of_points_around_harmonic", "% of Points Around Harmonics", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_1_1, self, "number_of_points_last", "Number Of Points After last Harmonic", labelWidth=250, valueType=int, orientation="horizontal")
 
         gui.button(self.autobinning_box_1, self, "Reload Spectrum", callback=self.read_spectrum_file)
 
@@ -437,7 +437,10 @@ class PowerLoopPoint(widget.OWWidget):
 
                     energy_step = energies[1]-energies[0]
 
-                    cumulated_power = numpy.cumsum(flux_through_finite_aperture * (1e3 * energy_step * codata.e))
+                    power_down = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
+                    power_up = numpy.append(power_down[1:], [power_down[-1]])
+
+                    cumulated_power = numpy.cumsum((power_down + power_up)/2)
 
                     total_power = cumulated_power[-1]
 
@@ -459,16 +462,11 @@ class PowerLoopPoint(widget.OWWidget):
                     cumulated_power = cumulated_power[good]
 
                     if self.refine_around_harmonic == 0:
-                        power_values = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
-                        power_values = power_values[1:] # interpolating power=0 doesn't make sense
-
-                        interpolated_upper_energies      = numpy.interp(power_values, cumulated_power, energies)
-                        interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
-                        energy_bins = numpy.diff(interpolated_lower_energies)
-                        interpolated_lower_energies = interpolated_lower_energies[:-1]
-                        power_steps = numpy.ones(len(energy_bins))*(power_values[1]-power_values[0])
+                        interpolated_cumulated_power = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
                     else:
-                        total_n_points_harmonics = len(harmonics) * self.number_of_points_around_harmonic
+                        total_n_points_harmonics = int(self.auto_n_step*self.percentage_of_points_around_harmonic*0.01)
+
+                        number_of_points_around_harmonic = int(total_n_points_harmonics/len(harmonics))
                         n_points_out_harmonic = int((self.auto_n_step - total_n_points_harmonics)/len(harmonics))
 
                         if n_points_out_harmonic <= 1:
@@ -476,46 +474,54 @@ class PowerLoopPoint(widget.OWWidget):
 
                         previous_after_harmonic = minimum_energy_of_spectrum
 
-                        power_values = numpy.array([])
+                        interpolated_cumulated_power = numpy.array([])
 
                         for red_shifted, harmonic in zip(red_shifted_energies, harmonics):
                             delta_e = harmonic-red_shifted
 
-                            before = numpy.where(numpy.logical_and(previous_after_harmonic < energies, energies <= red_shifted))
-                            after = numpy.where(numpy.logical_and(red_shifted < energies, energies <= harmonic + delta_e))
+                            before = numpy.where(numpy.logical_and(previous_after_harmonic <= energies, energies < red_shifted))
+                            after = numpy.where(numpy.logical_and(red_shifted <= energies, energies < harmonic + delta_e))
 
                             cumulated_power_before = cumulated_power[before]
                             cumulated_power_after = cumulated_power[after]
 
-                            power_values = numpy.append(power_values,
+                            interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
                                                         numpy.linspace(start=cumulated_power_before[0], stop=cumulated_power_before[-1], num=n_points_out_harmonic))
-                            power_values = numpy.append(power_values,
-                                                        numpy.linspace(start=cumulated_power_after[0], stop=cumulated_power_after[-1], num=self.number_of_points_around_harmonic))
+                            interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                        numpy.linspace(start=cumulated_power_after[0], stop=cumulated_power_after[-1], num=number_of_points_around_harmonic))
 
                             previous_after_harmonic = harmonic + delta_e
 
-                        last = numpy.where(numpy.logical_and(previous_after_harmonic < energies, energies <= maximum_energy_of_spectrum))
+                        last = numpy.where(numpy.logical_and(previous_after_harmonic <= energies, energies <= maximum_energy_of_spectrum))
 
                         cumulated_power_last = cumulated_power[last]
 
-                        power_values = numpy.append(power_values,
-                                                    numpy.linspace(start=cumulated_power_last[0], stop=cumulated_power_last[-1], num=self.number_of_points_last))
+                        interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                       numpy.linspace(start=cumulated_power_last[0], stop=cumulated_power_last[-1], num=self.number_of_points_last))
 
-                        interpolated_upper_energies = numpy.interp(power_values, cumulated_power, energies)
-                        interpolated_lower_energies = numpy.insert(interpolated_upper_energies, 0, energies[0])
-                        energy_bins                 = numpy.diff(interpolated_lower_energies)
-                        interpolated_lower_energies = interpolated_lower_energies[:-1]
-                        power_steps                 = numpy.ediff1d(numpy.append(numpy.zeros(1), power_values))
 
-                    flux_steps = numpy.interp(interpolated_upper_energies, energies, flux_through_finite_aperture)
+                    interpolated_lower_energies = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
+                    interpolated_upper_energies = numpy.append(interpolated_lower_energies, [energies[-1] + energy_step])
+                    energy_bins                 = numpy.diff(interpolated_upper_energies)
+
+                    interpolated_cumulated_power = interpolated_cumulated_power[:-1]
+                    interpolated_lower_energies = interpolated_lower_energies[:-1]
+                    interpolated_upper_energies = interpolated_upper_energies[1:-1]
+
+                    if self.refine_around_harmonic == 0:
+                        power_steps = numpy.ones(len(energy_bins))*(interpolated_cumulated_power[1]-interpolated_cumulated_power[0])
+                    else:
+                        power_steps = numpy.ediff1d(numpy.append(numpy.zeros(1), interpolated_cumulated_power))
+
+                    flux_steps = numpy.interp(interpolated_lower_energies, energies, flux_through_finite_aperture)
 
                     self.energy_binnings = []
                     self.total_new_objects = 0
 
-                    self.cumulated_power_plot.addCurve(interpolated_upper_energies, power_values, replace=False, legend="Energy Binning",
+                    self.cumulated_power_plot.addCurve(interpolated_lower_energies, interpolated_cumulated_power, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
-                    self.spectral_flux_plot.addCurve(interpolated_upper_energies, flux_steps, replace=False, legend="Energy Binning",
+                    self.spectral_flux_plot.addCurve(interpolated_lower_energies, flux_steps, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
                     text = ""
