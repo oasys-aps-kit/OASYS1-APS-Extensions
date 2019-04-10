@@ -775,9 +775,22 @@ class PowerLoopPoint(widget.OWWidget):
 
         red_shifted_index = current_index
 
-        print(harmonic_energy, energies[red_shifted_index], harmonic_flux, self.flux_factor*harmonic_flux, flux_through_finite_aperture[red_shifted_index])
+        min_flux = numpy.min(flux_through_finite_aperture[max(red_shifted_index, 0):harmonic_index])
+        max_flux = numpy.max(flux_through_finite_aperture[max(red_shifted_index, 0):harmonic_index])
 
-        return energies[red_shifted_index]
+        red_shifted_energy = energies[red_shifted_index]
+
+        if min_flux < self.flux_factor*harmonic_flux < max_flux:
+            xp = flux_through_finite_aperture[max(red_shifted_index, 0):harmonic_index][::-1]
+            yp = energies[max(red_shifted_index, 0): harmonic_index][::-1]
+
+            try:
+                if numpy.all(xp[:, 1:] >= xp[:, :-1], axis=1): # monotonic
+                    red_shifted_energy = numpy.interp(self.flux_factor*harmonic_flux, xp, yp)
+            except:
+                pass
+
+        return red_shifted_energy
 
 if __name__ == "__main__":
     a = QApplication(sys.argv)
