@@ -770,25 +770,12 @@ class PowerLoopPoint(widget.OWWidget):
 
         while(previous_difference > current_difference):
             current_index -= 1
+            if current_index == 0: break
             previous_difference = current_difference
             current_difference = numpy.abs(self.flux_factor*harmonic_flux-flux_through_finite_aperture[current_index])
 
         red_shifted_index = current_index
-
-        min_flux = numpy.min(flux_through_finite_aperture[max(red_shifted_index, 0):harmonic_index])
-        max_flux = numpy.max(flux_through_finite_aperture[max(red_shifted_index, 0):harmonic_index])
-
-        red_shifted_energy = energies[red_shifted_index]
-
-        if min_flux < self.flux_factor*harmonic_flux < max_flux:
-            xp = flux_through_finite_aperture[max(red_shifted_index, 0):harmonic_index][::-1]
-            yp = energies[max(red_shifted_index, 0): harmonic_index][::-1]
-
-            try:
-                if numpy.all(xp[:, 1:] >= xp[:, :-1], axis=1): # monotonic
-                    red_shifted_energy = numpy.interp(self.flux_factor*harmonic_flux, xp, yp)
-            except:
-                pass
+        red_shifted_energy = (energies[red_shifted_index] + energies[red_shifted_index+1])/2
 
         return red_shifted_energy
 
