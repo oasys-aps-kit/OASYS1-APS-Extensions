@@ -124,6 +124,7 @@ class PowerLoopPoint(widget.OWWidget):
     refine_around_harmonic = Setting(1)
     percentage_of_points_around_harmonic = Setting(50)
     flux_factor = Setting(2.0)
+    binning_style = Setting(1)
     number_of_points_last = Setting(3)
 
     electron_energy = Setting(6.0)
@@ -224,21 +225,24 @@ class PowerLoopPoint(widget.OWWidget):
                                             items=["Manual", "Automatic"], labelWidth=150,
                                             callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
 
-        self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=220)
+        self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=250)
         self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=20)
 
         oasysgui.lineEdit(self.autobinning_box_1, self, "auto_n_step", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
         oasysgui.lineEdit(self.autobinning_box_1, self, "auto_perc_total_power", "% Total Power", labelWidth=250, valueType=float, orientation="horizontal")
 
         gui.comboBox(self.autobinning_box_1, self, "refine_around_harmonic", label="Increment Points around Harmonic",
-                                            items=["No", "Yes (Odd Only)", "Yes (All)"], labelWidth=250,
-                                            callback=self.set_RefineAroundHarmonic, sendSelectedValue=False, orientation="horizontal")
+                     items=["No", "Yes (Odd Only)", "Yes (All)"], labelWidth=250,
+                     callback=self.set_RefineAroundHarmonic, sendSelectedValue=False, orientation="horizontal")
 
-        self.autobinning_box_1_1 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=75)
-        self.autobinning_box_1_2 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=75)
+        self.autobinning_box_1_1 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=105)
+        self.autobinning_box_1_2 = oasysgui.widgetBox(self.autobinning_box_1, "", addSpace=False, orientation="vertical", height=105)
 
         oasysgui.lineEdit(self.autobinning_box_1_1, self, "percentage_of_points_around_harmonic", "% of Points Around Harmonics", labelWidth=250, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(self.autobinning_box_1_1, self, "flux_factor", "Energy Range by \u00b1 Harmonic Flux Factor", labelWidth=250, valueType=float, orientation="horizontal")
+        gui.comboBox(self.autobinning_box_1_1, self, "binning_style", label="Binning around Harmonic",
+                     items=["Constant Power", "Constant Energy"], labelWidth=250,
+                     sendSelectedValue=False, orientation="horizontal")
         oasysgui.lineEdit(self.autobinning_box_1_1, self, "number_of_points_last", "Number Of Points After last Harmonic", labelWidth=250, valueType=int, orientation="horizontal")
 
         gui.button(self.autobinning_box_1, self, "Reload Spectrum", callback=self.read_spectrum_file)
@@ -250,7 +254,7 @@ class PowerLoopPoint(widget.OWWidget):
         def write_text():
             self.energies = self.text_area.toPlainText()
 
-        self.text_area = oasysgui.textArea(height=125, width=385, readOnly=False)
+        self.text_area = oasysgui.textArea(height=95, width=385, readOnly=False)
         self.text_area.setText(self.energies)
         self.text_area.setStyleSheet("background-color: white; font-family: Courier, monospace;")
         self.text_area.textChanged.connect(write_text)
@@ -340,7 +344,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.autobinning_box_1.setVisible(self.autobinning==1)
         self.autobinning_box_2.setVisible(self.autobinning==0)
         self.text_area.setReadOnly(self.autobinning==1)
-        self.text_area.setFixedHeight(125 if self.autobinning==1 else 320)
+        self.text_area.setFixedHeight(95 if self.autobinning==1 else 320)
         self.cumulated_power_plot.clear()
         self.cumulated_power_plot.setEnabled(self.autobinning==1)
         self.spectral_flux_plot.clear()
@@ -498,12 +502,29 @@ class PowerLoopPoint(widget.OWWidget):
                             after = numpy.where(numpy.logical_and(red_shifted <= energies, energies < harmonic + delta_e))
 
                             cumulated_power_before = cumulated_power[before]
-                            cumulated_power_after = cumulated_power[after]
 
                             interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
-                                                        numpy.linspace(start=cumulated_power_before[0], stop=cumulated_power_before[-1], num=n_points_out_harmonic))
-                            interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
-                                                        numpy.linspace(start=cumulated_power_after[0], stop=cumulated_power_after[-1], num=number_of_points_around_harmonic))
+                                                                        numpy.linspace(start=cumulated_power_before[0],
+                                                                                       stop=cumulated_power_before[-1],
+                                                                                       num=n_points_out_harmonic))
+
+                            if self.binning_style == 0: # constant power
+                                cumulated_power_after = cumulated_power[after]
+
+                                interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                                            numpy.linspace(start=cumulated_power_after[0],
+                                                                                           stop=cumulated_power_after[-1],
+                                                                                           num=number_of_points_around_harmonic))
+
+                            else:
+                                energies_after = energies[after]
+
+                                interpolated_energies = numpy.linspace(start=energies_after[0],
+                                                                       stop=energies_after[-1],
+                                                                       num=number_of_points_around_harmonic)
+
+                                interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                                            numpy.interp(interpolated_energies, energies, cumulated_power))
 
                             previous_after_harmonic = harmonic + delta_e
 
