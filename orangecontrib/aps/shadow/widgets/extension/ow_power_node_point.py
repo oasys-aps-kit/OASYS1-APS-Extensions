@@ -345,21 +345,21 @@ class PowerLoopPoint(widget.OWWidget):
 
         tabs = oasysgui.tabWidget(self.mainArea)
         tabs.setFixedHeight(self.height()-15)
-        tabs.setFixedWidth(685)
+        tabs.setFixedWidth(775)
 
         tab_plot = oasysgui.createTabPage(tabs, "Cumulated Power")
         tab_flux = oasysgui.createTabPage(tabs, "Spectral Flux")
 
         self.cumulated_power_plot = oasysgui.plotWindow(tab_plot)
         self.cumulated_power_plot.setFixedHeight(self.height()-20)
-        self.cumulated_power_plot.setFixedWidth(680)
+        self.cumulated_power_plot.setFixedWidth(775)
         self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
         self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
         self.cumulated_power_plot.setGraphTitle("Cumulated Power")
 
         self.spectral_flux_plot = oasysgui.plotWindow(tab_flux)
         self.spectral_flux_plot.setFixedHeight(self.height()-20)
-        self.spectral_flux_plot.setFixedWidth(680)
+        self.spectral_flux_plot.setFixedWidth(775)
         self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
         self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
         self.spectral_flux_plot.setGraphTitle("Spectral Flux")
