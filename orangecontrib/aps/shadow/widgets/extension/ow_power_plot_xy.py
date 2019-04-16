@@ -47,6 +47,9 @@
 
 import sys
 import time
+import numpy
+import scipy.signal as signal
+import scipy.ndimage.filters as filters
 
 from PyQt5 import QtGui, QtWidgets
 from orangewidget import gui
@@ -117,6 +120,11 @@ class PowerPlotXY(AutomaticElement):
     sigma_y = Setting(0.0)
     gamma = Setting(0.0)
 
+    filter = Setting(0)
+    filter_sigma = Setting(1)
+    filter_mode = Setting(0)
+    filter_cval = Setting(0.0)
+
     cumulated_ticket=None
     plotted_ticket   = None
     energy_min = None
@@ -145,6 +153,7 @@ class PowerPlotXY(AutomaticElement):
         # graph tab
         tab_set = oasysgui.createTabPage(self.tabs_setting, "Plot Settings")
         tab_gen = oasysgui.createTabPage(self.tabs_setting, "Histogram Settings")
+        tab_post = oasysgui.createTabPage(self.tabs_setting, "Post Processing")
 
         screen_box = oasysgui.widgetBox(tab_set, "Screen Position Settings", addSpace=True, orientation="vertical", height=120)
 
@@ -266,6 +275,32 @@ class PowerPlotXY(AutomaticElement):
 
         self.set_kind_of_calculation()
 
+
+        # post porcessing
+
+        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=250)
+
+        gui.button(post_box, self, "Load Plot", callback=self.selectPlotFile, height=35)
+
+        button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
+
+        gui.button(button_box, self, "Smooth Plot", callback=self.smoothPlot, height=35)
+        gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
+
+        gui.comboBox(post_box, self, "filter", label="Filter", labelWidth=200,
+                     items=["Gaussian",
+                            "Laplace",
+                            "Gaussian-Laplace",
+                            "Uniform"], sendSelectedValue=False, orientation="horizontal")
+
+        oasysgui.lineEdit(post_box, self, "filter_sigma", "Sigma/Size", labelWidth=200,  valueType=float, orientation="horizontal")
+
+        self.cb_filter_mode = gui.comboBox(post_box, self, "filter_mode", label="Mode", labelWidth=200,
+                                           items=["reflect", "constant", "nearest", "mirror", "wrap"],
+                                           sendSelectedValue=False, orientation="horizontal")
+
+        oasysgui.lineEdit(post_box, self, "filter_cval", "cval (constant mode)", labelWidth=250,  valueType=float, orientation="horizontal")
+
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
         out_tab = oasysgui.createTabPage(self.main_tabs, "Output")
@@ -344,6 +379,122 @@ class PowerPlotXY(AutomaticElement):
     def selectAutosaveFile(self):
         self.le_autosave_file_name.setText(oasysgui.selectFileFromDialog(self, self.autosave_file_name, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)"))
 
+    def selectPlotFile(self):
+        file_name = oasysgui.selectFileFromDialog(self, None, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
+
+        if not file_name is None:
+            plot_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(file_name), mode="r")
+
+            ticket = {}
+
+            ticket["histogram"], ticket["histogram_h"], ticket["histogram_v"], attributes = plot_file.get_last_plot(dataset_name="power_density")
+            ticket["bin_h_center"], ticket["bin_v_center"], ticket["pp_h_label"], ticket["pp_v_label"] = plot_file.get_coordinates()
+
+            if self.plot_canvas is None:
+                self.plot_canvas = PowerPlotXYWidget()
+                self.image_box.layout().addWidget(self.plot_canvas)
+
+            cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+
+            try:
+                try:
+                    energy_min=attributes["energy_min"]
+                    energy_max=attributes["energy_max"]
+                    energy_step=attributes["energy_step"]
+                except:
+                    energy_min=0.0
+                    energy_max=0.0
+                    energy_step=0.0
+
+                self.plot_canvas.cumulated_power_plot = cumulated_power_plot
+                self.plot_canvas.plot_power_density_ticket(ticket,
+                                                           ticket["pp_h_label"],
+                                                           ticket["pp_v_label"],
+                                                           cumulated_total_power=0.0,
+                                                           energy_min=energy_min,
+                                                           energy_max=energy_max,
+                                                           energy_step=energy_step)
+
+                self.cumulated_ticket = None
+                self.plotted_ticket = ticket
+            except Exception as e:
+                if not self.IS_DEVELOP:
+                    raise Exception("Data not plottable: No good rays or bad content")
+                else:
+                    raise e
+
+    def reloadPlot(self):
+        if not self.plotted_ticket is None:
+            ticket = self.plotted_ticket
+
+            if self.plot_canvas is None:
+                self.plot_canvas = PowerPlotXYWidget()
+                self.image_box.layout().addWidget(self.plot_canvas)
+
+            cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+
+            try:
+                energy_min=0.0
+                energy_max=0.0
+                energy_step=0.0
+
+                self.plot_canvas.cumulated_power_plot = cumulated_power_plot
+                self.plot_canvas.plot_power_density_ticket(ticket,
+                                                           ticket["pp_h_label"],
+                                                           ticket["pp_v_label"],
+                                                           cumulated_total_power=0.0,
+                                                           energy_min=energy_min,
+                                                           energy_max=energy_max,
+                                                           energy_step=energy_step)
+
+            except Exception as e:
+                if not self.IS_DEVELOP:
+                    raise Exception("Data not plottable: No good rays or bad content")
+                else:
+                    raise e
+
+    def smoothPlot(self):
+        if not self.plotted_ticket is None:
+            ticket = self.plotted_ticket.copy()
+
+            filter_mode = self.cb_filter_mode.currentText()
+
+            if self.filter == 0:
+                ticket["histogram"] = filters.gaussian_filter(ticket["histogram"], sigma=self.filter_sigma, mode=filter_mode, cval=self.filter_cval)
+            elif self.filter == 1:
+                ticket["histogram"] = filters.laplace(ticket["histogram"], mode=filter_mode, cval=self.filter_sigma)
+            elif self.filter == 2:
+                ticket["histogram"] = filters.gaussian_laplace(ticket["histogram"], sigma=self.filter_sigma, mode=filter_mode, cval=self.filter_cval)
+            elif self.filter == 3:
+                ticket["histogram"] = filters.uniform_filter(ticket["histogram"], size=int(self.filter_sigma), mode=filter_mode, cval=self.filter_cval)
+
+            if self.plot_canvas is None:
+                self.plot_canvas = PowerPlotXYWidget()
+                self.image_box.layout().addWidget(self.plot_canvas)
+
+            cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+
+            try:
+                energy_min=0.0
+                energy_max=0.0
+                energy_step=0.0
+
+                self.plot_canvas.cumulated_power_plot = cumulated_power_plot
+                self.plot_canvas.plot_power_density_ticket(ticket,
+                                                           ticket["pp_h_label"],
+                                                           ticket["pp_v_label"],
+                                                           cumulated_total_power=0.0,
+                                                           energy_min=energy_min,
+                                                           energy_max=energy_max,
+                                                           energy_step=energy_step)
+
+
+            except Exception as e:
+                if not self.IS_DEVELOP:
+                    raise Exception("Data not plottable: No good rays or bad content")
+                else:
+                    raise e
+
     def save_cumulated_data(self):
         if not self.plotted_ticket is None:
             try:
@@ -357,6 +508,9 @@ class PowerPlotXY(AutomaticElement):
 
                     save_file.write_coordinates(self.plotted_ticket)
                     save_file.add_plot_xy(self.plotted_ticket, dataset_name="power_density")
+                    save_file.last_plot.attrs["energy_min"]=self.energy_min
+                    save_file.last_plot.attrs["energy_max"]=self.energy_max
+                    save_file.last_plot.attrs["energy_step"]=self.energy_step
 
                     save_file.close()
             except Exception as exception:

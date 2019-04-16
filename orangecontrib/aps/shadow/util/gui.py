@@ -570,7 +570,10 @@ class PowerPlotXYWidget(QWidget):
             xx = ticket['bin_h_center']
             yy = ticket['bin_v_center']
 
-            self.plot_data2D(histogram, xx, yy, title, self.get_label(var_x), self.get_label(var_y))
+            if not isinstance(var_x, str): var_x = self.get_label(var_x)
+            if not isinstance(var_y, str): var_y = self.get_label(var_y)
+
+            self.plot_data2D(histogram, xx, yy, title, var_x, var_y)
 
     def get_label(self, var):
         if var == 1: return "X [mm]"
