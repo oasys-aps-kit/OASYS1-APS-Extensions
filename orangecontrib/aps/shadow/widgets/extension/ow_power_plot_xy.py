@@ -48,8 +48,9 @@
 import sys
 import time
 import numpy
-import scipy.signal as signal
 import scipy.ndimage.filters as filters
+import scipy.ndimage.interpolation as interpolation
+import scipy.ndimage.fourier as fourier
 
 from PyQt5 import QtGui, QtWidgets
 from orangewidget import gui
@@ -120,8 +121,9 @@ class PowerPlotXY(AutomaticElement):
     sigma_y = Setting(0.0)
     gamma = Setting(0.0)
 
-    filter = Setting(0)
-    filter_sigma = Setting(1)
+    filter = Setting(3)
+    filter_sigma_h = Setting(1.0)
+    filter_sigma_v = Setting(1.0)
     filter_mode = Setting(0)
     filter_cval = Setting(0.0)
 
@@ -132,6 +134,8 @@ class PowerPlotXY(AutomaticElement):
     energy_step = None
     total_power = None
     cumulated_total_power = None
+
+    plotted_ticket_original = None
 
     view_type=Setting(1)
 
@@ -278,7 +282,7 @@ class PowerPlotXY(AutomaticElement):
 
         # post porcessing
 
-        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=250)
+        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=280)
 
         gui.button(post_box, self, "Load Plot", callback=self.selectPlotFile, height=35)
 
@@ -289,17 +293,21 @@ class PowerPlotXY(AutomaticElement):
 
         gui.comboBox(post_box, self, "filter", label="Filter", labelWidth=200,
                      items=["Gaussian",
-                            "Laplace",
-                            "Gaussian-Laplace",
-                            "Uniform"], sendSelectedValue=False, orientation="horizontal")
+                            "Spline",
+                            "Uniform",
+                            "Fourier-Gaussian",
+                            "Fourier-Ellipsoid",
+                            "Fourier-Uniform",
+                            ], sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(post_box, self, "filter_sigma", "Sigma/Size", labelWidth=200,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(post_box, self, "filter_sigma_h", "Sigma/Size H", labelWidth=200,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(post_box, self, "filter_sigma_v", "Sigma/Size V", labelWidth=200,  valueType=float, orientation="horizontal")
 
         self.cb_filter_mode = gui.comboBox(post_box, self, "filter_mode", label="Mode", labelWidth=200,
                                            items=["reflect", "constant", "nearest", "mirror", "wrap"],
                                            sendSelectedValue=False, orientation="horizontal")
 
-        oasysgui.lineEdit(post_box, self, "filter_cval", "cval (constant mode)", labelWidth=250,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(post_box, self, "filter_cval", "Constant Value/Order for Spline", labelWidth=250,  valueType=float, orientation="horizontal")
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
@@ -415,6 +423,7 @@ class PowerPlotXY(AutomaticElement):
 
                 self.cumulated_ticket = None
                 self.plotted_ticket = ticket
+                self.plotted_ticket_original = ticket.copy()
             except Exception as e:
                 if not self.IS_DEVELOP:
                     raise Exception("Data not plottable: No good rays or bad content")
@@ -422,8 +431,8 @@ class PowerPlotXY(AutomaticElement):
                     raise e
 
     def reloadPlot(self):
-        if not self.plotted_ticket is None:
-            ticket = self.plotted_ticket
+        if not self.plotted_ticket_original is None:
+            ticket = self.plotted_ticket_original.copy()
 
             if self.plot_canvas is None:
                 self.plot_canvas = PowerPlotXYWidget()
@@ -445,6 +454,8 @@ class PowerPlotXY(AutomaticElement):
                                                            energy_max=energy_max,
                                                            energy_step=energy_step)
 
+
+                self.plotted_ticket = ticket
             except Exception as e:
                 if not self.IS_DEVELOP:
                     raise Exception("Data not plottable: No good rays or bad content")
@@ -453,26 +464,30 @@ class PowerPlotXY(AutomaticElement):
 
     def smoothPlot(self):
         if not self.plotted_ticket is None:
-            ticket = self.plotted_ticket.copy()
-
-            filter_mode = self.cb_filter_mode.currentText()
-
-            if self.filter == 0:
-                ticket["histogram"] = filters.gaussian_filter(ticket["histogram"], sigma=self.filter_sigma, mode=filter_mode, cval=self.filter_cval)
-            elif self.filter == 1:
-                ticket["histogram"] = filters.laplace(ticket["histogram"], mode=filter_mode, cval=self.filter_sigma)
-            elif self.filter == 2:
-                ticket["histogram"] = filters.gaussian_laplace(ticket["histogram"], sigma=self.filter_sigma, mode=filter_mode, cval=self.filter_cval)
-            elif self.filter == 3:
-                ticket["histogram"] = filters.uniform_filter(ticket["histogram"], size=int(self.filter_sigma), mode=filter_mode, cval=self.filter_cval)
-
-            if self.plot_canvas is None:
-                self.plot_canvas = PowerPlotXYWidget()
-                self.image_box.layout().addWidget(self.plot_canvas)
-
-            cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
-
             try:
+                ticket = self.plotted_ticket.copy()
+
+                filter_mode = self.cb_filter_mode.currentText()
+
+                if self.filter == 0:
+                    ticket["histogram"] = filters.gaussian_filter(ticket["histogram"], sigma=(self.filter_sigma_h, self.filter_sigma_v), mode=filter_mode, cval=self.filter_cval)
+                elif self.filter == 1:
+                    ticket["histogram"] = interpolation.spline_filter(ticket["histogram"], order=int(self.filter_cval))
+                elif self.filter == 2:
+                    ticket["histogram"] = filters.uniform_filter(ticket["histogram"], size=(int(self.filter_sigma_h), int(self.filter_sigma_v)), mode=filter_mode, cval=self.filter_cval)
+                elif self.filter == 3:
+                    ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_gaussian(numpy.fft.fft2(ticket["histogram"]), sigma=(self.filter_sigma_h, self.filter_sigma_v))))
+                elif self.filter == 4:
+                    ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_ellipsoid(numpy.fft.fft2(ticket["histogram"]), size=(self.filter_sigma_h, self.filter_sigma_v))))
+                elif self.filter == 5:
+                    ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_uniform(numpy.fft.fft2(ticket["histogram"]), size=(self.filter_sigma_h, self.filter_sigma_v))))
+
+                if self.plot_canvas is None:
+                    self.plot_canvas = PowerPlotXYWidget()
+                    self.image_box.layout().addWidget(self.plot_canvas)
+
+                cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+
                 energy_min=0.0
                 energy_max=0.0
                 energy_step=0.0
@@ -487,6 +502,7 @@ class PowerPlotXY(AutomaticElement):
                                                            energy_step=energy_step)
 
 
+                self.plotted_ticket = ticket
             except Exception as e:
                 if not self.IS_DEVELOP:
                     raise Exception("Data not plottable: No good rays or bad content")
