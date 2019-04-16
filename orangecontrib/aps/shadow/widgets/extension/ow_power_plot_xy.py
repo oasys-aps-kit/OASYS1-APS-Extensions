@@ -388,7 +388,10 @@ class PowerPlotXY(AutomaticElement):
             ticket = {}
 
             ticket["histogram"], ticket["histogram_h"], ticket["histogram_v"], attributes = plot_file.get_last_plot(dataset_name="power_density")
-            ticket["bin_h_center"], ticket["bin_v_center"], ticket["pp_h_label"], ticket["pp_v_label"] = plot_file.get_coordinates()
+            ticket["bin_h_center"], ticket["bin_v_center"], ticket["h_label"], ticket["v_label"] = plot_file.get_coordinates()
+            ticket["intensity"] = attributes["intensity"]
+            ticket["nrays"]     = attributes["total_rays"]
+            ticket["good_rays"] = attributes["good_rays"]
 
             if self.plot_canvas is None:
                 self.plot_canvas = PowerPlotXYWidget()
@@ -397,19 +400,14 @@ class PowerPlotXY(AutomaticElement):
             cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
 
             try:
-                try:
-                    energy_min=attributes["energy_min"]
-                    energy_max=attributes["energy_max"]
-                    energy_step=attributes["energy_step"]
-                except:
-                    energy_min=0.0
-                    energy_max=0.0
-                    energy_step=0.0
+                energy_min=0.0
+                energy_max=0.0
+                energy_step=0.0
 
                 self.plot_canvas.cumulated_power_plot = cumulated_power_plot
                 self.plot_canvas.plot_power_density_ticket(ticket,
-                                                           ticket["pp_h_label"],
-                                                           ticket["pp_v_label"],
+                                                           ticket["h_label"],
+                                                           ticket["v_label"],
                                                            cumulated_total_power=0.0,
                                                            energy_min=energy_min,
                                                            energy_max=energy_max,
@@ -440,8 +438,8 @@ class PowerPlotXY(AutomaticElement):
 
                 self.plot_canvas.cumulated_power_plot = cumulated_power_plot
                 self.plot_canvas.plot_power_density_ticket(ticket,
-                                                           ticket["pp_h_label"],
-                                                           ticket["pp_v_label"],
+                                                           ticket["h_label"],
+                                                           ticket["v_label"],
                                                            cumulated_total_power=0.0,
                                                            energy_min=energy_min,
                                                            energy_max=energy_max,
@@ -481,8 +479,8 @@ class PowerPlotXY(AutomaticElement):
 
                 self.plot_canvas.cumulated_power_plot = cumulated_power_plot
                 self.plot_canvas.plot_power_density_ticket(ticket,
-                                                           ticket["pp_h_label"],
-                                                           ticket["pp_v_label"],
+                                                           ticket["h_label"],
+                                                           ticket["v_label"],
                                                            cumulated_total_power=0.0,
                                                            energy_min=energy_min,
                                                            energy_max=energy_max,
@@ -508,9 +506,6 @@ class PowerPlotXY(AutomaticElement):
 
                     save_file.write_coordinates(self.plotted_ticket)
                     save_file.add_plot_xy(self.plotted_ticket, dataset_name="power_density")
-                    save_file.last_plot.attrs["energy_min"]=self.energy_min
-                    save_file.last_plot.attrs["energy_max"]=self.energy_max
-                    save_file.last_plot.attrs["energy_step"]=self.energy_step
 
                     save_file.close()
             except Exception as exception:
