@@ -299,6 +299,7 @@ class PowerPlotXY(AutomaticElement):
                             "Fourier-Gaussian",
                             "Fourier-Ellipsoid",
                             "Fourier-Uniform",
+                            "Fill Holes"
                             ], sendSelectedValue=False, orientation="horizontal")
 
         oasysgui.lineEdit(post_box, self, "filter_sigma_h", "Sigma/Size H", labelWidth=200,  valueType=float, orientation="horizontal")
@@ -468,6 +469,8 @@ class PowerPlotXY(AutomaticElement):
             try:
                 ticket = self.plotted_ticket.copy()
 
+                pixel_area = (ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+
                 filter_mode = self.cb_filter_mode.currentText()
 
                 if self.filter == 0:
@@ -482,12 +485,14 @@ class PowerPlotXY(AutomaticElement):
                     ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_ellipsoid(numpy.fft.fft2(ticket["histogram"]), size=(self.filter_sigma_h, self.filter_sigma_v))))
                 elif self.filter == 5:
                     ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_uniform(numpy.fft.fft2(ticket["histogram"]), size=(self.filter_sigma_h, self.filter_sigma_v))))
+                elif self.filter == 6:
+                    ticket["histogram"] = self.apply_fill_holes(ticket["histogram"])
 
                 if self.plot_canvas is None:
                     self.plot_canvas = PowerPlotXYWidget()
                     self.image_box.layout().addWidget(self.plot_canvas)
 
-                cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+                cumulated_power_plot = numpy.sum(ticket["histogram"])*pixel_area
 
                 energy_min=0.0
                 energy_max=0.0
@@ -509,6 +514,19 @@ class PowerPlotXY(AutomaticElement):
                     raise Exception("Data not plottable: No good rays or bad content")
                 else:
                     raise e
+
+
+
+    def apply_fill_holes(self, histogram):
+        from skimage.morphology import reconstruction
+
+        seed = numpy.copy(histogram)
+        seed[1:-1, 1:-1] = histogram.max()
+
+        filled = reconstruction(seed=seed, mask=histogram, method='erosion')
+
+        return filled*(histogram.sum()/filled.sum())
+
 
     def save_cumulated_data_hdf5(self):
         if not self.plotted_ticket is None:
