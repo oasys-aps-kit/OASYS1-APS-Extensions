@@ -146,8 +146,9 @@ class PowerPlotXY(AutomaticElement):
 
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=False, orientation="horizontal")
 
-        gui.button(button_box, self, "Plot Cumulated Data", callback=self.plot_cumulated_data, height=45)
-        gui.button(button_box, self, "Save Current Plot", callback=self.save_cumulated_data, height=45)
+        gui.button(button_box, self, "Plot Data", callback=self.plot_cumulated_data, height=45)
+        gui.button(button_box, self, "Save Plot (HDF5)", callback=self.save_cumulated_data_hdf5, height=45)
+        gui.button(button_box, self, "Save Plot (DAT)", callback=self.save_cumulated_data_txt, height=45)
 
         gui.separator(self.controlArea, 10)
 
@@ -509,7 +510,7 @@ class PowerPlotXY(AutomaticElement):
                 else:
                     raise e
 
-    def save_cumulated_data(self):
+    def save_cumulated_data_hdf5(self):
         if not self.plotted_ticket is None:
             try:
                 file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
@@ -523,6 +524,36 @@ class PowerPlotXY(AutomaticElement):
                     save_file.write_coordinates(self.plotted_ticket)
                     save_file.add_plot_xy(self.plotted_ticket, dataset_name="power_density")
 
+                    save_file.close()
+            except Exception as exception:
+                QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise exception
+
+    def save_cumulated_data_txt(self):
+        if not self.plotted_ticket is None:
+            try:
+                file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Current Plot", filter="DAT Files (*.dat *.txt)")
+
+                if not file_name is None and not file_name.strip()=="":
+                    if not (file_name.endswith("dat") or file_name.endswith("txt")):
+                        file_name += ".dat"
+
+                    save_file = open(file_name, "w")
+
+                    x_values = self.plotted_ticket["bin_h_center"]
+                    y_values = self.plotted_ticket["bin_v_center"]
+                    z_values = self.plotted_ticket["histogram"]
+
+                    for i in range(len(x_values)):
+                        for j in range(len(y_values)):
+                            row = str(x_values[i]) + " " + str(y_values[j]) + " " + str(z_values[i, j])
+
+                            if i+j > 0: row = "\n" + row
+
+                            save_file.write(row)
+
+                    save_file.flush()
                     save_file.close()
             except Exception as exception:
                 QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
