@@ -529,6 +529,8 @@ class PowerLoopPoint(widget.OWWidget):
                         harmonic_index = 0
                         text = ""
 
+                        energy_step_first_harmonic = None
+
                         for index in range(1, len(energies)):
                             current_energy = energies[index]
                             current_cumulated_power = cumulated_power[index]
@@ -560,12 +562,18 @@ class PowerLoopPoint(widget.OWWidget):
                                     harmonics_in_the_range = len(in_the_range[0])
 
                                     if harmonics_in_the_range == 1:
-                                        print(initial_energy, final_energy)
-
                                         if harmonic_index >= len(harmonics):
                                             number_of_points_around_harmonic = int(self.number_of_points_first_harmonic)
                                         else:
-                                            number_of_points_around_harmonic = int(self.number_of_points_first_harmonic*(1+min(harmonic_index, 1)*0.1*(harmonics[0]/harmonics[harmonic_index])))
+                                            if harmonic_index == 0:
+                                                number_of_points_around_harmonic = int(self.number_of_points_first_harmonic)
+
+                                                energy_step_first_harmonic = (final_energy-initial_energy)/number_of_points_around_harmonic
+                                            else:
+                                                if bool(harmonic_index & 1) == 0:
+                                                    number_of_points_around_harmonic = int((final_energy-initial_energy)/energy_step_first_harmonic)
+                                                else:
+                                                    number_of_points_around_harmonic = int(self.number_of_points_first_harmonic)
 
                                         interpolated_energies = numpy.append(interpolated_energies,
                                                                              numpy.linspace(start=initial_energy,
