@@ -53,7 +53,7 @@ except AttributeError:
     from setuptools import find_packages, setup
 
 NAME = 'OASYS1-APS-Extensions'
-VERSION = '1.0.15'
+VERSION = '1.0.16'
 ISRELEASED = True
 
 DESCRIPTION = 'ShadowOui/SRW extension for the APS'
@@ -86,6 +86,7 @@ SETUP_REQUIRES = (
 
 INSTALL_REQUIRES = (
     'setuptools',
+    'scikit-image'
 )
 
 PACKAGES = find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests'))
