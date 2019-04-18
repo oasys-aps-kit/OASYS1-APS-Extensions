@@ -52,7 +52,9 @@ import scipy.ndimage.filters as filters
 import scipy.ndimage.interpolation as interpolation
 import scipy.ndimage.fourier as fourier
 
-from PyQt5 import QtGui, QtWidgets
+from PyQt5.QtWidgets import QMessageBox, QFileDialog
+from PyQt5.QtGui import QTextCursor
+
 from orangewidget import gui
 from orangewidget.settings import Setting
 from oasys.widgets import gui as oasysgui
@@ -406,6 +408,20 @@ class PowerPlotXY(AutomaticElement):
             if self.plot_canvas is None:
                 self.plot_canvas = PowerPlotXYWidget()
                 self.image_box.layout().addWidget(self.plot_canvas)
+            else:
+                if not self.plotted_ticket is None:
+                    if QMessageBox.question(self, "Load Plot", "Merge with current Plot?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+                        if ticket["histogram"].shape == self.plotted_ticket["histogram"].shape and \
+                           ticket["bin_h_center"].shape == self.plotted_ticket["bin_h_center"].shape and \
+                           ticket["bin_v_center"].shape == self.plotted_ticket["bin_v_center"].shape and \
+                           ticket["bin_h_center"][0] == self.plotted_ticket["bin_h_center"][0] and \
+                           ticket["bin_h_center"][-1] == self.plotted_ticket["bin_h_center"][-1] and \
+                           ticket["bin_v_center"][0] == self.plotted_ticket["bin_v_center"][0] and \
+                           ticket["bin_v_center"][-1] == self.plotted_ticket["bin_v_center"][-1]:
+                            ticket["histogram"] += self.plotted_ticket["histogram"]
+                            ticket["histogram"] *= 0.5
+                        else:
+                            raise ValueError("The plots cannot be merged: the should have same dimensions and ranges")
 
             cumulated_power_plot = numpy.sum(ticket["histogram"])*(ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
 
@@ -427,10 +443,9 @@ class PowerPlotXY(AutomaticElement):
                 self.plotted_ticket = ticket
                 self.plotted_ticket_original = ticket.copy()
             except Exception as e:
-                if not self.IS_DEVELOP:
-                    raise Exception("Data not plottable: No good rays or bad content")
-                else:
-                    raise e
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
 
     def reloadPlot(self):
         if not self.plotted_ticket_original is None:
@@ -459,10 +474,9 @@ class PowerPlotXY(AutomaticElement):
 
                 self.plotted_ticket = ticket
             except Exception as e:
-                if not self.IS_DEVELOP:
-                    raise Exception("Data not plottable: No good rays or bad content")
-                else:
-                    raise e
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
 
     def smoothPlot(self):
         if not self.plotted_ticket is None:
@@ -510,10 +524,9 @@ class PowerPlotXY(AutomaticElement):
 
                 self.plotted_ticket = ticket
             except Exception as e:
-                if not self.IS_DEVELOP:
-                    raise Exception("Data not plottable: No good rays or bad content")
-                else:
-                    raise e
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
 
 
 
@@ -531,7 +544,7 @@ class PowerPlotXY(AutomaticElement):
     def save_cumulated_data_hdf5(self):
         if not self.plotted_ticket is None:
             try:
-                file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
+                file_name, _ = QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
 
                 if not file_name is None and not file_name.strip()=="":
                     if not (file_name.endswith("hd5") or file_name.endswith("hdf5") or file_name.endswith("hdf")):
@@ -544,14 +557,14 @@ class PowerPlotXY(AutomaticElement):
 
                     save_file.close()
             except Exception as exception:
-                QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
+                QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
                 if self.IS_DEVELOP: raise exception
 
     def save_cumulated_data_txt(self):
         if not self.plotted_ticket is None:
             try:
-                file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Current Plot", filter="DAT Files (*.dat *.txt)")
+                file_name, _ = QFileDialog.getSaveFileName(self, "Save Current Plot", filter="DAT Files (*.dat *.txt)")
 
                 if not file_name is None and not file_name.strip()=="":
                     if not (file_name.endswith("dat") or file_name.endswith("txt")):
@@ -574,7 +587,7 @@ class PowerPlotXY(AutomaticElement):
                     save_file.flush()
                     save_file.close()
             except Exception as exception:
-                QtWidgets.QMessageBox.critical(self, "Error", str(exception), QtWidgets.QMessageBox.Ok)
+                QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
                 if self.IS_DEVELOP: raise exception
 
@@ -609,6 +622,7 @@ class PowerPlotXY(AutomaticElement):
                                                                                          sigma_y=self.sigma_y,
                                                                                          gamma=self.gamma)
                 self.plotted_ticket = self.cumulated_ticket
+                self.plotted_ticket_original = self.plotted_ticket.copy()
 
                 if self.autosave == 1:
                     self.autosave_file.write_coordinates(self.cumulated_ticket)
@@ -645,6 +659,7 @@ class PowerPlotXY(AutomaticElement):
 
                 self.cumulated_ticket = None
                 self.plotted_ticket = ticket
+                self.plotted_ticket_original = self.plotted_ticket.copy()
 
                 if self.autosave == 1:
                     self.autosave_file.write_coordinates(ticket)
@@ -725,9 +740,9 @@ class PowerPlotXY(AutomaticElement):
 
             time.sleep(0.1)  # prevents a misterious dead lock in the Orange cycle when refreshing the histogram
         except Exception as exception:
-            QtWidgets.QMessageBox.critical(self, "Error",
+            QMessageBox.critical(self, "Error",
                                        str(exception),
-                                       QtWidgets.QMessageBox.Ok)
+                                       QMessageBox.Ok)
 
             if self.IS_DEVELOP: raise exception
 
@@ -762,7 +777,7 @@ class PowerPlotXY(AutomaticElement):
 
     def writeStdOut(self, text):
         cursor = self.shadow_output.textCursor()
-        cursor.movePosition(QtGui.QTextCursor.End)
+        cursor.movePosition(QTextCursor.End)
         cursor.insertText(text)
         self.shadow_output.setTextCursor(cursor)
         self.shadow_output.ensureCursorVisible()
