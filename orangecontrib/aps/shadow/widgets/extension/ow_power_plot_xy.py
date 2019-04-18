@@ -45,7 +45,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-import sys
+import os, sys
 import time
 import numpy
 import scipy.ndimage.filters as filters
@@ -123,11 +123,14 @@ class PowerPlotXY(AutomaticElement):
     sigma_y = Setting(0.0)
     gamma = Setting(0.0)
 
+
+    loaded_plot_file_name = "<load hdf5 file>"
     filter = Setting(3)
     filter_sigma_h = Setting(1.0)
     filter_sigma_v = Setting(1.0)
     filter_mode = Setting(0)
     filter_cval = Setting(0.0)
+    masking_level = Setting(1e-3)
 
     cumulated_ticket=None
     plotted_ticket   = None
@@ -282,17 +285,19 @@ class PowerPlotXY(AutomaticElement):
 
         self.set_kind_of_calculation()
 
-
         # post porcessing
 
-        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=280)
+        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=300)
 
-        gui.button(post_box, self, "Load Plot", callback=self.selectPlotFile, height=35)
+        post_box_1 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal", height=25)
+        self.le_loaded_plot_file_name = oasysgui.lineEdit(post_box_1, self, "loaded_plot_file_name", "Loaded File", labelWidth=100,  valueType=str, orientation="horizontal")
+        gui.button(post_box_1, self, "...", callback=self.selectPlotFile)
 
         button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
-
         gui.button(button_box, self, "Smooth Plot", callback=self.smoothPlot, height=35)
         gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
+
+        gui.separator(post_box)
 
         gui.comboBox(post_box, self, "filter", label="Filter", labelWidth=200,
                      items=["Gaussian",
@@ -312,6 +317,8 @@ class PowerPlotXY(AutomaticElement):
                                            sendSelectedValue=False, orientation="horizontal")
 
         oasysgui.lineEdit(post_box, self, "filter_cval", "Constant Value/Order for Spline", labelWidth=250,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(post_box, self, "masking_level", "Mask: factor of max value", labelWidth=250,  valueType=float, orientation="horizontal")
+
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
@@ -395,6 +402,8 @@ class PowerPlotXY(AutomaticElement):
         file_name = oasysgui.selectFileFromDialog(self, None, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
 
         if not file_name is None:
+            self.le_loaded_plot_file_name.setText(os.path.basename(os.path.normpath(file_name)))
+
             plot_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(file_name), mode="r")
 
             ticket = {}
@@ -482,31 +491,44 @@ class PowerPlotXY(AutomaticElement):
         if not self.plotted_ticket is None:
             try:
                 ticket = self.plotted_ticket.copy()
+                mask = numpy.where(self.plotted_ticket_original["histogram"] <= self.plotted_ticket_original["histogram"].max()*self.masking_level)
 
-                pixel_area = (ticket["bin_h_center"][1]-ticket["bin_h_center"][0])*(ticket["bin_v_center"][1]-ticket["bin_v_center"][0])
+                histogram = ticket["histogram"]
+                h_coord = ticket["bin_h_center"]
+                v_coord = ticket["bin_v_center"]
+
+                norm = histogram.sum()
+
+                pixel_area = (h_coord[1]-h_coord[0])*(v_coord[1]-v_coord[0])
 
                 filter_mode = self.cb_filter_mode.currentText()
 
                 if self.filter == 0:
-                    ticket["histogram"] = filters.gaussian_filter(ticket["histogram"], sigma=(self.filter_sigma_h, self.filter_sigma_v), mode=filter_mode, cval=self.filter_cval)
+                    histogram = filters.gaussian_filter(histogram, sigma=(self.filter_sigma_h, self.filter_sigma_v), mode=filter_mode, cval=self.filter_cval)
                 elif self.filter == 1:
-                    ticket["histogram"] = interpolation.spline_filter(ticket["histogram"], order=int(self.filter_cval))
+                    histogram = interpolation.spline_filter(histogram, order=int(self.filter_cval))
                 elif self.filter == 2:
-                    ticket["histogram"] = filters.uniform_filter(ticket["histogram"], size=(int(self.filter_sigma_h), int(self.filter_sigma_v)), mode=filter_mode, cval=self.filter_cval)
+                    histogram = filters.uniform_filter(histogram, size=(int(self.filter_sigma_h), int(self.filter_sigma_v)), mode=filter_mode, cval=self.filter_cval)
                 elif self.filter == 3:
-                    ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_gaussian(numpy.fft.fft2(ticket["histogram"]), sigma=(self.filter_sigma_h, self.filter_sigma_v))))
+                    histogram = numpy.real(numpy.fft.ifft2(fourier.fourier_gaussian(numpy.fft.fft2(histogram), sigma=(self.filter_sigma_h, self.filter_sigma_v))))
                 elif self.filter == 4:
-                    ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_ellipsoid(numpy.fft.fft2(ticket["histogram"]), size=(self.filter_sigma_h, self.filter_sigma_v))))
+                    histogram = numpy.real(numpy.fft.ifft2(fourier.fourier_ellipsoid(numpy.fft.fft2(histogram), size=(self.filter_sigma_h, self.filter_sigma_v))))
                 elif self.filter == 5:
-                    ticket["histogram"] = numpy.real(numpy.fft.ifft2(fourier.fourier_uniform(numpy.fft.fft2(ticket["histogram"]), size=(self.filter_sigma_h, self.filter_sigma_v))))
+                    histogram = numpy.real(numpy.fft.ifft2(fourier.fourier_uniform(numpy.fft.fft2(histogram), size=(self.filter_sigma_h, self.filter_sigma_v))))
                 elif self.filter == 6:
-                    ticket["histogram"] = self.apply_fill_holes(ticket["histogram"])
+                    histogram = self.apply_fill_holes(histogram)
 
+                histogram[mask] = 0.0
+
+                norm /= histogram.sum()
+
+                ticket["histogram"] = histogram*norm
+                
                 if self.plot_canvas is None:
                     self.plot_canvas = PowerPlotXYWidget()
                     self.image_box.layout().addWidget(self.plot_canvas)
 
-                cumulated_power_plot = numpy.sum(ticket["histogram"])*pixel_area
+                cumulated_power_plot = numpy.sum(histogram)*pixel_area
 
                 energy_min=0.0
                 energy_max=0.0
@@ -520,7 +542,6 @@ class PowerPlotXY(AutomaticElement):
                                                            energy_min=energy_min,
                                                            energy_max=energy_max,
                                                            energy_step=energy_step)
-
 
                 self.plotted_ticket = ticket
             except Exception as e:
