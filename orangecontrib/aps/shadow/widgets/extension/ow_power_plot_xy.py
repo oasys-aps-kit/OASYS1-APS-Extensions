@@ -130,6 +130,7 @@ class PowerPlotXY(AutomaticElement):
     filter_sigma_v = Setting(1.0)
     filter_mode = Setting(0)
     filter_cval = Setting(0.0)
+    filter_spline_order = Setting(2)
     masking_level = Setting(1e-3)
 
     cumulated_ticket=None
@@ -307,18 +308,32 @@ class PowerPlotXY(AutomaticElement):
                             "Fourier-Ellipsoid",
                             "Fourier-Uniform",
                             "Fill Holes"
-                            ], sendSelectedValue=False, orientation="horizontal")
+                            ], sendSelectedValue=False, orientation="horizontal", callback=self.set_Filter)
 
-        oasysgui.lineEdit(post_box, self, "filter_sigma_h", "Sigma/Size H", labelWidth=200,  valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(post_box, self, "filter_sigma_v", "Sigma/Size V", labelWidth=200,  valueType=float, orientation="horizontal")
+        self.post_box_1 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=110)
+        self.post_box_2 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=110)
+        self.post_box_3 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=110)
+        self.post_box_4 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=110)
 
-        self.cb_filter_mode = gui.comboBox(post_box, self, "filter_mode", label="Mode", labelWidth=200,
+        oasysgui.lineEdit(self.post_box_1, self, "filter_sigma_h", "Sigma/Size H", labelWidth=200,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.post_box_1, self, "filter_sigma_v", "Sigma/Size V", labelWidth=200,  valueType=float, orientation="horizontal")
+
+        oasysgui.lineEdit(self.post_box_2, self, "filter_sigma_h", "Sigma/Size H", labelWidth=200,  valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.post_box_2, self, "filter_sigma_v", "Sigma/Size V", labelWidth=200,  valueType=float, orientation="horizontal")
+
+        self.cb_filter_mode = gui.comboBox(self.post_box_2, self, "filter_mode", label="Mode", labelWidth=200,
                                            items=["reflect", "constant", "nearest", "mirror", "wrap"],
-                                           sendSelectedValue=False, orientation="horizontal")
+                                           sendSelectedValue=False, orientation="horizontal", callback=self.set_FilterMode)
 
-        oasysgui.lineEdit(post_box, self, "filter_cval", "Constant Value/Order for Spline", labelWidth=250,  valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(post_box, self, "masking_level", "Mask: factor of max value", labelWidth=250,  valueType=float, orientation="horizontal")
+        self.le_filter_cval = oasysgui.lineEdit(self.post_box_2, self, "filter_cval", "Constant Value", labelWidth=250,  valueType=float, orientation="horizontal")
 
+        oasysgui.lineEdit(self.post_box_3, self, "filter_spline_order", "Spline Order", labelWidth=250,  valueType=int, orientation="horizontal")
+
+        gui.separator(post_box)
+
+        oasysgui.lineEdit(post_box, self, "masking_level", "Mask if < factor of max value", labelWidth=250,  valueType=float, orientation="horizontal")
+
+        self.set_Filter()
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
@@ -394,6 +409,17 @@ class PowerPlotXY(AutomaticElement):
     def set_YRange(self):
         self.yrange_box.setVisible(self.y_range == 1)
         self.yrange_box_empty.setVisible(self.y_range == 0)
+
+    def set_Filter(self):
+        self.post_box_1.setVisible(3<=self.filter<=5)
+        self.post_box_2.setVisible(self.filter==0 or self.filter==2)
+        self.post_box_3.setVisible(self.filter==1 )
+        self.post_box_4.setVisible(self.filter==6)
+
+        if self.filter==0 or self.filter==2: self.set_FilterMode()
+
+    def set_FilterMode(self):
+        self.le_filter_cval.setEnabled(self.filter_mode==1)
 
     def selectAutosaveFile(self):
         self.le_autosave_file_name.setText(oasysgui.selectFileFromDialog(self, self.autosave_file_name, "Select File", file_extension_filter="HDF5 Files (*.hdf5 *.h5 *.hdf)"))
@@ -490,6 +516,12 @@ class PowerPlotXY(AutomaticElement):
     def smoothPlot(self):
         if not self.plotted_ticket is None:
             try:
+                if self.filter==0 or 2<=self.filter<=5:
+                    congruence.checkStrictlyPositiveNumber(self.filter_sigma_h, "Sigma/Size H")
+                    congruence.checkStrictlyPositiveNumber(self.filter_sigma_v, "Sigma/Size V")
+
+                if self.filter == 1: congruence.checkStrictlyPositiveNumber(self.filter_spline_order, "Spline Order")
+
                 ticket = self.plotted_ticket.copy()
                 mask = numpy.where(self.plotted_ticket_original["histogram"] <= self.plotted_ticket_original["histogram"].max()*self.masking_level)
 
@@ -506,7 +538,7 @@ class PowerPlotXY(AutomaticElement):
                 if self.filter == 0:
                     histogram = filters.gaussian_filter(histogram, sigma=(self.filter_sigma_h, self.filter_sigma_v), mode=filter_mode, cval=self.filter_cval)
                 elif self.filter == 1:
-                    histogram = interpolation.spline_filter(histogram, order=int(self.filter_cval))
+                    histogram = interpolation.spline_filter(histogram, order=int(self.filter_spline_order))
                 elif self.filter == 2:
                     histogram = filters.uniform_filter(histogram, size=(int(self.filter_sigma_h), int(self.filter_sigma_v)), mode=filter_mode, cval=self.filter_cval)
                 elif self.filter == 3:
