@@ -185,58 +185,62 @@ def write_histo_and_stats_file_hdf5(histo_data=HistogramDataCollection(),
                                     stats=StatisticalDataCollection(),
                                     suffix="",
                                     output_folder=""):
-    file = h5py.File(os.path.join(output_folder, "variable_scan_histogram_and_statistics.hdf5"), "w")
+    file = h5py.File(os.path.join(output_folder, "variable_scan_histogram_and_statistics" + suffix + ".hdf5"), "w")
 
-    histos = file.create_group("variable_scan_histograms")
+    if not histo_data is None:
+        histos = file.create_group("variable_scan_histograms")
 
-    for scan_value, positions, intensities in zip(histo_data.get_scan_values(), histo_data.get_positions(), histo_data.get_intensities()):
-        histogram = histos.create_group("histogram_" + str(scan_value) + suffix)
-        histogram.create_dataset("positions", data=positions)
-        histogram.create_dataset("intensities", data=intensities)
+        for scan_value, positions, intensities in zip(histo_data.get_scan_values(), histo_data.get_positions(), histo_data.get_intensities()):
+            histogram = histos.create_group("histogram_" + str(scan_value) + suffix)
+            histogram.create_dataset("positions", data=positions)
+            histogram.create_dataset("intensities", data=intensities)
 
-    statistics = file.create_group("statistics")
+    if not stats is None:
+        statistics = file.create_group("statistics")
 
-    statistics.create_dataset("scan_values", data=stats.get_scan_values())
-    statistics.create_dataset("fhwm", data=stats.get_fwhms())
-    statistics.create_dataset("sigma", data=stats.get_sigmas())
-    statistics.create_dataset("relative_intensity", data=stats.get_relative_intensities())
+        statistics.create_dataset("scan_values", data=stats.get_scan_values())
+        statistics.create_dataset("fhwm", data=stats.get_fwhms())
+        statistics.create_dataset("sigma", data=stats.get_sigmas())
+        statistics.create_dataset("relative_intensity", data=stats.get_relative_intensities())
 
-    file.flush()
-    file.close()
+        file.flush()
+        file.close()
 
 def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
                                stats=StatisticalDataCollection(),
                                suffix="",
                                output_folder=""):
-    for scan_value, positions, intensities in zip(histo_data.get_scan_values(), histo_data.get_positions(), histo_data.get_intensities()):
+    if not histo_data is None:
+        for scan_value, positions, intensities in zip(histo_data.get_scan_values(), histo_data.get_positions(), histo_data.get_intensities()):
 
-        file = open(os.path.join(output_folder, "histogram_" + str(scan_value) + suffix + ".dat"), "w")
+            file = open(os.path.join(output_folder, "histogram_" + str(scan_value) + suffix + ".dat"), "w")
 
-        for position, intensity in zip(positions, intensities):
-            file.write(str(position) + "   " + str(intensity) + "\n")
+            for position, intensity in zip(positions, intensities):
+                file.write(str(position) + "   " + str(intensity) + "\n")
 
-        file.flush()
-        file.close()
+            file.flush()
+            file.close()
 
-    file_fwhm = open(os.path.join(output_folder, "fwhm" + suffix + ".dat"), "w")
-    file_sigma = open(os.path.join(output_folder, "sigma" + suffix + ".dat"), "w")
-    file_peak_intensity = open(os.path.join(output_folder, "relative_intensity" + suffix + ".dat"), "w")
+    if not stats is None:
+        file_fwhm = open(os.path.join(output_folder, "fwhm" + suffix + ".dat"), "w")
+        file_sigma = open(os.path.join(output_folder, "sigma" + suffix + ".dat"), "w")
+        file_peak_intensity = open(os.path.join(output_folder, "relative_intensity" + suffix + ".dat"), "w")
 
-    for scan_value, fwhm, sigma, peak_intensity in zip(stats.get_scan_values(),
-                                                       stats.get_fwhms(),
-                                                       stats.get_sigmas(),
-                                                       stats.get_relative_intensities()):
-        file_fwhm.write(str(scan_value) + "   " + str(fwhm) + "\n")
-        file_sigma.write(str(scan_value) + "   " + str(sigma) + "\n")
-        file_peak_intensity.write(str(scan_value) + "   " + str(peak_intensity) + "\n")
+        for scan_value, fwhm, sigma, peak_intensity in zip(stats.get_scan_values(),
+                                                           stats.get_fwhms(),
+                                                           stats.get_sigmas(),
+                                                           stats.get_relative_intensities()):
+            file_fwhm.write(str(scan_value) + "   " + str(fwhm) + "\n")
+            file_sigma.write(str(scan_value) + "   " + str(sigma) + "\n")
+            file_peak_intensity.write(str(scan_value) + "   " + str(peak_intensity) + "\n")
 
-    file_fwhm.flush()
-    file_sigma.flush()
-    file_peak_intensity.flush()
+        file_fwhm.flush()
+        file_sigma.flush()
+        file_peak_intensity.flush()
 
-    file_fwhm.close()
-    file_sigma.close()
-    file_peak_intensity.close()
+        file_fwhm.close()
+        file_sigma.close()
+        file_peak_intensity.close()
 
 def get_sigma(histogram, bins):
     total = numpy.sum(histogram)

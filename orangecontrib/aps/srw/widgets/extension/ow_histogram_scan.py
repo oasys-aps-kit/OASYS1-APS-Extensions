@@ -86,7 +86,8 @@ class Histogram(SRWWidget):
     IMAGE_HEIGHT = 635
 
     want_main_area=1
-    plot_canvas=None
+    plot_canvas_intensity=None
+    plot_canvas_phase=None
     plot_scan_canvas=None
 
     input_srw_data = None
@@ -107,8 +108,10 @@ class Histogram(SRWWidget):
     last_ticket=None
 
     current_histo_data = None
+    current_histo_data_phase = None
     current_stats = None
     last_histo_data = None
+    last_histo_data_phase = None
     histo_index = -1
 
     plot_type = Setting(1)
@@ -201,16 +204,26 @@ class Histogram(SRWWidget):
 
         self.main_tabs = oasysgui.tabWidget(self.mainArea)
         plot_tab = oasysgui.createTabPage(self.main_tabs, "Plots")
-        plot_tab_stats = oasysgui.createTabPage(self.main_tabs, "Stats")
-        out_tab = oasysgui.createTabPage(self.main_tabs, "Output")
 
-        self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
-        self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
-        self.image_box.setFixedWidth(self.IMAGE_WIDTH)
+        plot_tabs = oasysgui.tabWidget(plot_tab)
+        intensity_tab = oasysgui.createTabPage(plot_tabs, "Intensity")
+        phase_tab     = oasysgui.createTabPage(plot_tabs, "Phase")
+
+        self.image_box = gui.widgetBox(intensity_tab, "", addSpace=False, orientation="vertical")
+        self.image_box.setFixedHeight(self.IMAGE_HEIGHT-30)
+        self.image_box.setFixedWidth(self.IMAGE_WIDTH-20)
+
+        self.image_box_2 = gui.widgetBox(phase_tab, "", addSpace=False, orientation="vertical")
+        self.image_box_2.setFixedHeight(self.IMAGE_HEIGHT-30)
+        self.image_box_2.setFixedWidth(self.IMAGE_WIDTH-20)
+
+        plot_tab_stats = oasysgui.createTabPage(self.main_tabs, "Stats")
 
         self.image_box_stats = gui.widgetBox(plot_tab_stats, "Stats Result", addSpace=True, orientation="vertical")
         self.image_box_stats.setFixedHeight(self.IMAGE_HEIGHT)
         self.image_box_stats.setFixedWidth(self.IMAGE_WIDTH)
+
+        out_tab = oasysgui.createTabPage(self.main_tabs, "Output")
 
         self.shadow_output = oasysgui.textArea(height=580, width=800)
 
@@ -226,19 +239,29 @@ class Histogram(SRWWidget):
         self.last_ticket = None
         self.current_stats = None
         self.current_histo_data = None
+        self.current_histo_data_phase = None
         self.last_histo_data = None
+        self.last_histo_data_phase = None
 
         self.histo_index = -1
 
-        if not self.plot_canvas is None:
+        if not self.plot_canvas_intensity is None:
             self.main_tabs.removeTab(1)
             self.main_tabs.removeTab(0)
 
             plot_tab = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
 
-            self.image_box = gui.widgetBox(plot_tab, "Plot Result", addSpace=True, orientation="vertical")
-            self.image_box.setFixedHeight(self.IMAGE_HEIGHT)
-            self.image_box.setFixedWidth(self.IMAGE_WIDTH)
+            plot_tabs = oasysgui.tabWidget(plot_tab)
+            intensity_tab = oasysgui.createTabPage(plot_tabs, "Intensity")
+            phase_tab     = oasysgui.createTabPage(plot_tabs, "Phase")
+
+            self.image_box = gui.widgetBox(intensity_tab, "", addSpace=False, orientation="vertical")
+            self.image_box.setFixedHeight(self.IMAGE_HEIGHT-30)
+            self.image_box.setFixedWidth(self.IMAGE_WIDTH-20)
+
+            self.image_box_2 = gui.widgetBox(phase_tab, "", addSpace=False, orientation="vertical")
+            self.image_box_2.setFixedHeight(self.IMAGE_HEIGHT-30)
+            self.image_box_2.setFixedWidth(self.IMAGE_WIDTH-20)
 
             plot_tab_stats = oasysgui.widgetBox(self.main_tabs, addToLayout=0, margin=4)
 
@@ -252,7 +275,8 @@ class Histogram(SRWWidget):
             self.main_tabs.setTabText(0, "Plots")
             self.main_tabs.setCurrentIndex(0)
 
-            self.plot_canvas = None
+            self.plot_canvas_intensity = None
+            self.plot_canvas_phase = None
             self.plot_canvas_stats = None
 
     def set_IterativeMode(self):
@@ -268,7 +292,8 @@ class Histogram(SRWWidget):
         self.clear_data()
 
     def set_PlotType(self):
-        self.plot_canvas = None
+        self.plot_canvas_intensity = None
+        self.plot_canvas_phase = None
         self.plot_canvas_stats = None
 
         self.box_pt_1.setVisible(self.plot_type==0)
@@ -279,19 +304,22 @@ class Histogram(SRWWidget):
         self.xrange_box_empty.setVisible(self.x_range == 0)
 
     def replace_fig(self, wavefront, var, xrange, title, xtitle, ytitle, xum):
-        if self.plot_canvas is None:
+        if self.plot_canvas_intensity is None:
             if self.iterative_mode < 2:
-                self.plot_canvas = SRWPlot.Detailed1DWidget(y_scale_factor=1.14)
+                self.plot_canvas_intensity = SRWPlot.Detailed1DWidget(y_scale_factor=1.14)
             else:
                 if self.plot_type == 0:
-                    self.plot_canvas = ScanHistoWidget()
+                    self.plot_canvas_intensity = ScanHistoWidget()
+                    self.plot_canvas_phase = ScanHistoWidget()
                 elif self.plot_type==1:
-                    self.plot_canvas = Scan3DHistoWidget(type=Scan3DHistoWidget.PlotType.LINES if self.plot_type_3D==0 else Scan3DHistoWidget.PlotType.SURFACE)
+                    self.plot_canvas_intensity = Scan3DHistoWidget(type=Scan3DHistoWidget.PlotType.LINES if self.plot_type_3D == 0 else Scan3DHistoWidget.PlotType.SURFACE)
+                    self.plot_canvas_phase     = Scan3DHistoWidget(type=Scan3DHistoWidget.PlotType.LINES if self.plot_type_3D == 0 else Scan3DHistoWidget.PlotType.SURFACE)
 
                 self.plot_canvas_stats = DoublePlotWidget(parent=None)
                 self.image_box_stats.layout().addWidget(self.plot_canvas_stats)
 
-            self.image_box.layout().addWidget(self.plot_canvas)
+            self.image_box.layout().addWidget(self.plot_canvas_intensity)
+            self.image_box_2.layout().addWidget(self.plot_canvas_phase)
 
         if self.polarization_component_to_be_extracted == 0:
             polarization_component_to_be_extracted = PolarizationComponent.TOTAL
@@ -300,30 +328,55 @@ class Histogram(SRWWidget):
         elif self.polarization_component_to_be_extracted == 2:
             polarization_component_to_be_extracted = PolarizationComponent.LINEAR_VERTICAL
 
+        if self.multi_electron==0 and self.iterative_mode==2:
+            e, h, v, p = wavefront.get_phase(polarization_component_to_be_extracted=polarization_component_to_be_extracted)
+        
+            ticket2D_Phase = SRWPlot.get_ticket_2D(h, v, p[int(e.size/2)])
+
+            ticket_phase = {}
+            if var == Column.X:
+                ticket_phase["histogram"] = ticket2D_Phase["histogram"][:, int(e.size/2)]
+                ticket_phase["bins"] = ticket2D_Phase["bin_h"]*TO_UM
+                ticket_phase["xrange"] = ticket2D_Phase["xrange"]
+                ticket_phase["fwhm"] = ticket2D_Phase["fwhm_h"]*TO_UM
+                ticket_phase["fwhm_coordinates"] = ticket2D_Phase["fwhm_coordinates_h"]
+            elif var == Column.Y:
+                ticket_phase["histogram"] = ticket2D_Phase["histogram"][int(e.size/2), :]
+                ticket_phase["bins"] = ticket2D_Phase["bin_v"]*TO_UM
+                ticket_phase["xrange"] = ticket2D_Phase["yrange"]
+                ticket_phase["fwhm"] = ticket2D_Phase["fwhm_v"]*TO_UM
+                ticket_phase["fwhm_coordinates"] = ticket2D_Phase["fwhm_coordinates_v"]
+    
+            ticket_phase["xrange"] = (ticket_phase["xrange"][0]*TO_UM, ticket_phase["xrange"][1]*TO_UM)
+    
+            if not ticket_phase["fwhm"] is None and not ticket_phase["fwhm"] == 0.0:
+                ticket_phase["fwhm_coordinates"] = (ticket_phase["fwhm_coordinates"][0]*TO_UM, ticket_phase["fwhm_coordinates"][1]*TO_UM)
+
+
         e, h, v, i = wavefront.get_intensity(multi_electron=self.multi_electron==1,
                                             polarization_component_to_be_extracted=polarization_component_to_be_extracted,
                                             type_of_dependence=TypeOfDependence.VS_XY)
-
-        ticket2D = SRWPlot.get_ticket_2D(h, v, i[int(e.size/2)])
-
-        ticket = {}
+        
+        ticket2D_Intensity = SRWPlot.get_ticket_2D(h, v, i[int(e.size/2)])
+        
+        ticket_intensity = {}
         if var == Column.X:
-            ticket["histogram"] = ticket2D["histogram_h"]
-            ticket["bins"] = ticket2D["bin_h"]*TO_UM
-            ticket["xrange"] = ticket2D["xrange"]
-            ticket["fwhm"] = ticket2D["fwhm_h"]*TO_UM
-            ticket["fwhm_coordinates"] = ticket2D["fwhm_coordinates_h"]
+            ticket_intensity["histogram"] = ticket2D_Intensity["histogram_h"]
+            ticket_intensity["bins"] = ticket2D_Intensity["bin_h"]*TO_UM
+            ticket_intensity["xrange"] = ticket2D_Intensity["xrange"]
+            ticket_intensity["fwhm"] = ticket2D_Intensity["fwhm_h"]*TO_UM
+            ticket_intensity["fwhm_coordinates"] = ticket2D_Intensity["fwhm_coordinates_h"]
         elif var == Column.Y:
-            ticket["histogram"] = ticket2D["histogram_v"]
-            ticket["bins"] = ticket2D["bin_v"]*TO_UM
-            ticket["xrange"] = ticket2D["yrange"]
-            ticket["fwhm"] = ticket2D["fwhm_v"]*TO_UM
-            ticket["fwhm_coordinates"] = ticket2D["fwhm_coordinates_v"]
+            ticket_intensity["histogram"] = ticket2D_Intensity["histogram_v"]
+            ticket_intensity["bins"] = ticket2D_Intensity["bin_v"]*TO_UM
+            ticket_intensity["xrange"] = ticket2D_Intensity["yrange"]
+            ticket_intensity["fwhm"] = ticket2D_Intensity["fwhm_v"]*TO_UM
+            ticket_intensity["fwhm_coordinates"] = ticket2D_Intensity["fwhm_coordinates_v"]
 
-        ticket["xrange"] = (ticket["xrange"][0]*TO_UM, ticket["xrange"][1]*TO_UM)
+        ticket_intensity["xrange"] = (ticket_intensity["xrange"][0]*TO_UM, ticket_intensity["xrange"][1]*TO_UM)
 
-        if not ticket["fwhm"] is None and not ticket["fwhm"] == 0.0:
-            ticket["fwhm_coordinates"] = (ticket["fwhm_coordinates"][0]*TO_UM, ticket["fwhm_coordinates"][1]*TO_UM)
+        if not ticket_intensity["fwhm"] is None and not ticket_intensity["fwhm"] == 0.0:
+            ticket_intensity["fwhm_coordinates"] = (ticket_intensity["fwhm_coordinates"][0]*TO_UM, ticket_intensity["fwhm_coordinates"][1]*TO_UM)
 
         try:
             if self.iterative_mode==0:
@@ -331,20 +384,24 @@ class Histogram(SRWWidget):
                 self.current_histo_data = None
                 self.current_stats = None
                 self.last_histo_data = None
+                self.current_histo_data_phase = None
+                self.last_histo_data_phase = None
                 self.histo_index = -1
 
-                self.plot_canvas.plot_1D(ticket, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
+                self.plot_canvas_intensity.plot_1D(ticket_intensity, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
             elif self.iterative_mode == 1:
                 self.current_histo_data = None
                 self.current_stats = None
                 self.last_histo_data = None
+                self.current_histo_data_phase = None
+                self.last_histo_data_phase = None
                 self.histo_index = -1
 
-                ticket['histogram'] += self.last_ticket['histogram']
+                ticket_intensity['histogram'] += self.last_ticket['histogram']
 
-                self.plot_canvas.plot_1D(ticket, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
+                self.plot_canvas_intensity.plot_1D(ticket_intensity, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
 
-                self.last_ticket = ticket
+                self.last_ticket = ticket_intensity
             else:
                 if not wavefront.scanned_variable_data is None:
                     self.last_ticket = None
@@ -353,21 +410,38 @@ class Histogram(SRWWidget):
                     um = wavefront.scanned_variable_data.get_scanned_variable_um()
                     um = " " + um if um.strip() == "" else " [" + um + "]"
 
-                    histo_data = self.plot_canvas.plot_histo(ticket,
-                                                             col=var,
-                                                             title=title,
-                                                             xtitle=xtitle,
-                                                             ytitle=ytitle,
-                                                             histo_index=self.histo_index,
-                                                             scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
-                                                             scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
-                                                             offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
-                                                             xrange=xrange,
-                                                             show_reference=False,
-                                                             add_labels=self.add_labels==1,
-                                                             has_colormap=self.has_colormap==1,
-                                                             use_default_factor=False
-                                                             )
+                    if self.multi_electron==0:
+                        histo_data_phase = self.plot_canvas_phase.plot_histo(ticket_phase,
+                                                                             col=var,
+                                                                             title="Phase [rad]",
+                                                                             xtitle=xtitle,
+                                                                             ytitle=ytitle,
+                                                                             histo_index=self.histo_index,
+                                                                             scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                                             scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
+                                                                             offset=0.0 if self.last_histo_data_phase is None else self.last_histo_data_phase.offset,
+                                                                             xrange=xrange,
+                                                                             show_reference=False,
+                                                                             add_labels=self.add_labels==1,
+                                                                             has_colormap=self.has_colormap==1,
+                                                                             use_default_factor=False
+                                                                             )
+
+                    histo_data = self.plot_canvas_intensity.plot_histo(ticket_intensity,
+                                                                       col=var,
+                                                                       title=title,
+                                                                       xtitle=xtitle,
+                                                                       ytitle=ytitle,
+                                                                       histo_index=self.histo_index,
+                                                                       scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                                       scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
+                                                                       offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
+                                                                       xrange=xrange,
+                                                                       show_reference=False,
+                                                                       add_labels=self.add_labels==1,
+                                                                       has_colormap=self.has_colormap==1,
+                                                                       use_default_factor=False
+                                                                       )
 
                     scanned_variable_value = wavefront.scanned_variable_data.get_scanned_variable_value()
 
@@ -382,12 +456,25 @@ class Histogram(SRWWidget):
                         else:
                             self.current_histo_data.add_histogram_data(histo_data)
 
+                    if self.multi_electron==0:
+                        if isinstance(scanned_variable_value, str):
+                            histo_data_phase.scan_value = self.histo_index + 1
+                        else:
+                            histo_data_phase.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
+
+                        if not histo_data_phase.bins is None:
+                            if self.current_histo_data_phase is None:
+                                self.current_histo_data_phase = HistogramDataCollection(histo_data_phase)
+                            else:
+                                self.current_histo_data_phase.add_histogram_data(histo_data_phase)
+
                     if self.current_stats is None:
                         self.current_stats = StatisticalDataCollection(histo_data)
                     else:
                         self.current_stats.add_statistical_data(histo_data)
 
                     self.last_histo_data = histo_data
+                    if self.multi_electron==0: self.last_histo_data_phase = histo_data_phase
 
                     self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
                                                       self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
@@ -503,12 +590,25 @@ class Histogram(SRWWidget):
                     if item == "Hdf5":
                         write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data,
                                                         stats=self.current_stats,
-                                                        suffix="",
+                                                        suffix="_intensity",
                                                         output_folder=output_folder)
                     else:
                         write_histo_and_stats_file(histo_data=self.current_histo_data,
                                                    stats=self.current_stats,
-                                                   suffix="",
+                                                   suffix="_intensity",
                                                    output_folder=output_folder)
+
+                    if self.multi_electron==0 and not self.current_histo_data_phase is None:
+                        if item == "Hdf5":
+                            write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data_phase,
+                                                            stats=None,
+                                                            suffix="_phase",
+                                                            output_folder=output_folder)
+                        else:
+                            write_histo_and_stats_file(histo_data=self.current_histo_data_phase,
+                                                       stats=None,
+                                                       suffix="_phase",
+                                                       output_folder=output_folder)
+
 
                 QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
