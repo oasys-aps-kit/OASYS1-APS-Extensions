@@ -650,17 +650,17 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
         if output_folder:
             if not self.current_histo_data is None:
-                items = ("Hdf5", "Text")
+                items = ("Hdf5", "Text", "Both")
 
                 item, ok = QtWidgets.QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
 
                 if ok and item:
-                    if item == "Hdf5":
+                    if item == "Hdf5" or item == "Both":
                         write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data,
                                                         stats=self.current_stats,
                                                         suffix="",
                                                         output_folder=output_folder)
-                    else:
+                    if item == "Text" or item == "Both":
                         write_histo_and_stats_file(histo_data=self.current_histo_data,
                                                    stats=self.current_stats,
                                                    suffix="",

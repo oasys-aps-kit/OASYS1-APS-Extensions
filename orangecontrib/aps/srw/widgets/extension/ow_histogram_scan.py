@@ -577,29 +577,29 @@ class Histogram(SRWWidget):
 
         if output_folder:
             if not self.current_histo_data is None:
-                items = ("Hdf5", "Text")
+                items = ("Hdf5", "Text", "Both")
 
                 item, ok = QtWidgets.QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
 
                 if ok and item:
-                    if item == "Hdf5":
+                    if item == "Hdf5" or item == "Both":
                         write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data,
                                                         stats=self.current_stats,
                                                         suffix="_intensity",
                                                         output_folder=output_folder)
-                    else:
+                    if item == "Text" or item == "Both":
                         write_histo_and_stats_file(histo_data=self.current_histo_data,
                                                    stats=self.current_stats,
                                                    suffix="_intensity",
                                                    output_folder=output_folder)
 
                     if self.multi_electron==0 and not self.current_histo_data_phase is None:
-                        if item == "Hdf5":
+                        if item == "Hdf5" or item == "Both":
                             write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data_phase,
                                                             stats=None,
                                                             suffix="_phase",
                                                             output_folder=output_folder)
-                        else:
+                        if item == "Text" or item == "Both":
                             write_histo_and_stats_file(histo_data=self.current_histo_data_phase,
                                                        stats=None,
                                                        suffix="_phase",
