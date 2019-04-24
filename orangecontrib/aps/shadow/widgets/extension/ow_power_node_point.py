@@ -657,8 +657,9 @@ class PowerLoopPoint(widget.OWWidget):
 
                             cumulated_power_last = cumulated_power[last]
 
-                            interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
-                                                           numpy.linspace(start=cumulated_power_last[0], stop=cumulated_power_last[-1], num=self.number_of_points_last))
+                            if not len(cumulated_power_last) == 0:
+                                interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                               numpy.linspace(start=cumulated_power_last[0], stop=cumulated_power_last[-1], num=self.number_of_points_last))
 
                     interpolated_lower_energies = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
                     interpolated_upper_energies = numpy.append(interpolated_lower_energies, [energies[-1] + energy_step])
@@ -668,7 +669,7 @@ class PowerLoopPoint(widget.OWWidget):
                     interpolated_lower_energies = interpolated_lower_energies[:-1]
                     interpolated_upper_energies = interpolated_upper_energies[1:-1]
 
-                    if self.refine_around_harmonic == 0:
+                    if self.autobinning==2 and self.refine_around_harmonic == 0:
                         power_steps = numpy.ones(len(energy_bins))*(interpolated_cumulated_power[1]-interpolated_cumulated_power[0])
                     else:
                         power_steps = numpy.ediff1d(numpy.append(numpy.zeros(1), interpolated_cumulated_power))
