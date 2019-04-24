@@ -401,81 +401,76 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
             self.image_box.layout().addWidget(self.plot_canvas)
 
-        try:
-            if self.iterative_mode==0:
+        if self.iterative_mode==0:
+            self.last_ticket = None
+            self.current_histo_data = None
+            self.current_stats = None
+            self.last_histo_data = None
+            self.histo_index = -1
+            self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
+                                        self.weight_column_index, title, xtitle, ytitle,
+                                        nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
+
+        elif self.iterative_mode == 1:
+            self.current_histo_data = None
+            self.current_stats = None
+            self.last_histo_data = None
+            self.histo_index = -1
+            self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
+                                                           self.weight_column_index, title, xtitle, ytitle,
+                                                           nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm,
+                                                           ticket_to_add=self.last_ticket)
+        else:
+            if not beam.scanned_variable_data is None:
                 self.last_ticket = None
-                self.current_histo_data = None
-                self.current_stats = None
-                self.last_histo_data = None
-                self.histo_index = -1
-                self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
-                                            self.weight_column_index, title, xtitle, ytitle,
-                                            nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm)
+                self.histo_index += 1
 
-            elif self.iterative_mode == 1:
-                self.current_histo_data = None
-                self.current_stats = None
-                self.last_histo_data = None
-                self.histo_index = -1
-                self.last_ticket = self.plot_canvas.plot_histo(beam._beam, var, self.rays, xrange,
-                                                               self.weight_column_index, title, xtitle, ytitle,
-                                                               nbins=self.number_of_bins, xum=xum, conv=self.workspace_units_to_cm,
-                                                               ticket_to_add=self.last_ticket)
-            else:
-                if not beam.scanned_variable_data is None:
-                    self.last_ticket = None
-                    self.histo_index += 1
+                um = beam.scanned_variable_data.get_scanned_variable_um()
+                um = " " + um if um.strip() == "" else " [" + um + "]"
 
-                    um = beam.scanned_variable_data.get_scanned_variable_um()
-                    um = " " + um if um.strip() == "" else " [" + um + "]"
+                histo_data = self.plot_canvas.plot_histo(beam=beam,
+                                                         col=var,
+                                                         nbins=self.number_of_bins,
+                                                         title=title,
+                                                         xtitle=xtitle,
+                                                         ytitle=ytitle,
+                                                         histo_index=self.histo_index,
+                                                         scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                         scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
+                                                         offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
+                                                         xrange=xrange,
+                                                         show_reference=False,
+                                                         add_labels=self.add_labels==1,
+                                                         has_colormap=self.has_colormap==1
+                                                         )
+                scanned_variable_value = beam.scanned_variable_data.get_scanned_variable_value()
 
-                    histo_data = self.plot_canvas.plot_histo(beam=beam,
-                                                             col=var,
-                                                             nbins=self.number_of_bins,
-                                                             title=title,
-                                                             xtitle=xtitle,
-                                                             ytitle=ytitle,
-                                                             histo_index=self.histo_index,
-                                                             scan_variable_name=beam.scanned_variable_data.get_scanned_variable_display_name() + um,
-                                                             scan_variable_value=beam.scanned_variable_data.get_scanned_variable_value(),
-                                                             offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
-                                                             xrange=xrange,
-                                                             show_reference=False,
-                                                             add_labels=self.add_labels==1,
-                                                             has_colormap=self.has_colormap==1
-                                                             )
-                    scanned_variable_value = beam.scanned_variable_data.get_scanned_variable_value()
+                if isinstance(scanned_variable_value, str):
+                    histo_data.scan_value = self.histo_index + 1
+                else:
+                    histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
 
-                    if isinstance(scanned_variable_value, str):
-                        histo_data.scan_value = self.histo_index + 1
+                if not histo_data.bins is None:
+                    if self.current_histo_data is None:
+                        self.current_histo_data = HistogramDataCollection(histo_data)
                     else:
-                        histo_data.scan_value=beam.scanned_variable_data.get_scanned_variable_value()
+                        self.current_histo_data.add_histogram_data(histo_data)
 
-                    if not histo_data.bins is None:
-                        if self.current_histo_data is None:
-                            self.current_histo_data = HistogramDataCollection(histo_data)
-                        else:
-                            self.current_histo_data.add_histogram_data(histo_data)
+                if self.current_stats is None:
+                    self.current_stats = StatisticalDataCollection(histo_data)
+                else:
+                    self.current_stats.add_statistical_data(histo_data)
 
-                    if self.current_stats is None:
-                        self.current_stats = StatisticalDataCollection(histo_data)
-                    else:
-                        self.current_stats.add_statistical_data(histo_data)
+                self.last_histo_data = histo_data
 
-                    self.last_histo_data = histo_data
+                self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
+                                                  self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
+                                                  self.current_stats.get_relative_intensities(),
+                                                  "Statistics",
+                                                  beam.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                  "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
+                                                  "Relative Peak Intensity")
 
-                    self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
-                                                      self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
-                                                      self.current_stats.get_relative_intensities(),
-                                                      "Statistics",
-                                                      beam.scanned_variable_data.get_scanned_variable_display_name() + um,
-                                                      "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
-                                                      "Relative Peak Intensity")
-
-
-        except Exception as e:
-            if self.IS_DEVELOP: raise e
-            else: raise Exception("Data not plottable: No good rays or bad content")
 
     def plot_histo(self, var_x, title, xtitle, ytitle, xum):
         beam_to_plot = self.input_beam

@@ -378,116 +378,111 @@ class Histogram(SRWWidget):
         if not ticket_intensity["fwhm"] is None and not ticket_intensity["fwhm"] == 0.0:
             ticket_intensity["fwhm_coordinates"] = (ticket_intensity["fwhm_coordinates"][0]*TO_UM, ticket_intensity["fwhm_coordinates"][1]*TO_UM)
 
-        try:
-            if self.iterative_mode==0:
+        if self.iterative_mode==0:
+            self.last_ticket = None
+            self.current_histo_data = None
+            self.current_stats = None
+            self.last_histo_data = None
+            self.current_histo_data_phase = None
+            self.last_histo_data_phase = None
+            self.histo_index = -1
+
+            self.plot_canvas_intensity.plot_1D(ticket_intensity, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
+        elif self.iterative_mode == 1:
+            self.current_histo_data = None
+            self.current_stats = None
+            self.last_histo_data = None
+            self.current_histo_data_phase = None
+            self.last_histo_data_phase = None
+            self.histo_index = -1
+
+            ticket_intensity['histogram'] += self.last_ticket['histogram']
+
+            self.plot_canvas_intensity.plot_1D(ticket_intensity, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
+
+            self.last_ticket = ticket_intensity
+        else:
+            if not wavefront.scanned_variable_data is None:
                 self.last_ticket = None
-                self.current_histo_data = None
-                self.current_stats = None
-                self.last_histo_data = None
-                self.current_histo_data_phase = None
-                self.last_histo_data_phase = None
-                self.histo_index = -1
+                self.histo_index += 1
 
-                self.plot_canvas_intensity.plot_1D(ticket_intensity, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
-            elif self.iterative_mode == 1:
-                self.current_histo_data = None
-                self.current_stats = None
-                self.last_histo_data = None
-                self.current_histo_data_phase = None
-                self.last_histo_data_phase = None
-                self.histo_index = -1
+                um = wavefront.scanned_variable_data.get_scanned_variable_um()
+                um = " " + um if um.strip() == "" else " [" + um + "]"
 
-                ticket_intensity['histogram'] += self.last_ticket['histogram']
+                if self.multi_electron==0:
+                    histo_data_phase = self.plot_canvas_phase.plot_histo(ticket_phase,
+                                                                         col=var,
+                                                                         title="Phase [rad]",
+                                                                         xtitle=xtitle,
+                                                                         ytitle=ytitle,
+                                                                         histo_index=self.histo_index,
+                                                                         scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                                         scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
+                                                                         offset=0.0 if self.last_histo_data_phase is None else self.last_histo_data_phase.offset,
+                                                                         xrange=xrange,
+                                                                         show_reference=False,
+                                                                         add_labels=self.add_labels==1,
+                                                                         has_colormap=self.has_colormap==1,
+                                                                         use_default_factor=False
+                                                                         )
 
-                self.plot_canvas_intensity.plot_1D(ticket_intensity, var, title, xtitle, ytitle, xum, xrange, use_default_factor=False)
+                histo_data = self.plot_canvas_intensity.plot_histo(ticket_intensity,
+                                                                   col=var,
+                                                                   title=title,
+                                                                   xtitle=xtitle,
+                                                                   ytitle=ytitle,
+                                                                   histo_index=self.histo_index,
+                                                                   scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                                   scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
+                                                                   offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
+                                                                   xrange=xrange,
+                                                                   show_reference=False,
+                                                                   add_labels=self.add_labels==1,
+                                                                   has_colormap=self.has_colormap==1,
+                                                                   use_default_factor=False
+                                                                   )
 
-                self.last_ticket = ticket_intensity
-            else:
-                if not wavefront.scanned_variable_data is None:
-                    self.last_ticket = None
-                    self.histo_index += 1
+                scanned_variable_value = wavefront.scanned_variable_data.get_scanned_variable_value()
 
-                    um = wavefront.scanned_variable_data.get_scanned_variable_um()
-                    um = " " + um if um.strip() == "" else " [" + um + "]"
+                if isinstance(scanned_variable_value, str):
+                    histo_data.scan_value = self.histo_index + 1
+                else:
+                    histo_data.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
 
-                    if self.multi_electron==0:
-                        histo_data_phase = self.plot_canvas_phase.plot_histo(ticket_phase,
-                                                                             col=var,
-                                                                             title="Phase [rad]",
-                                                                             xtitle=xtitle,
-                                                                             ytitle=ytitle,
-                                                                             histo_index=self.histo_index,
-                                                                             scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
-                                                                             scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
-                                                                             offset=0.0 if self.last_histo_data_phase is None else self.last_histo_data_phase.offset,
-                                                                             xrange=xrange,
-                                                                             show_reference=False,
-                                                                             add_labels=self.add_labels==1,
-                                                                             has_colormap=self.has_colormap==1,
-                                                                             use_default_factor=False
-                                                                             )
+                if not histo_data.bins is None:
+                    if self.current_histo_data is None:
+                        self.current_histo_data = HistogramDataCollection(histo_data)
+                    else:
+                        self.current_histo_data.add_histogram_data(histo_data)
 
-                    histo_data = self.plot_canvas_intensity.plot_histo(ticket_intensity,
-                                                                       col=var,
-                                                                       title=title,
-                                                                       xtitle=xtitle,
-                                                                       ytitle=ytitle,
-                                                                       histo_index=self.histo_index,
-                                                                       scan_variable_name=wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
-                                                                       scan_variable_value=wavefront.scanned_variable_data.get_scanned_variable_value(),
-                                                                       offset=0.0 if self.last_histo_data is None else self.last_histo_data.offset,
-                                                                       xrange=xrange,
-                                                                       show_reference=False,
-                                                                       add_labels=self.add_labels==1,
-                                                                       has_colormap=self.has_colormap==1,
-                                                                       use_default_factor=False
-                                                                       )
-
-                    scanned_variable_value = wavefront.scanned_variable_data.get_scanned_variable_value()
-
+                if self.multi_electron==0:
                     if isinstance(scanned_variable_value, str):
-                        histo_data.scan_value = self.histo_index + 1
+                        histo_data_phase.scan_value = self.histo_index + 1
                     else:
-                        histo_data.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
+                        histo_data_phase.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
 
-                    if not histo_data.bins is None:
-                        if self.current_histo_data is None:
-                            self.current_histo_data = HistogramDataCollection(histo_data)
+                    if not histo_data_phase.bins is None:
+                        if self.current_histo_data_phase is None:
+                            self.current_histo_data_phase = HistogramDataCollection(histo_data_phase)
                         else:
-                            self.current_histo_data.add_histogram_data(histo_data)
+                            self.current_histo_data_phase.add_histogram_data(histo_data_phase)
 
-                    if self.multi_electron==0:
-                        if isinstance(scanned_variable_value, str):
-                            histo_data_phase.scan_value = self.histo_index + 1
-                        else:
-                            histo_data_phase.scan_value=wavefront.scanned_variable_data.get_scanned_variable_value()
+                if self.current_stats is None:
+                    self.current_stats = StatisticalDataCollection(histo_data)
+                else:
+                    self.current_stats.add_statistical_data(histo_data)
 
-                        if not histo_data_phase.bins is None:
-                            if self.current_histo_data_phase is None:
-                                self.current_histo_data_phase = HistogramDataCollection(histo_data_phase)
-                            else:
-                                self.current_histo_data_phase.add_histogram_data(histo_data_phase)
+                self.last_histo_data = histo_data
+                if self.multi_electron==0: self.last_histo_data_phase = histo_data_phase
 
-                    if self.current_stats is None:
-                        self.current_stats = StatisticalDataCollection(histo_data)
-                    else:
-                        self.current_stats.add_statistical_data(histo_data)
+                self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
+                                                  self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
+                                                  self.current_stats.get_relative_intensities(),
+                                                  "Statistics",
+                                                  wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
+                                                  "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
+                                                  "Relative Peak Intensity")
 
-                    self.last_histo_data = histo_data
-                    if self.multi_electron==0: self.last_histo_data_phase = histo_data_phase
-
-                    self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
-                                                      self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
-                                                      self.current_stats.get_relative_intensities(),
-                                                      "Statistics",
-                                                      wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
-                                                      "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
-                                                      "Relative Peak Intensity")
-
-
-        except Exception as e:
-            if self.IS_DEVELOP: raise e
-            else: raise Exception("Data not plottable: No good rays or bad content")
 
     def plot_histo(self, var_x, title, xtitle, ytitle, xum):
         wavefront_to_plot = self.input_srw_data.get_srw_wavefront()
