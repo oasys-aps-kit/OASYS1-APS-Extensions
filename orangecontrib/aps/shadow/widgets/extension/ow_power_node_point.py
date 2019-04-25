@@ -95,7 +95,8 @@ class PowerLoopPoint(widget.OWWidget):
 
     inputs = WidgetDecorator.syned_input_data()
     inputs.append(("Trigger", TriggerIn, "passTrigger"))
-    inputs.append(("ExchangeData", DataExchangeObject, "acceptExchangeData" ))
+    inputs.append(("Energy Spectrum", DataExchangeObject, "acceptEnergySpectrum" ))
+    inputs.append(("Filters", DataExchangeObject, "acceptFilters" ))
 
     outputs = [{"name":"Trigger",
                 "type":TriggerOut,
@@ -153,6 +154,8 @@ class PowerLoopPoint(widget.OWWidget):
     test_mode = False
 
     external_binning = False
+
+    filters = None
 
     #################################
     process_last = True
@@ -250,7 +253,10 @@ class PowerLoopPoint(widget.OWWidget):
         oasysgui.lineEdit(self.autobinning_box_2, self, "boundary_energy", "Find Isolated Harmonics for Energy < ", labelWidth=250, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(self.autobinning_box_2, self, "number_of_points_after_boundary", "Number of Steps after limit Energy", labelWidth=250, valueType=int, orientation="horizontal")
 
-        gui.button(self.autobinning_box_2, self, "Reload Spectrum", callback=self.read_spectrum_file)
+        button_box = oasysgui.widgetBox(self.autobinning_box_2, "", addSpace=False, orientation="horizontal")
+
+        gui.button(button_box, self, "Reload Spectrum & Filters", callback=self.read_filters_file)
+        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file)
 
         oasysgui.widgetLabel(self.autobinning_box_2, "Energy From, Energy To, Energy Step [eV], Power [W]")
 
@@ -273,7 +279,10 @@ class PowerLoopPoint(widget.OWWidget):
                      sendSelectedValue=False, orientation="horizontal")
         oasysgui.lineEdit(self.autobinning_box_3_1, self, "number_of_points_last", "Number of Steps After last Harmonic", labelWidth=250, valueType=int, orientation="horizontal")
 
-        gui.button(self.autobinning_box_3, self, "Reload Spectrum", callback=self.read_spectrum_file)
+        button_box = oasysgui.widgetBox(self.autobinning_box_3, "", addSpace=False, orientation="horizontal")
+
+        gui.button(button_box, self, "Reload Spectrum & Filters", callback=self.read_filters_file)
+        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file)
 
         oasysgui.widgetLabel(self.autobinning_box_3, "Energy From, Energy To, Energy Step [eV], Power [W]")
 
@@ -386,7 +395,22 @@ class PowerLoopPoint(widget.OWWidget):
             calculated_data = DataExchangeObject(program_name="ShadowOui", widget_name="PowerLoopPoint")
             calculated_data.add_content("spectrum_data", data)
 
-            self.acceptExchangeData(calculated_data)
+            self.acceptEnergySpectrum(calculated_data)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+            if self.IS_DEVELOP: raise e
+
+    def read_filters_file(self):
+        try:
+            data = numpy.loadtxt("filters.dat", skiprows=1)
+
+            calculated_data = DataExchangeObject(program_name="ShadowOui", widget_name="PowerLoopPoint")
+            calculated_data.add_content("filters_data", data)
+
+            self.acceptFilters(calculated_data)
+
+            self.read_spectrum_file()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
 
@@ -414,7 +438,52 @@ class PowerLoopPoint(widget.OWWidget):
     def receive_specific_syned_data(self, data):
         raise NotImplementedError()
 
-    def acceptExchangeData(self, exchange_data):
+    def acceptFilters(self, exchange_data):
+        if not exchange_data is None:
+            try: # FROM XOPPY F1F2
+                write_file = True
+
+                try:
+                    data = exchange_data.get_content("filters_data")
+                    write_file = False
+                except:
+                    if not exchange_data.get_program_name() == "XOPPY": raise ValueError("Only XOPPY F1F2 and CRYSTAL widgets are accepted")
+
+                    if exchange_data.get_widget_name() == "XF1F2":
+                        data = exchange_data.get_content("xoppy_data")
+                    elif exchange_data.get_widget_name() == "XCRYSTAL":
+                        data = exchange_data.get_content("xoppy_data")
+                        cols = data.shape[1]
+                        data = exchange_data.get_content("xoppy_data")[0:cols:cols-1, 0:cols:cols-1]
+                    elif exchange_data.get_widget_name() == "MLAYER":
+                        data = exchange_data.get_content("xoppy_data")[0:3:2, 0:3:2]
+
+                self.filters = data
+
+                if write_file:
+                    file = open("filters.dat", "w")
+                    file.write("Energy Filter")
+
+                    energies     = self.filters[:, 0]
+                    reflectivity = self.filters[:, 1]
+
+                    for energy, reflectivity in zip(energies, reflectivity):
+                        file.write("\n" + str(energy) + " " + str(reflectivity))
+
+                    file.flush()
+                    file.close()
+
+                if self.autobinning==0:
+                    if write_file: QMessageBox.information(self, "Info", "File filters.dat written on working directory, switch to Automatic binning to load it", QMessageBox.Ok)
+                else:
+                    if write_file: QMessageBox.information(self, "Info", "File filters.dat written on working directory", QMessageBox.Ok)
+
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
+
+    def acceptEnergySpectrum(self, exchange_data):
         if not exchange_data is None:
             try:
                 write_file = True
@@ -430,6 +499,9 @@ class PowerLoopPoint(widget.OWWidget):
 
                 energies                     = data[:, 0]
                 flux_through_finite_aperture = data[:, 1]
+
+                if not self.filters is None:
+                    flux_through_finite_aperture *= numpy.interp(energies, self.filters[:, 0], self.filters[:, 1])
 
                 if self.autobinning==1 or (self.autobinning==2 and self.refine_around_harmonic >= 1):
                     minimum_energy_of_spectrum = energies[0]
@@ -513,8 +585,9 @@ class PowerLoopPoint(widget.OWWidget):
 
                     good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 
-                    energies        = energies[good]
-                    cumulated_power = cumulated_power[good]
+                    energies                     = energies[good]
+                    cumulated_power              = cumulated_power[good]
+                    flux_through_finite_aperture = flux_through_finite_aperture[good]
 
                     if self.autobinning==1:
                         previous_cumulated_power = cumulated_power[0]

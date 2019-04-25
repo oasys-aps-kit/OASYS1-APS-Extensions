@@ -782,6 +782,8 @@ class PowerPlotXY(AutomaticElement):
                                                        energy_step=self.energy_step,
                                                        show_image=self.view_type==1)
 
+            self.plotted_ticket_original = self.cumulated_ticket.copy()
+
     def plot_results(self):
         try:
             sys.stdout = EmittingStream(textWritten=self.writeStdOut)
