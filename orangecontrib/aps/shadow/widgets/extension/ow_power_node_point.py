@@ -156,6 +156,7 @@ class PowerLoopPoint(widget.OWWidget):
     external_binning = False
 
     filters = None
+    spectrum_data = None
 
     #################################
     process_last = True
@@ -255,8 +256,8 @@ class PowerLoopPoint(widget.OWWidget):
 
         button_box = oasysgui.widgetBox(self.autobinning_box_2, "", addSpace=False, orientation="horizontal")
 
-        gui.button(button_box, self, "Reload Spectrum & Filters", callback=self.read_filters_file)
-        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file)
+        gui.button(button_box, self, "Reload Spectrum and Filters", callback=self.read_spectrum_and_filters_file)
+        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file_only)
 
         oasysgui.widgetLabel(self.autobinning_box_2, "Energy From, Energy To, Energy Step [eV], Power [W]")
 
@@ -281,8 +282,8 @@ class PowerLoopPoint(widget.OWWidget):
 
         button_box = oasysgui.widgetBox(self.autobinning_box_3, "", addSpace=False, orientation="horizontal")
 
-        gui.button(button_box, self, "Reload Spectrum & Filters", callback=self.read_filters_file)
-        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file)
+        gui.button(button_box, self, "Reload Spectrum and Filters", callback=self.read_spectrum_and_filters_file)
+        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file_only)
 
         oasysgui.widgetLabel(self.autobinning_box_3, "Energy From, Energy To, Energy Step [eV], Power [W]")
 
@@ -358,20 +359,28 @@ class PowerLoopPoint(widget.OWWidget):
 
         tab_plot = oasysgui.createTabPage(tabs, "Cumulated Power")
         tab_flux = oasysgui.createTabPage(tabs, "Spectral Flux")
+        tab_fil = oasysgui.createTabPage(tabs, "Filter")
 
-        self.cumulated_power_plot = oasysgui.plotWindow(tab_plot)
+        self.cumulated_power_plot = oasysgui.plotWindow(tab_plot, position=True)
         self.cumulated_power_plot.setFixedHeight(self.height()-20)
         self.cumulated_power_plot.setFixedWidth(775)
         self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
         self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
         self.cumulated_power_plot.setGraphTitle("Cumulated Power")
 
-        self.spectral_flux_plot = oasysgui.plotWindow(tab_flux)
+        self.spectral_flux_plot = oasysgui.plotWindow(tab_flux, position=True)
         self.spectral_flux_plot.setFixedHeight(self.height()-20)
         self.spectral_flux_plot.setFixedWidth(775)
         self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
         self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
         self.spectral_flux_plot.setGraphTitle("Spectral Flux")
+
+        self.filter_plot = oasysgui.plotWindow(tab_fil, position=True)
+        self.filter_plot.setFixedHeight(self.height()-20)
+        self.filter_plot.setFixedWidth(775)
+        self.filter_plot.setGraphXLabel("Energy [eV]")
+        self.filter_plot.setGraphYLabel("Intensity Factor")
+        self.filter_plot.setGraphTitle("Filter on Flux")
 
         self.set_Autobinning()
 
@@ -388,8 +397,12 @@ class PowerLoopPoint(widget.OWWidget):
         self.autobinning_box_3_1.setVisible(self.refine_around_harmonic>=1)
         self.autobinning_box_3_2.setVisible(self.refine_around_harmonic==0)
 
-    def read_spectrum_file(self):
+    def read_spectrum_file(self, reset_filters=True):
         try:
+            if reset_filters:
+                self.filters=None
+                self.filter_plot.clear()
+
             data = numpy.loadtxt("autobinning.dat", skiprows=1)
 
             calculated_data = DataExchangeObject(program_name="ShadowOui", widget_name="PowerLoopPoint")
@@ -401,7 +414,10 @@ class PowerLoopPoint(widget.OWWidget):
 
             if self.IS_DEVELOP: raise e
 
-    def read_filters_file(self):
+    def read_spectrum_file_only(self):
+        self.read_spectrum_file(True)
+
+    def read_spectrum_and_filters_file(self):
         try:
             data = numpy.loadtxt("filters.dat", skiprows=1)
 
@@ -409,12 +425,10 @@ class PowerLoopPoint(widget.OWWidget):
             calculated_data.add_content("filters_data", data)
 
             self.acceptFilters(calculated_data)
+        except Exception:
+            self.filters = None
 
-            self.read_spectrum_file()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
-
-            if self.IS_DEVELOP: raise e
+        self.read_spectrum_file(False)
 
     def receive_syned_data(self, data):
         if not data is None:
@@ -460,23 +474,36 @@ class PowerLoopPoint(widget.OWWidget):
 
                 self.filters = data
 
+                energies     = self.filters[:, 0]
+                intensity_factors = self.filters[:, 1]
+
                 if write_file:
                     file = open("filters.dat", "w")
                     file.write("Energy Filter")
 
-                    energies     = self.filters[:, 0]
-                    reflectivity = self.filters[:, 1]
 
-                    for energy, reflectivity in zip(energies, reflectivity):
-                        file.write("\n" + str(energy) + " " + str(reflectivity))
+                    for energy, intensity_factor in zip(energies, intensity_factors):
+                        file.write("\n" + str(energy) + " " + str(intensity_factor))
 
                     file.flush()
                     file.close()
+
+                self.filter_plot.clear()
+                self.filter_plot.addCurve(energies, intensity_factors, replace=True, legend="Intensity Factor")
+                self.filter_plot.setGraphXLabel("Energy [eV]")
+                self.filter_plot.setGraphYLabel("Intensity Factor")
+                self.filter_plot.setGraphTitle("Filter on Flux")
 
                 if self.autobinning==0:
                     if write_file: QMessageBox.information(self, "Info", "File filters.dat written on working directory, switch to Automatic binning to load it", QMessageBox.Ok)
                 else:
                     if write_file: QMessageBox.information(self, "Info", "File filters.dat written on working directory", QMessageBox.Ok)
+
+                if not self.spectrum_data is None:
+                    calculated_data = DataExchangeObject(program_name="ShadowOui", widget_name="PowerLoopPoint")
+                    calculated_data.add_content("spectrum_data", self.spectrum_data)
+
+                    self.acceptEnergySpectrum(calculated_data)
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
@@ -497,11 +524,14 @@ class PowerLoopPoint(widget.OWWidget):
                     except:
                         data = exchange_data.get_content("xoppy_data")
 
-                energies                     = data[:, 0]
-                flux_through_finite_aperture = data[:, 1]
+                self.spectrum_data = data.copy()
+
+                energies                             = data[:, 0]
+                flux_through_finite_aperture         = data[:, 1]
+                flux_through_finite_aperture_filtered = flux_through_finite_aperture.copy()
 
                 if not self.filters is None:
-                    flux_through_finite_aperture *= numpy.interp(energies, self.filters[:, 0], self.filters[:, 1])
+                    flux_through_finite_aperture_filtered *= numpy.interp(energies, self.filters[:, 0], self.filters[:, 1])
 
                 if self.autobinning==1 or (self.autobinning==2 and self.refine_around_harmonic >= 1):
                     minimum_energy_of_spectrum = energies[0]
@@ -564,24 +594,33 @@ class PowerLoopPoint(widget.OWWidget):
 
                     power_down = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
                     power_up = numpy.append(power_down[1:], [power_down[-1]])
-
                     cumulated_power = numpy.cumsum((power_down + power_up)/2)
-
                     total_power = cumulated_power[-1]
+
+                    if not self.filters is None:
+                        power_down_filtered = flux_through_finite_aperture_filtered * (1e3 * energy_step * codata.e)
+                        power_up_filtered = numpy.append(power_down_filtered[1:], [power_down_filtered[-1]])
+                        cumulated_power_filtered = numpy.cumsum((power_down_filtered + power_up_filtered)/2)
+                        total_power_filtered = cumulated_power_filtered[-1]
 
                     self.text_area.clear()
 
                     self.cumulated_power_plot.clear()
                     self.cumulated_power_plot.addCurve(energies, cumulated_power, replace=True, legend="Cumulated Power")
+                    if not self.filters is None:  self.cumulated_power_plot.addCurve(energies, cumulated_power_filtered, replace=False, legend="Cumulated Power Filters",
+                                                                                     linestyle="--", color="#006400")
                     self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
-                    self.cumulated_power_plot.setGraphYLabel("Cumulated Power [W]")
-                    self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(total_power, 2)) + " W")
+                    self.cumulated_power_plot.setGraphYLabel("Cumulated " + ("" if self.filters is None else " (Filtered)") + " Power" )
+                    if self.filters is None: self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(total_power, 2)) + " W")
+                    else:self.cumulated_power_plot.setGraphTitle("Total (Filtered) Power: " + str(round(total_power, 2)) + "  (" + str(round(total_power_filtered, 2)) +  ") W")
 
                     self.spectral_flux_plot.clear()
                     self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture, replace=True, legend="Spectral Flux")
+                    if not self.filters is None: self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture_filtered, replace=False, legend="Spectral Flux Filters",
+                                                                                  linestyle="--", color="#006400")
                     self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
                     self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
-                    self.spectral_flux_plot.setGraphTitle("Spectral Flux")
+                    self.spectral_flux_plot.setGraphTitle("Spectral Flux" + ("" if self.filters is None else " (Filtered)"))
 
                     good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 
