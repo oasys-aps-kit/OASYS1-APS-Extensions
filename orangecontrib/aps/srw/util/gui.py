@@ -160,6 +160,12 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
 
         bins *= factor
 
+        if histo_index==0:
+            self.set_xrange(bins)
+        elif self.xx.shape != bins.shape:
+            histogram = numpy.interp(self.xx, bins, histogram)
+            bins = self.xx.copy()
+
         histogram_stats = histogram
         bins_stats = bins
 
@@ -172,7 +178,6 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
 
         rcParams['axes.formatter.useoffset']='False'
 
-        self.set_xrange(bins)
         self.set_labels(title=title, xlabel=xtitle, ylabel=scan_variable_name, zlabel=ytitle)
 
         self.add_histo(scan_variable_value, histogram, has_colormap, colormap, histo_index)

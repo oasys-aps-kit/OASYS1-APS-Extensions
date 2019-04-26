@@ -52,7 +52,7 @@ import scipy.ndimage.filters as filters
 import scipy.ndimage.interpolation as interpolation
 import scipy.ndimage.fourier as fourier
 
-from PyQt5.QtWidgets import QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QMessageBox, QFileDialog, QInputDialog
 from PyQt5.QtGui import QTextCursor
 
 from orangewidget import gui
@@ -153,8 +153,7 @@ class PowerPlotXY(AutomaticElement):
         button_box = oasysgui.widgetBox(self.controlArea, "", addSpace=False, orientation="horizontal")
 
         gui.button(button_box, self, "Plot Data", callback=self.plot_cumulated_data, height=45)
-        gui.button(button_box, self, "Save Plot (HDF5)", callback=self.save_cumulated_data_hdf5, height=45)
-        gui.button(button_box, self, "Save Plot (DAT)", callback=self.save_cumulated_data_txt, height=45)
+        gui.button(button_box, self, "Save Plot", callback=self.save_cumulated_data, height=45)
 
         gui.separator(self.controlArea, 10)
 
@@ -593,52 +592,53 @@ class PowerPlotXY(AutomaticElement):
 
         return filled*(histogram.sum()/filled.sum())
 
+    def save_cumulated_data(self):
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf);;Text Files (*.dat *.txt)")
 
-    def save_cumulated_data_hdf5(self):
+        if not file_name is None and not file_name.strip()=="":
+            items = ("Hdf5", "Text", "Both")
+
+            item, ok = QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
+
+            if ok and item:
+                if item == "Hdf5" or item == "Both":
+                    self.save_cumulated_data_hdf5(file_name)
+                if item == "Text" or item == "Both":
+                    self.save_cumulated_data_txt(file_name)
+
+    def save_cumulated_data_hdf5(self, file_name):
         if not self.plotted_ticket is None:
             try:
-                file_name, _ = QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf)")
+                save_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(os.path.splitext(file_name)[0] + ".hdf5"))
 
-                if not file_name is None and not file_name.strip()=="":
-                    if not (file_name.endswith("hd5") or file_name.endswith("hdf5") or file_name.endswith("hdf")):
-                        file_name += ".hdf5"
+                save_file.write_coordinates(self.plotted_ticket)
+                save_file.add_plot_xy(self.plotted_ticket, dataset_name="power_density")
 
-                    save_file = ShadowPlot.PlotXYHdf5File(congruence.checkDir(file_name))
-
-                    save_file.write_coordinates(self.plotted_ticket)
-                    save_file.add_plot_xy(self.plotted_ticket, dataset_name="power_density")
-
-                    save_file.close()
+                save_file.close()
             except Exception as exception:
                 QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
                 if self.IS_DEVELOP: raise exception
 
-    def save_cumulated_data_txt(self):
+    def save_cumulated_data_txt(self, file_name):
         if not self.plotted_ticket is None:
             try:
-                file_name, _ = QFileDialog.getSaveFileName(self, "Save Current Plot", filter="DAT Files (*.dat *.txt)")
+                save_file = open(os.path.splitext(file_name)[0] + ".dat", "w")
 
-                if not file_name is None and not file_name.strip()=="":
-                    if not (file_name.endswith("dat") or file_name.endswith("txt")):
-                        file_name += ".dat"
+                x_values = self.plotted_ticket["bin_h_center"]
+                y_values = self.plotted_ticket["bin_v_center"]
+                z_values = self.plotted_ticket["histogram"]
 
-                    save_file = open(file_name, "w")
+                for i in range(len(x_values)):
+                    for j in range(len(y_values)):
+                        row = str(x_values[i]) + " " + str(y_values[j]) + " " + str(z_values[i, j])
 
-                    x_values = self.plotted_ticket["bin_h_center"]
-                    y_values = self.plotted_ticket["bin_v_center"]
-                    z_values = self.plotted_ticket["histogram"]
+                        if i+j > 0: row = "\n" + row
 
-                    for i in range(len(x_values)):
-                        for j in range(len(y_values)):
-                            row = str(x_values[i]) + " " + str(y_values[j]) + " " + str(z_values[i, j])
+                        save_file.write(row)
 
-                            if i+j > 0: row = "\n" + row
-
-                            save_file.write(row)
-
-                    save_file.flush()
-                    save_file.close()
+                save_file.flush()
+                save_file.close()
             except Exception as exception:
                 QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
