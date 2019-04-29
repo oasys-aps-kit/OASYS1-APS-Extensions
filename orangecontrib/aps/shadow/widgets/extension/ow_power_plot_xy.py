@@ -596,14 +596,14 @@ class PowerPlotXY(AutomaticElement):
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Current Plot", filter="HDF5 Files (*.hdf5 *.h5 *.hdf);;Text Files (*.dat *.txt)")
 
         if not file_name is None and not file_name.strip()=="":
-            items = ("Hdf5", "Text", "Both")
+            items = ("Hdf5 only", "Text only", "Hdf5 and Text")
 
-            item, ok = QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
+            item, ok = QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 2, False)
 
             if ok and item:
-                if item == "Hdf5" or item == "Both":
+                if item == "Hdf5 only" or item == "Hdf5 and Text":
                     self.save_cumulated_data_hdf5(file_name)
-                if item == "Text" or item == "Both":
+                if item == "Text only" or item == "Hdf5 and Text":
                     self.save_cumulated_data_txt(file_name)
 
     def save_cumulated_data_hdf5(self, file_name):

@@ -51,7 +51,8 @@ import time
 import copy
 import numpy
 
-from PyQt5 import QtGui, QtWidgets, QtCore
+from PyQt5.QtGui import QTextCursor
+from PyQt5.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 from orangewidget import gui
 from orangewidget.settings import Setting
 from oasys.widgets import gui as oasysgui
@@ -563,9 +564,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
             return plotted
         except Exception as exception:
-            QtWidgets.QMessageBox.critical(self, "Error",
-                                       str(exception),
-                                       QtWidgets.QMessageBox.Ok)
+            QMessageBox.critical(self, "Error", str(exception), QMessageBox.Ok)
 
             if self.IS_DEVELOP: raise exception
 
@@ -627,14 +626,12 @@ class Histogram(ow_automatic_element.AutomaticElement):
                 if self.is_automatic_run:
                     self.plot_results()
             else:
-                QtWidgets.QMessageBox.critical(self, "Error",
-                                           "Data not displayable: No good rays or bad content",
-                                           QtWidgets.QMessageBox.Ok)
+                QMessageBox.critical(self, "Error", "Data not displayable: No good rays or bad content", QMessageBox.Ok)
 
 
     def writeStdOut(self, text):
         cursor = self.shadow_output.textCursor()
-        cursor.movePosition(QtGui.QTextCursor.End)
+        cursor.movePosition(QTextCursor.End)
         cursor.insertText(text)
         self.shadow_output.setTextCursor(cursor)
         self.shadow_output.ensureCursorVisible()
@@ -646,24 +643,24 @@ class Histogram(ow_automatic_element.AutomaticElement):
         return self.is_conversion_active==1
 
     def export_scanning_stats_analysis(self):
-        output_folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
+        output_folder = QFileDialog.getExistingDirectory(self, "Select Output Directory", directory=os.curdir)
 
         if output_folder:
             if not self.current_histo_data is None:
-                items = ("Hdf5", "Text", "Both")
+                items = ("Hdf5 only", "Text only", "Hdf5 and Text")
 
-                item, ok = QtWidgets.QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 0, False)
+                item, ok = QInputDialog.getItem(self, "Select Output Format", "Formats: ", items, 2, False)
 
                 if ok and item:
-                    if item == "Hdf5" or item == "Both":
+                    if item == "Hdf5 only" or item == "Hdf5 and Text":
                         write_histo_and_stats_file_hdf5(histo_data=self.current_histo_data,
                                                         stats=self.current_stats,
                                                         suffix="",
                                                         output_folder=output_folder)
-                    if item == "Text" or item == "Both":
+                    if item == "Text only" or item == "Hdf5 and Text":
                         write_histo_and_stats_file(histo_data=self.current_histo_data,
                                                    stats=self.current_stats,
                                                    suffix="",
                                                    output_folder=output_folder)
 
-                    QtWidgets.QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QtWidgets.QMessageBox.Ok)
+                    QMessageBox.information(self, "Export Scanning Results & Stats", "Data saved into directory: " + output_folder, QMessageBox.Ok)
