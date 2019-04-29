@@ -491,7 +491,7 @@ class PowerPlotXYWidget(QWidget):
 
             self.cumulated_previous_power_plot += previous_ticket['histogram'].sum()
 
-        if nolost==2: # must be calculating only the rays the become lost in the last object
+        if nolost>1: # must be calculating only the rays the become lost in the last object
             current_beam = shadow_beam
 
             if history_item is None or history_item._input_beam is None:
@@ -499,17 +499,39 @@ class PowerPlotXYWidget(QWidget):
             else:
                 previous_beam = previous_beam if previous_beam else history_item._input_beam.duplicate(history=False)
 
-                lost = numpy.where(current_beam._beam.rays[:, 9] != 1)
+                if nolost==2:
+                    lost = numpy.where(current_beam._beam.rays[:, 9] != 1)
 
-                current_lost_rays = current_beam._beam.rays[lost]
-                lost_rays_in_previous = previous_beam._beam.rays[lost]
+                    current_lost_rays = current_beam._beam.rays[lost]
+                    lost_rays_in_previous = previous_beam._beam.rays[lost]
 
-                beam = Beam()
-                beam.rays = current_lost_rays[numpy.where(lost_rays_in_previous[:, 9] == 1)]# lost rays that were good after the previous OE
+                    beam = Beam()
+                    beam.rays = current_lost_rays[numpy.where(lost_rays_in_previous[:, 9] == 1)]# lost rays that were good after the previous OE
+                else:
+                    incident_rays = previous_beam._beam.rays
+                    transmitted_rays = current_beam._beam.rays
+
+                    incident_intensity = incident_rays[:, 6]**2  + incident_rays[:, 7]**2  + incident_rays[:, 8]**2 +\
+                                         incident_rays[:, 15]**2 + incident_rays[:, 16]**2 + incident_rays[:, 17]**2
+                    transmitted_intensity = transmitted_rays[:, 6]**2  + transmitted_rays[:, 7]**2  + transmitted_rays[:, 8]**2 +\
+                                            transmitted_rays[:, 15]**2 + transmitted_rays[:, 16]**2 + transmitted_rays[:, 17]**2
+
+                    electric_field = numpy.sqrt(incident_intensity - transmitted_intensity)
+                    electric_field[numpy.where(electric_field == numpy.nan)] = 0.0
+
+                    beam = Beam()
+                    beam.rays = copy.deepcopy(shadow_beam._beam.rays)
+
+                    beam.rays[:, 6]  = electric_field
+                    beam.rays[:, 7]  = 0.0
+                    beam.rays[:, 8]  = 0.0
+                    beam.rays[:, 15] = 0.0
+                    beam.rays[:, 16] = 0.0
+                    beam.rays[:, 17] = 0.0
         else:
             beam = shadow_beam._beam
 
-        ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=nolost, ref=23)
+        ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=1 if nolost != 2 else 2, ref=23)
 
         ticket['bin_h_center'] *= to_mm
         ticket['bin_v_center'] *= to_mm

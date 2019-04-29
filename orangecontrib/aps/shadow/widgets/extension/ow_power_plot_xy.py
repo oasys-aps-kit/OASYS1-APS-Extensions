@@ -224,8 +224,8 @@ class PowerPlotXY(AutomaticElement):
 
         self.set_YRange()
 
-        self.cb_rays = gui.comboBox(general_box, self, "rays", label="Rays", labelWidth=250,
-                                    items=["Transmitted", "Absorbed"],
+        self.cb_rays = gui.comboBox(general_box, self, "rays", label="Power", labelWidth=250,
+                                    items=["Transmitted", "Absorbed (Lost)", "Absorbed (Still Good)"],
                                     sendSelectedValue=False, orientation="horizontal")
 
         autosave_box = oasysgui.widgetBox(tab_gen, "Autosave", addSpace=True, orientation="vertical", height=85)
