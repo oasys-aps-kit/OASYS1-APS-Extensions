@@ -74,7 +74,7 @@ import scipy.constants as codata
 
 m2ev = codata.c * codata.h / codata.e
 
-from srwlib import *
+from oasys_srw.srwlib import *
 
 class Distribution:
     POSITION = 0
