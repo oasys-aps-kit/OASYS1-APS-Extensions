@@ -64,6 +64,8 @@ from syned.storage_ring.light_source import ElectronBeam, LightSource
 from syned.widget.widget_decorator import WidgetDecorator
 from syned.beamline.shape import Rectangle
 
+from srxraylib.util.inverse_method_sampler import Sampler2D
+
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam, ShadowSource
 from orangecontrib.shadow.widgets.gui.ow_generic_element import GenericElement
 
@@ -138,8 +140,8 @@ class APSUndulator(GenericElement):
     vertical_range_modification_factor_at_resizing         = Setting(0.5)
     vertical_resolution_modification_factor_at_resizing    = Setting(5.0)
 
-    kind_of_sampler = Setting(1)
-    save_srw_result = Setting(1)
+    #kind_of_sampler = Setting(1)
+    save_srw_result = Setting(0)
     
     # SRW FILE INPUT
 
@@ -314,8 +316,8 @@ class APSUndulator(GenericElement):
 
         tabs_srw = oasysgui.tabWidget(self.srw_box)
 
-        gui.comboBox(self.srw_box, self, "kind_of_sampler", label="Random Generator", labelWidth=250,
-                     items=["Simple (Fast)", "Accurate (Slow)"], orientation="horizontal")
+        #gui.comboBox(self.srw_box, self, "kind_of_sampler", label="Random Generator", labelWidth=250,
+        #             items=["Simple (Fast)", "Accurate (Slow)", "Manolone"], orientation="horizontal")
 
         gui.comboBox(self.srw_box, self, "save_srw_result", label="Save SRW results", labelWidth=310,
                      items=["No", "Yes"], orientation="horizontal", callback=self.set_SaveFileSRW)
@@ -686,7 +688,7 @@ class APSUndulator(GenericElement):
                                                                  coord_z=z,
                                                                  intensity=intensity_source_dimension,
                                                                  distribution_type=Distribution.POSITION,
-                                                                 kind_of_sampler=self.kind_of_sampler,
+                                                                 #kind_of_sampler=self.kind_of_sampler,
                                                                  seed=0 if self.seed==0 else self.seed+1)
 
                 self.progressBarSet(70)
@@ -696,7 +698,7 @@ class APSUndulator(GenericElement):
                                                                  coord_z=z_first,
                                                                  intensity=intensity_angular_distribution,
                                                                  distribution_type=Distribution.DIVERGENCE,
-                                                                 kind_of_sampler=self.kind_of_sampler,
+                                                                 #kind_of_sampler=self.kind_of_sampler,
                                                                  seed=0 if self.seed==0 else self.seed+2)
 
                 self.setStatusMessage("Plotting Results")
@@ -1047,8 +1049,9 @@ class APSUndulator(GenericElement):
                                                     coord_z,
                                                     intensity,
                                                     distribution_type=Distribution.POSITION,
-                                                    kind_of_sampler=0,
+                                                    #kind_of_sampler=0,
                                                     seed=0):
+        '''
         if kind_of_sampler == 0:
             pdf = numpy.abs(intensity/numpy.max(intensity))
             pdf /= pdf.sum()
@@ -1103,8 +1106,25 @@ class APSUndulator(GenericElement):
                 beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
                 beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
                 beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
-        else:
-            raise ValueError("Sampler not recognized")
+        elif kind_of_sampler == 2:
+        '''
+        s2d = Sampler2D(intensity, coord_x, coord_z)
+
+        samples_x, samples_z = s2d.get_n_sampled_points(len(beam_out._beam.rays))
+
+        if distribution_type == Distribution.POSITION:
+            beam_out._beam.rays[:, 0] = samples_x
+            beam_out._beam.rays[:, 2] = samples_z
+
+        elif distribution_type == Distribution.DIVERGENCE:
+            alpha_x = samples_x
+            alpha_z = samples_z
+
+            beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
+            beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
+            beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
+        #else:
+        #    raise ValueError("Sampler not recognized")
         
     def gamma(self):
         return 1e9*self.electron_energy_in_GeV / (codata.m_e *  codata.c**2 / codata.e)
