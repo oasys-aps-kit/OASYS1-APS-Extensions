@@ -77,6 +77,7 @@ import scipy.constants as codata
 m2ev = codata.c * codata.h / codata.e
 
 from oasys_srw.srwlib import *
+from oasys_srw.srwlib import array as srw_array
 
 class Distribution:
     POSITION = 0
@@ -317,7 +318,7 @@ class APSUndulator(GenericElement):
         tabs_srw = oasysgui.tabWidget(self.srw_box)
 
         #gui.comboBox(self.srw_box, self, "kind_of_sampler", label="Random Generator", labelWidth=250,
-        #             items=["Simple (Fast)", "Accurate (Slow)", "Manolone"], orientation="horizontal")
+        #             items=["Simple", "Accurate"], orientation="horizontal")
 
         gui.comboBox(self.srw_box, self, "save_srw_result", label="Save SRW results", labelWidth=310,
                      items=["No", "Yes"], orientation="horizontal", callback=self.set_SaveFileSRW)
@@ -869,14 +870,8 @@ class APSUndulator(GenericElement):
         #***********Undulator
         By, Bx = self.magnetic_field_from_K() #Peak Vertical field [T]
 
-        phBy = 0 #Initial Phase of the Vertical field component
-        sBy = -1 #Symmetry of the Vertical field component vs Longitudinal position
-        xcID = 0 #Transverse Coordinates of Undulator Center [m]
-        ycID = 0
-        zcID = 0 #Longitudinal Coordinate of Undulator Center [m]
-
-        und = SRWLMagFldU([SRWLMagFldH(1, 'h', Bx, phBy, sBy, 1), SRWLMagFldH(1, 'v', By, phBy, sBy, 1)], self.undulator_period, self.number_of_periods) #Planar Undulator
-        magFldCnt = SRWLMagFldC([und], array('d', [xcID]), array('d', [ycID]), array('d', [zcID])) #Container of all Field Elements
+        und = SRWLMagFldU([SRWLMagFldH(1, 'h', Bx, 0, 1, 1), SRWLMagFldH(1, 'v', By, 0, -1, 1)], self.undulator_period, self.number_of_periods) #Planar Undulator
+        magFldCnt = SRWLMagFldC([und], array('d', [0.0]), array('d', [0.0]), array('d', [0.0])) #Container of all Field Elements
 
         return magFldCnt
 
@@ -960,18 +955,32 @@ class APSUndulator(GenericElement):
 
         return SRWLOptC([opDrift],[ppDrift])
 
-    def transform_srw_array(self, arI, mesh):
-        dim_x = mesh.nx
-        dim_y = mesh.ny
 
-        x_coordinates = numpy.linspace(mesh.xStart, mesh.xFin, dim_x)
-        y_coordinates = numpy.linspace(mesh.yStart, mesh.yFin, dim_y)
+    def transform_srw_array(self, output_array, mesh):
+        h_array = numpy.linspace(mesh.xStart, mesh.xFin, mesh.nx)
+        v_array = numpy.linspace(mesh.yStart, mesh.yFin, mesh.ny)
 
-        data = numpy.squeeze(arI)
-        np_array = data.reshape((dim_y, dim_x))
-        np_array = np_array.transpose()
+        intensity_array = numpy.zeros((h_array.size, v_array.size))
 
-        return x_coordinates, y_coordinates, np_array
+        tot_len = int(mesh.ny * mesh.nx)
+        len_output_array = len(output_array)
+
+        if len_output_array > tot_len:
+            output_array = numpy.array(output_array[0:tot_len])
+        elif len_output_array < tot_len:
+            aux_array = srw_array('d', [0] * len_output_array)
+            for i in range(len_output_array): aux_array[i] = output_array[i]
+            output_array = numpy.array(srw_array(aux_array))
+        else:
+            output_array = numpy.array(output_array)
+
+        output_array = output_array.reshape(mesh.ny, mesh.nx)
+
+        for ix in range(mesh.nx):
+            for iy in range(mesh.ny):
+                intensity_array[ix, iy] = output_array[iy, ix]
+
+        return h_array, v_array, intensity_array
 
 
     def runSRWCalculation(self):
@@ -1049,82 +1058,50 @@ class APSUndulator(GenericElement):
                                                     coord_z,
                                                     intensity,
                                                     distribution_type=Distribution.POSITION,
-                                                    #kind_of_sampler=0,
+                                                    kind_of_sampler=1,
                                                     seed=0):
-        '''
-        if kind_of_sampler == 0:
+        if kind_of_sampler == 1:
+            s2d = Sampler2D(intensity, coord_x, coord_z)
+
+            samples_x, samples_z = s2d.get_n_sampled_points(len(beam_out._beam.rays))
+
+            if distribution_type == Distribution.POSITION:
+                beam_out._beam.rays[:, 0] = samples_x
+                beam_out._beam.rays[:, 2] = samples_z
+
+            elif distribution_type == Distribution.DIVERGENCE:
+                alpha_x = samples_x
+                alpha_z = samples_z
+
+                beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
+                beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
+                beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
+        elif kind_of_sampler == 0:
             pdf = numpy.abs(intensity/numpy.max(intensity))
             pdf /= pdf.sum()
-    
+
             distribution = CustomDistribution(pdf, seed=seed)
-    
+
             sampled = distribution(len(beam_out._beam.rays))
-    
+
             min_value_x = numpy.min(coord_x)
             step_x = numpy.abs(coord_x[1]-coord_x[0])
             min_value_z = numpy.min(coord_z)
             step_z = numpy.abs(coord_z[1]-coord_z[0])
-    
+
             if distribution_type == Distribution.POSITION:
                 beam_out._beam.rays[:, 0] = min_value_x + sampled[0, :]*step_x
                 beam_out._beam.rays[:, 2] = min_value_z + sampled[1, :]*step_z
-    
+
             elif distribution_type == Distribution.DIVERGENCE:
                 alpha_x = min_value_x + sampled[0, :]*step_x
                 alpha_z = min_value_z + sampled[1, :]*step_z
-    
+
                 beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
                 beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
                 beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
-        elif kind_of_sampler == 1:
-            min_x = numpy.min(coord_x)
-            max_x = numpy.max(coord_x)
-            delta_x = max_x - min_x
-    
-            min_z = numpy.min(coord_z)
-            max_z = numpy.max(coord_z)
-            delta_z = max_z - min_z
-    
-            dim_x = len(coord_x)
-            dim_z = len(coord_z)
-    
-            grid = Grid2D((dim_x, dim_z))
-            grid[..., ...] = intensity.tolist()
-    
-            d = Distribution2D(distribution_from_grid(grid, dim_x, dim_z), (0, 0), (dim_x, dim_z))
-    
-            samples = d.get_samples(len(beam_out._beam.rays), seed)
-    
-            if distribution_type == Distribution.POSITION:
-                beam_out._beam.rays[:, 0] = min_x + samples[:, 0]*delta_x
-                beam_out._beam.rays[:, 2] = min_z + samples[:, 1]*delta_z
-    
-            elif distribution_type == Distribution.DIVERGENCE:
-                alpha_x = min_x + samples[:, 0]*delta_x
-                alpha_z = min_z + samples[:, 1]*delta_z
-    
-                beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
-                beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
-                beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
-        elif kind_of_sampler == 2:
-        '''
-        s2d = Sampler2D(intensity, coord_x, coord_z)
-
-        samples_x, samples_z = s2d.get_n_sampled_points(len(beam_out._beam.rays))
-
-        if distribution_type == Distribution.POSITION:
-            beam_out._beam.rays[:, 0] = samples_x
-            beam_out._beam.rays[:, 2] = samples_z
-
-        elif distribution_type == Distribution.DIVERGENCE:
-            alpha_x = samples_x
-            alpha_z = samples_z
-
-            beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
-            beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
-            beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
-        #else:
-        #    raise ValueError("Sampler not recognized")
+        else:
+            raise ValueError("Sampler not recognized")
         
     def gamma(self):
         return 1e9*self.electron_energy_in_GeV / (codata.m_e *  codata.c**2 / codata.e)
@@ -1187,7 +1164,6 @@ class APSUndulator(GenericElement):
         arUnits = ['eV', 'm', 'm', 'ph/s/.1%bw/mm^2']
 
         if _read_labels:
-
             arTokens = hlp[0].split(' [')
             arLabels[3] = arTokens[0].replace('#','')
             arUnits[3] = '';
