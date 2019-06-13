@@ -2,7 +2,7 @@ import os, sys
 
 import numpy
 from PyQt5.QtCore import QRect
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication, QMessageBox, QFileDialog
 
 from matplotlib import cm
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -14,8 +14,6 @@ from orangewidget.settings import Setting
 from oasys.widgets.widget import OWWidget
 from oasys.widgets import gui as oasysgui
 from oasys.widgets import congruence
-
-from oasys.util.oasys_objects import OasysSurfaceData
 
 from Shadow import ShadowTools as ST
 from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
@@ -32,18 +30,14 @@ class OWThicknessFileReader(OWWidget):
     icon = "icons/thickness_reader.png"
     author = "Luca Rebuffi"
     maintainer_email = "lrebuffi@anl.gov"
-    priority = 51
+    priority = 40.1
     category = ""
     keywords = ["surface_file_reader"]
 
-    outputs = [{"name": "PreProcessor_Data",
-                "type": ShadowPreProcessorData,
-                "doc": "PreProcessor Data",
-                "id": "PreProcessor_Data"},
-               {"name":"Files",
+    outputs = [{"name":"Thickness Error Files",
                 "type":list,
-                "doc":"Files",
-                "id":"Files"}]
+                "doc":"Thickness Error Files",
+                "id":"Thickness Error Files"}]
 
     want_main_area = 1
     want_control_area = 1
@@ -51,19 +45,17 @@ class OWThicknessFileReader(OWWidget):
     MAX_WIDTH = 1320
     MAX_HEIGHT = 700
 
-    IMAGE_WIDTH = 860
-    IMAGE_HEIGHT = 645
+    IMAGE_WIDTH = 800
+    IMAGE_HEIGHT = 610
 
     CONTROL_AREA_WIDTH = 405
-    TABS_AREA_HEIGHT = 618
 
-    xx = None
-    yy = None
-    zz = None
+    data=None
 
     separator = Setting(0)
-    skip_rows = Setting(1)
-    surface_file_name = Setting('thickness.dat')
+    skip_rows = Setting(0)
+
+    surface_file_names = Setting(["thickness.dat"])
 
     negate = Setting(0)
 
@@ -89,38 +81,147 @@ class OWThicknessFileReader(OWWidget):
         button = gui.button(button_box, self, "Render Thickness", callback=self.render_surface)
         button.setFixedHeight(45)
 
-        input_box_l = oasysgui.widgetBox(self.controlArea, "Input", addSpace=True, orientation="vertical", height=self.TABS_AREA_HEIGHT)
+        input_box_l = oasysgui.widgetBox(self.controlArea, "Input", addSpace=True, orientation="vertical", height=410, width=self.CONTROL_AREA_WIDTH)
 
-        box = oasysgui.widgetBox(input_box_l, "", addSpace=False, orientation="horizontal")
+        gui.button(input_box_l, self, "Select Thickness Error Profile Data Files", callback=self.select_files)
 
-        self.le_surface_file_name = oasysgui.lineEdit(box, self, "surface_file_name", "Thickness File Name",
-                                                        labelWidth=120, valueType=str, orientation="horizontal")
+        self.files_area = oasysgui.textArea(height=250)
 
-        gui.button(box, self, "...", callback=self.selectSurfaceFile)
+        self.refresh_files_text_area()
+
+        input_box_l.layout().addWidget(self.files_area)
+
 
         gui.comboBox(input_box_l, self, "separator", label="Separator", labelWidth=350,
                      items=["Comma", "Space"], sendSelectedValue=False, orientation="horizontal")
 
-        gui.lineEdit(input_box_l, self, "skip_rows", label="Skip Rows", labelWidth=350, orientation="horizontal", valueType=int)
+        oasysgui.lineEdit(input_box_l, self, "skip_rows", label="Skip Rows", labelWidth=350, orientation="horizontal", valueType=int)
         gui.comboBox(input_box_l, self, "negate", label="Invert Surface", labelWidth=350,
                      items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal")
 
-        self.figure = Figure(figsize=(600, 600))
-        self.figure.patch.set_facecolor('white')
 
-        self.axis = self.figure.add_subplot(111, projection='3d')
+        main_tabs = oasysgui.tabWidget(self.mainArea)
+        plot_tab = oasysgui.createTabPage(main_tabs, "Thickness Error Surfaces")
 
-        self.axis.set_zlabel("Z [m]")
+        self.tab = []
+        self.tabs = oasysgui.tabWidget(plot_tab)
 
-        self.figure_canvas = FigureCanvasQTAgg(self.figure)
+        self.initialize_figures()
 
-        self.mainArea.layout().addWidget(self.figure_canvas)
-
+        gui.rubber(self.controlArea)
         gui.rubber(self.mainArea)
+
+
+    def initialize_figures(self):
+        current_tab = self.tabs.currentIndex()
+
+        size = len(self.tab)
+        for index in range(size):
+            self.tabs.removeTab(size-1-index)
+
+        files = []
+
+        for surface_file_name in self.surface_file_names:
+            files.append(os.path.basename(surface_file_name))
+
+        if not len(files) == 0:
+            self.figures = [None]*len(files)
+            self.axes    = [None]*len(files)
+            self.tab     = []
+
+            for title in files:
+                self.tab.append(oasysgui.createTabPage(self.tabs, title))
+
+            for tab in self.tab:
+                tab.setFixedHeight(self.IMAGE_HEIGHT)
+                tab.setFixedWidth(self.IMAGE_WIDTH)
+
+            self.tabs.setCurrentIndex(current_tab)
+        else:
+            self.figures = None
+            self.axes    = None
+
+    def select_files(self):
+        files, _ = QFileDialog.getOpenFileNames(self,
+                                                "Select Thickness Error Profiles", "", "Data Files (*.txt *.dat)",
+                                                options=QFileDialog.Options())
+        if files:
+            self.surface_file_names = files
+
+            self.refresh_files_text_area()
+
+    def refresh_files_text_area(self):
+        text = ""
+
+        for file in self.surface_file_names:
+            text += file + "\n"
+
+        self.files_area.setText(text)
+
+    def write_shadow_file(self, error_profile_data_files, index, xx, yy, zz):
+        filename, _ = os.path.splitext(os.path.basename(self.surface_file_names[index]))
+
+        error_profile_data_file = filename + "_shadow.dat"
+
+        ST.write_shadow_surface(zz / self.workspace_units_to_m,
+                                numpy.round(xx / self.workspace_units_to_m, 6),
+                                numpy.round(yy / self.workspace_units_to_m, 6),
+                                error_profile_data_file)
+
+        error_profile_data_files.append(error_profile_data_file)
+
+    def plot_figures(self):
+        error_profile_data_files = []
+
+        for index in range(len(self.data)):
+            if self.figures[index] is None:
+                figure = Figure(figsize=(600, 600))
+                figure.patch.set_facecolor('white')
+
+                self.axes[index] = figure.add_subplot(111, projection='3d')
+                self.axes[index].set_zlabel("Z [m]")
+
+                self.figures[index] = FigureCanvasQTAgg(figure)
+
+                self.tab[index].layout().addWidget(self.figures[index])
+
+            xx = self.data[index][0]
+            yy = self.data[index][1]
+            zz = self.data[index][2]
+
+            self.axes[index].clear()
+
+            x_to_plot, y_to_plot = numpy.meshgrid(xx, yy)
+
+            self.axes[index].plot_surface(x_to_plot, y_to_plot, zz,
+                                          rstride=1, cstride=1, cmap=cm.autumn, linewidth=0.5, antialiased=True)
+
+            self.axes[index].set_xlabel("X [m]")
+            self.axes[index].set_ylabel("Y [m]")
+            self.axes[index].set_zlabel("Z [m]")
+            self.axes[index].mouse_init()
+
+            self.write_shadow_file(error_profile_data_files, index, xx, yy, zz)
+
+        self.send("Thickness Error Files", error_profile_data_files)
+
+
+    def send_data(self):
+        error_profile_data_files = []
+
+        for index in range(len(self.data)):
+            xx = self.data[index][0]
+            yy = self.data[index][1]
+            zz = self.data[index][2]
+
+            self.write_shadow_file(error_profile_data_files, index, xx, yy, zz)
+
+        self.send("Thickness Error Files", error_profile_data_files)
 
     def read_surface(self):
         try:
-            self.read_data_file()
+            self.read_data_files()
+            self.send_data()
 
             #self.send("Surface Data", OasysSurfaceData(xx=self.xx, yy=self.yy, zz=self.zz, surface_data_file=self.surface_file_name))
         except Exception as exception:
@@ -129,24 +230,13 @@ class OWThicknessFileReader(OWWidget):
                                  QMessageBox.Ok)
 
             if self.IS_DEVELOP: raise exception
+
+
 
     def render_surface(self):
         try:
-            self.read_data_file()
-
-            self.axis.clear()
-
-            x_to_plot, y_to_plot = numpy.meshgrid(self.xx, self.yy)
-
-            self.axis.plot_surface(x_to_plot, y_to_plot, self.zz,
-                                   rstride=1, cstride=1, cmap=cm.autumn, linewidth=0.5, antialiased=True)
-
-            self.axis.set_xlabel("X [m]")
-            self.axis.set_ylabel("Y [m]")
-            self.axis.set_zlabel("Z [m]")
-            self.axis.mouse_init()
-
-            self.figure_canvas.draw()
+            self.read_data_files()
+            self.plot_figures()
 
             #self.send("Surface Data", OasysSurfaceData(xx=self.xx, yy=self.yy, zz=self.zz, surface_data_file=self.surface_file_name))
 
@@ -157,32 +247,21 @@ class OWThicknessFileReader(OWWidget):
 
             if self.IS_DEVELOP: raise exception
 
-    def selectSurfaceFile(self):
-        self.le_surface_file_name.setText(oasysgui.selectFileFromDialog(self, self.surface_file_name, "Select Input File", file_extension_filter="Txt Files (*.txt *.dat)"))
 
+    def read_data_files(self):
+        self.data = []
 
-    def read_data_file(self):
-        self.surface_file_name = congruence.checkDir(self.surface_file_name)
+        for surface_file_name in self.surface_file_names:
+            surface_file_name = congruence.checkDir(surface_file_name)
 
-        data = numpy.loadtxt(self.surface_file_name, delimiter="," if self.separator==0 else " ", skiprows=self.skip_rows)
+            data = numpy.loadtxt(surface_file_name, delimiter="," if self.separator==0 else " ", skiprows=self.skip_rows)
 
-        xx = numpy.unique(data[:, 0])
-        yy = numpy.unique(data[:, 1])
+            xx = numpy.unique(data[:, 0])
+            yy = numpy.unique(data[:, 1])
+            zz = numpy.reshape(data[:, 2], (len(xx), len(yy))).T
 
-        dim_x = len(xx)
-        dim_y = len(yy)
+            zz = zz if self.negate == 0 else -1.0 * zz
 
-        zz = numpy.zeros((dim_x, dim_y))
+            self.data.append([xx, yy, zz])
 
-        print(xx, yy)
-        for i in range(dim_x):
-            for j in range(dim_y):
-                index = i * dim_x + j
-
-                zz[i, j] = data[index, 2]
-
-        zz = zz if self.negate == 0 else -1.0 * zz
-
-        self.xx = xx
-        self.yy = yy
-        self.zz = zz
+        self.initialize_figures()
