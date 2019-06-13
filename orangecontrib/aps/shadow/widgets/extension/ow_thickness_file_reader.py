@@ -174,6 +174,7 @@ class OWThicknessFileReader(OWWidget):
 
         zz = numpy.zeros((dim_x, dim_y))
 
+        print(xx, yy)
         for i in range(dim_x):
             for j in range(dim_y):
                 index = i * dim_x + j
