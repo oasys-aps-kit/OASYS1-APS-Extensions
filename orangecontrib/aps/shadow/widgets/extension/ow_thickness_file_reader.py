@@ -16,7 +16,7 @@ from oasys.widgets import gui as oasysgui
 from oasys.widgets import congruence
 
 from Shadow import ShadowTools as ST
-from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData
+import oasys.util.oasys_util as OU
 
 try:
     from mpl_toolkits.mplot3d import Axes3D  # necessario per caricare i plot 3D
@@ -54,6 +54,8 @@ class OWThicknessFileReader(OWWidget):
 
     separator = Setting(0)
     skip_rows = Setting(0)
+    conversion_to_m_z = Setting(1.0)
+    conversion_to_m_xy = Setting(1.0)
 
     surface_file_names = Setting(["thickness.dat"])
 
@@ -81,7 +83,7 @@ class OWThicknessFileReader(OWWidget):
         button = gui.button(button_box, self, "Render Thickness", callback=self.render_surface)
         button.setFixedHeight(45)
 
-        input_box_l = oasysgui.widgetBox(self.controlArea, "Input", addSpace=True, orientation="vertical", height=410, width=self.CONTROL_AREA_WIDTH)
+        input_box_l = oasysgui.widgetBox(self.controlArea, "Input", addSpace=True, orientation="vertical", height=460, width=self.CONTROL_AREA_WIDTH)
 
         gui.button(input_box_l, self, "Select Thickness Error Profile Data Files", callback=self.select_files)
 
@@ -96,6 +98,10 @@ class OWThicknessFileReader(OWWidget):
                      items=["Comma", "Space"], sendSelectedValue=False, orientation="horizontal")
 
         oasysgui.lineEdit(input_box_l, self, "skip_rows", label="Skip Rows", labelWidth=350, orientation="horizontal", valueType=int)
+
+        oasysgui.lineEdit(input_box_l, self, "conversion_to_m_z", label="Thickness conversion to m", labelWidth=300, orientation="horizontal", valueType=float)
+        oasysgui.lineEdit(input_box_l, self, "conversion_to_m_xy", label="Coordinates conversion to m", labelWidth=300, orientation="horizontal", valueType=float)
+
         gui.comboBox(input_box_l, self, "negate", label="Invert Surface", labelWidth=350,
                      items=["No", "Yes"], sendSelectedValue=False, orientation="horizontal")
 
@@ -158,17 +164,20 @@ class OWThicknessFileReader(OWWidget):
 
         self.files_area.setText(text)
 
-    def write_shadow_file(self, error_profile_data_files, index, xx, yy, zz):
+    def write_shadow_and_hybrid_files(self, error_profile_data_files, index, xx, yy, zz):
+        zz = zz / self.workspace_units_to_m
+        xx = numpy.round(xx / self.workspace_units_to_m, 6)
+        yy = numpy.round(yy / self.workspace_units_to_m, 6)
+
         filename, _ = os.path.splitext(os.path.basename(self.surface_file_names[index]))
 
-        error_profile_data_file = filename + "_shadow.dat"
+        error_profile_data_file        = filename + "_shadow.dat"
+        hybrid_error_profile_data_file = filename + "_hybrid.h5"
 
-        ST.write_shadow_surface(zz / self.workspace_units_to_m,
-                                numpy.round(xx / self.workspace_units_to_m, 6),
-                                numpy.round(yy / self.workspace_units_to_m, 6),
-                                error_profile_data_file)
+        ST.write_shadow_surface(zz, xx, yy, error_profile_data_file)
+        OU.write_surface_file(zz, xx, yy, hybrid_error_profile_data_file)
 
-        error_profile_data_files.append(error_profile_data_file)
+        error_profile_data_files.append([error_profile_data_file, hybrid_error_profile_data_file])
 
     def plot_figures(self):
         error_profile_data_files = []
@@ -193,15 +202,15 @@ class OWThicknessFileReader(OWWidget):
 
             x_to_plot, y_to_plot = numpy.meshgrid(xx, yy)
 
-            self.axes[index].plot_surface(x_to_plot, y_to_plot, zz,
-                                          rstride=1, cstride=1, cmap=cm.autumn, linewidth=0.5, antialiased=True)
+            self.axes[index].plot_surface(x_to_plot*1e6, y_to_plot*1e6, zz*1e6,
+                                          rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0.5, antialiased=True)
 
-            self.axes[index].set_xlabel("X [m]")
-            self.axes[index].set_ylabel("Y [m]")
-            self.axes[index].set_zlabel("Z [m]")
+            self.axes[index].set_xlabel("X [\u03bcm]")
+            self.axes[index].set_ylabel("Y [\u03bcm]")
+            self.axes[index].set_zlabel("Z [\u03bcm]")
             self.axes[index].mouse_init()
 
-            self.write_shadow_file(error_profile_data_files, index, xx, yy, zz)
+            self.write_shadow_and_hybrid_files(error_profile_data_files, index, xx, yy, zz)
 
         self.send("Thickness Error Files", error_profile_data_files)
 
@@ -214,7 +223,7 @@ class OWThicknessFileReader(OWWidget):
             yy = self.data[index][1]
             zz = self.data[index][2]
 
-            self.write_shadow_file(error_profile_data_files, index, xx, yy, zz)
+            self.write_shadow_and_hybrid_files(error_profile_data_files, index, xx, yy, zz)
 
         self.send("Thickness Error Files", error_profile_data_files)
 
@@ -223,7 +232,6 @@ class OWThicknessFileReader(OWWidget):
             self.read_data_files()
             self.send_data()
 
-            #self.send("Surface Data", OasysSurfaceData(xx=self.xx, yy=self.yy, zz=self.zz, surface_data_file=self.surface_file_name))
         except Exception as exception:
             QMessageBox.critical(self, "Error",
                                  exception.args[0],
@@ -237,8 +245,6 @@ class OWThicknessFileReader(OWWidget):
         try:
             self.read_data_files()
             self.plot_figures()
-
-            #self.send("Surface Data", OasysSurfaceData(xx=self.xx, yy=self.yy, zz=self.zz, surface_data_file=self.surface_file_name))
 
         except Exception as exception:
             QMessageBox.critical(self, "Error",
@@ -256,11 +262,11 @@ class OWThicknessFileReader(OWWidget):
 
             data = numpy.loadtxt(surface_file_name, delimiter="," if self.separator==0 else " ", skiprows=self.skip_rows)
 
-            xx = numpy.unique(data[:, 0])
-            yy = numpy.unique(data[:, 1])
+            xx = numpy.unique(data[:, 0]) * self.conversion_to_m_xy
+            yy = numpy.unique(data[:, 1]) * self.conversion_to_m_xy
             zz = numpy.reshape(data[:, 2], (len(xx), len(yy))).T
 
-            zz = zz if self.negate == 0 else -1.0 * zz
+            zz = zz * self.conversion_to_m_z if self.negate == 0 else -1.0 * zz * self.conversion_to_m_z
 
             self.data.append([xx, yy, zz])
 
