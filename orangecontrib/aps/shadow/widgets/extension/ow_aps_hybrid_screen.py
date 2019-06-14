@@ -2,7 +2,7 @@ __author__ = 'labx'
 
 from orangewidget import gui
 from orangewidget.settings import Setting
-
+from oasys.widgets import congruence
 from oasys.widgets import gui as oasysgui
 from oasys.util.oasys_util import TriggerIn
 
@@ -37,7 +37,12 @@ class APSHybridScreen(AbstractHybridScreen):
     keywords = ["data", "file", "load", "read"]
 
     crl_error_profiles = Setting([])
+    crl_material_data = Setting(0)
     crl_material = Setting("Be")
+    crl_delta = Setting(1e-6)
+    crl_scaling_factor = Setting(1.0)
+
+
 
     def __init__(self):
         super(APSHybridScreen, self).__init__()
@@ -63,10 +68,6 @@ class APSHybridScreen(AbstractHybridScreen):
 
         self.files_area.setText(text)
 
-    def remove_files(self):
-        self.crl_error_profiles = []
-        self.files_area.setText("")
-
     def set_CalculationType_Aux(self):
         self.cb_ghy_diff_plane.setEnabled(True)
 
@@ -79,27 +80,53 @@ class APSHybridScreen(AbstractHybridScreen):
             self.set_DiffPlane()
             self.cb_ghy_diff_plane.setEnabled(False)
 
-
-
     def createTabThickness(self):
         tab_thick = oasysgui.createTabPage(self.tabs_setting, "Thickness Error")
 
-        input_box = oasysgui.widgetBox(tab_thick, "Thickness Error Files", addSpace=True, orientation="vertical", height=350, width=self.CONTROL_AREA_WIDTH-20)
+        input_box = oasysgui.widgetBox(tab_thick, "Thickness Error Files", addSpace=True, orientation="vertical", height=390, width=self.CONTROL_AREA_WIDTH-20)
 
-        oasysgui.lineEdit(input_box, self, "crl_material", "CRLs material", labelWidth=260, valueType=str, orientation="horizontal")
+        gui.comboBox(input_box, self, "crl_material_data", label="Material Properties from", labelWidth=180,
+                             items=["Compound Name", "Delta"],
+                             callback=self.set_CrlMaterialData,
+                             sendSelectedValue=False, orientation="horizontal")
 
-        gui.button(input_box, self, "Remove Thickness Error Profile Data Files", callback=self.remove_files)
+        self.input_box_1 = oasysgui.widgetBox(input_box, "", addSpace=False, orientation="vertical", width=self.CONTROL_AREA_WIDTH-40)
+        self.input_box_2 = oasysgui.widgetBox(input_box, "", addSpace=False, orientation="vertical", width=self.CONTROL_AREA_WIDTH-40)
 
-        self.files_area = oasysgui.textArea(height=250)
+        oasysgui.lineEdit(self.input_box_1, self, "crl_material", "CRLs Material", labelWidth=260, valueType=str, orientation="horizontal")
+        oasysgui.lineEdit(self.input_box_2, self, "crl_delta", "CRLs \u03b4", labelWidth=260, valueType=float, orientation="horizontal")
+
+        self.set_CrlMaterialData()
+
+        self.files_area = oasysgui.textArea(height=265)
 
         input_box.layout().addWidget(self.files_area)
 
         self.refresh_files_text_area()
 
+        oasysgui.lineEdit(input_box, self, "crl_scaling_factor", "Thickness Error Scaling Factor", labelWidth=260, valueType=float, orientation="horizontal")
+
+    def set_CrlMaterialData(self):
+        self.input_box_1.setVisible(self.crl_material_data==0)
+        self.input_box_2.setVisible(self.crl_material_data==1)
+
     def add_input_parameters_aux(self, input_parameters):
-        if self.ghy_calcType==5 and len(self.crl_error_profiles) > 0:
+        input_parameters.crl_material = None
+        input_parameters.crl_delta = None
+        input_parameters.crl_error_profiles = None
+
+        if self.ghy_calcType==5:
+            self.check_fields_aux()
+
             input_parameters.crl_error_profiles = self.crl_error_profiles
-            input_parameters.crl_material = self.crl_material
-        else:
-            input_parameters.crl_error_profiles = None
-            input_parameters.crl_material = None
+
+            if self.crl_material_data==0: input_parameters.crl_material = self.crl_material
+            else: input_parameters.crl_delta = self.crl_delta
+
+            input_parameters.crl_scaling_factor = self.crl_scaling_factor
+
+    def check_fields_aux(self):
+        if len(self.crl_error_profiles) == 0: raise ValueError("No Thickness error profile specified")
+        if self.crl_material_data==0: self.crl_material = congruence.checkEmptyString(self.crl_material, "CRLs Material")
+        else: congruence.checkStrictlyPositiveNumber(self.crl_delta, "CRLs \u03b4")
+        congruence.checkPositiveNumber(self.crl_scaling_factor, "Thickness Error Scaling Factor")
