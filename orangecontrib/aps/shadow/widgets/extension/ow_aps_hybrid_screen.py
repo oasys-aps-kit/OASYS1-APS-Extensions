@@ -1,5 +1,9 @@
 __author__ = 'labx'
 
+from PyQt5.QtWidgets import QMessageBox
+
+import os
+
 from orangewidget import gui
 from orangewidget.settings import Setting
 from oasys.widgets import congruence
@@ -8,6 +12,8 @@ from oasys.util.oasys_util import TriggerIn
 
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam
 from orangecontrib.shadow.widgets.special_elements.ow_hybrid_screen import AbstractHybridScreen
+
+import oasys.util.oasys_util as OU
 
 class APSHybridScreen(AbstractHybridScreen):
 
@@ -42,15 +48,40 @@ class APSHybridScreen(AbstractHybridScreen):
     crl_delta = Setting(1e-6)
     crl_scaling_factor = Setting(1.0)
 
-
-
     def __init__(self):
         super(APSHybridScreen, self).__init__()
 
     def setErrorProfiles(self, error_profiles):
-        if not error_profiles is None:
-            self.crl_error_profiles = [error_profile[1] for error_profile in error_profiles] # h5 file only
-            if self.ghy_calcType==5: self.refresh_files_text_area()
+        try:
+            if not error_profiles is None:
+                self.convert_thickness_files(error_profiles)
+
+                if self.ghy_calcType==5: self.refresh_files_text_area()
+        except Exception as exception:
+            QMessageBox.critical(self, "Error",
+                                 exception.args[0],
+                                 QMessageBox.Ok)
+
+            if self.IS_DEVELOP: raise exception
+
+
+    def convert_thickness_files(self, error_profiles):
+        self.crl_error_profiles = []
+
+        for thickness_error_file in error_profiles:
+            xx, yy, zz = OU.read_surface_file(thickness_error_file)
+
+            xx /= self.workspace_units_to_m
+            yy /= self.workspace_units_to_m
+            zz /= self.workspace_units_to_m
+
+            filename, _ = os.path.splitext(os.path.basename(thickness_error_file))
+
+            thickness_error_file = filename + "_hybrid.h5"
+
+            OU.write_surface_file(zz, xx, yy, thickness_error_file)
+
+            self.crl_error_profiles.append(thickness_error_file)
 
     def get_calculation_type_items(self):
         return ["Diffraction by Simple Aperture",
@@ -86,15 +117,15 @@ class APSHybridScreen(AbstractHybridScreen):
         input_box = oasysgui.widgetBox(tab_thick, "Thickness Error Files", addSpace=True, orientation="vertical", height=390, width=self.CONTROL_AREA_WIDTH-20)
 
         gui.comboBox(input_box, self, "crl_material_data", label="Material Properties from", labelWidth=180,
-                             items=["Compound Name", "Delta"],
+                             items=["Chemical Formula", "Absorption Parameters"],
                              callback=self.set_CrlMaterialData,
                              sendSelectedValue=False, orientation="horizontal")
 
         self.input_box_1 = oasysgui.widgetBox(input_box, "", addSpace=False, orientation="vertical", width=self.CONTROL_AREA_WIDTH-40)
         self.input_box_2 = oasysgui.widgetBox(input_box, "", addSpace=False, orientation="vertical", width=self.CONTROL_AREA_WIDTH-40)
 
-        oasysgui.lineEdit(self.input_box_1, self, "crl_material", "CRLs Material", labelWidth=260, valueType=str, orientation="horizontal")
-        oasysgui.lineEdit(self.input_box_2, self, "crl_delta", "CRLs \u03b4", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(self.input_box_1, self, "crl_material", "Chemical Formula", labelWidth=260, valueType=str, orientation="horizontal")
+        oasysgui.lineEdit(self.input_box_2, self, "crl_delta", "Refractive Index (\u03b4)", labelWidth=260, valueType=float, orientation="horizontal")
 
         self.set_CrlMaterialData()
 
@@ -127,6 +158,6 @@ class APSHybridScreen(AbstractHybridScreen):
 
     def check_fields_aux(self):
         if len(self.crl_error_profiles) == 0: raise ValueError("No Thickness error profile specified")
-        if self.crl_material_data==0: self.crl_material = congruence.checkEmptyString(self.crl_material, "CRLs Material")
-        else: congruence.checkStrictlyPositiveNumber(self.crl_delta, "CRLs \u03b4")
+        if self.crl_material_data==0: self.crl_material = congruence.checkEmptyString(self.crl_material, "Chemical Formula")
+        else: congruence.checkStrictlyPositiveNumber(self.crl_delta, "Refractive Index (\u03b4)")
         congruence.checkPositiveNumber(self.crl_scaling_factor, "Thickness Error Scaling Factor")

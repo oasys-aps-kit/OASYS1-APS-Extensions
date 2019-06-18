@@ -43,4 +43,4 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-This is project contains customized widget of ShadowOui developed at APS-ANL
+This is project contains customized widget of OASYS developed at APS-ANL

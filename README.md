@@ -1,4 +1,4 @@
-# OASYS1-APS-ShadowOui
+# OASYS1-APS-Extensions
 
  Copyright (c) 2018, UChicago Argonne, LLC. All rights reserved.         
                                                                          
@@ -44,4 +44,4 @@
  POSSIBILITY OF SUCH DAMAGE.                                             
 
 
-Customized widgets for ShadowOui developed at the APS-ANL
+Customized widgets for Oasys developed at the APS-ANL
