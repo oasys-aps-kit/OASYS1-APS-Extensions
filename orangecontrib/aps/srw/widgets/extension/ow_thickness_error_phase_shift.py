@@ -1,4 +1,4 @@
-import numpy
+import numpy, copy
 
 from PyQt5.QtGui import QPalette, QColor, QFont
 from PyQt5.QtWidgets import QMessageBox
@@ -16,7 +16,7 @@ from srxraylib.util.data_structures import ScaledMatrix
 
 from scipy.interpolate import RectBivariateSpline
 
-from wofrysrw.propagator.wavefront2D.srw_wavefront import SRWWavefront, PolarizationComponent
+from wofrysrw.propagator.wavefront2D.srw_wavefront import SRWWavefront, PolarizationComponent, Polarization
 from wofrysrw.beamline.optical_elements.other.srw_crl import SRWCRL
 
 from orangecontrib.srw.util.srw_objects import SRWData
@@ -156,14 +156,27 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
             for thickness_error_profile in crl_w_mirr_2D_values:
                 phase_shift = OWThicknessErrorPhaseShift.get_crl_phase_shift(thickness_error_profile, crl_delta, generic_wavefront, self.crl_scaling_factor)
 
-                generic_wavefront.add_phase_shift(phase_shift)
+                generic_wavefront.add_phase_shift(phase_shift, Polarization.SIGMA)
+                generic_wavefront.add_phase_shift(phase_shift, Polarization.PI)
 
             # TO SRW
             output_wavefront     = SRWWavefront.fromGenericWavefront(generic_wavefront)
-            output_wavefront.Rx  = self.input_srw_data.get_srw_wavefront().Rx
-            output_wavefront.dRx = self.input_srw_data.get_srw_wavefront().dRx
-            output_wavefront.Ry  = self.input_srw_data.get_srw_wavefront().Ry
-            output_wavefront.dRy = self.input_srw_data.get_srw_wavefront().dRy
+
+            output_wavefront.Rx  = input_wavefront.Rx
+            output_wavefront.Ry  = input_wavefront.Ry
+            output_wavefront.dRx  = input_wavefront.dRx
+            output_wavefront.dRy  = input_wavefront.dRy
+            output_wavefront.xc  = input_wavefront.xc
+            output_wavefront.yc = input_wavefront.yc
+            output_wavefront.avgPhotEn  = input_wavefront.avgPhotEn
+            output_wavefront.presCA = input_wavefront.presCA
+            output_wavefront.presFT  = input_wavefront.presFT
+            output_wavefront.unitElFld  = input_wavefront.unitElFld
+            output_wavefront.arElecPropMatr  = copy.deepcopy(input_wavefront.arElecPropMatr)
+            output_wavefront.arMomX  = copy.deepcopy(input_wavefront.arMomX)
+            output_wavefront.arMomY  = copy.deepcopy(input_wavefront.arMomY)
+            output_wavefront.arWfrAuxData  = copy.deepcopy(input_wavefront.arWfrAuxData)
+            output_wavefront.partBeam = copy.deepcopy(input_wavefront.partBeam)
 
             output_wavefront.setScanningData(input_wavefront.scanned_variable_data)
 
