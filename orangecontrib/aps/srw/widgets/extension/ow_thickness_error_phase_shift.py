@@ -1,4 +1,5 @@
 import numpy, copy
+from numpy import nan
 
 from PyQt5.QtGui import QPalette, QColor, QFont
 from PyQt5.QtWidgets import QMessageBox
@@ -18,10 +19,15 @@ from scipy.interpolate import RectBivariateSpline
 
 from wofrysrw.propagator.wavefront2D.srw_wavefront import SRWWavefront, PolarizationComponent, Polarization
 from wofrysrw.beamline.optical_elements.other.srw_crl import SRWCRL
+from wofry.propagator.propagator import PropagationManager
+from wofrysrw.propagator.propagators2D.srw_fresnel_native import SRW_APPLICATION
+from wofrysrw.propagator.propagators2D.srw_propagation_mode import SRWPropagationMode
+
 
 from orangecontrib.srw.util.srw_objects import SRWData
 from orangecontrib.srw.util.srw_util import SRWPlot
 from orangecontrib.srw.widgets.gui.ow_srw_wavefront_viewer import SRWWavefrontViewer
+
 
 class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
     name = "Thickness Error Phase Shift"
@@ -128,6 +134,12 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
             if self.is_automatic_run:
                 self.propagate_wavefront()
 
+    def set_srw_live_propagation_mode(self):
+        if PropagationManager.Instance().get_propagation_mode(SRW_APPLICATION)==SRWPropagationMode.WHOLE_BEAMLINE:
+            raise ValueError("Propagation Mode not supported, switch to Element by Element")
+        else:
+            super(OWThicknessErrorPhaseShift, self).set_srw_live_propagation_mode()
+
     def propagate_wavefront(self):
         try:
             self.progressBarInit()
@@ -206,7 +218,6 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
 
             if self.IS_DEVELOP: raise e
 
-
     def run_calculation_for_plots(self, output_wavefront, tickets, progress_bar_value):
         if self.view_type==2:
             e, h, v, i = output_wavefront.get_intensity(multi_electron=False, polarization_component_to_be_extracted=PolarizationComponent.LINEAR_HORIZONTAL)
@@ -219,15 +230,16 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
 
             tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, i[int(e.size/2)]))
 
-            e, h, v, i = output_wavefront.get_phase(polarization_component_to_be_extracted=PolarizationComponent.LINEAR_HORIZONTAL)
+            e, h, v, p = output_wavefront.get_phase(polarization_component_to_be_extracted=PolarizationComponent.LINEAR_HORIZONTAL)
 
-            tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, i[int(e.size/2)]))
+            tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, p[int(e.size/2)]))
 
             self.progressBarSet(progress_bar_value + 10)
 
-            e, h, v, i = output_wavefront.get_phase(polarization_component_to_be_extracted=PolarizationComponent.LINEAR_VERTICAL)
+            e, h, v, p = output_wavefront.get_phase(polarization_component_to_be_extracted=PolarizationComponent.LINEAR_VERTICAL)
 
-            tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, i[int(e.size/2)]))
+            tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, p[int(e.size/2)]))
+
         elif self.view_type==1:
             e, h, v, i = output_wavefront.get_intensity(multi_electron=False)
 
@@ -235,12 +247,11 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
 
             self.progressBarSet(progress_bar_value)
 
-            e, h, v, i = output_wavefront.get_phase()
+            e, h, v, p = output_wavefront.get_phase()
 
-            tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, i[int(e.size/2)]))
+            tickets.append(SRWPlot.get_ticket_2D(h*1000, v*1000, p[int(e.size/2)]))
 
-            self.progressBarSet(progress_bar_value + 10)
-
+        self.progressBarSet(progress_bar_value + 10)
 
     def propagate_new_wavefront(self, trigger):
         try:
@@ -297,30 +308,30 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
 
         return -2*numpy.pi*crl_delta*thickness_error/wavelength
 
-    def getXTitles(self):
-        return ["X [\u03bcm]", "X [\u03bcm]"]
-
-    def getYTitles(self):
-        return ["Y [\u03bcm]", "Y [\u03bcm]"]
-
-    def getXUM(self):
-        return ["X [\u03bcm]", "X [\u03bcm]"]
-
-    def getYUM(self):
-        return ["Y [\u03bcm]", "Y [\u03bcm]"]
-
     def getVariablesToPlot(self):
         if self.view_type == 2:
             return [[1, 2], [1, 2], [1, 2], [1, 2]]
         else:
             return [[1, 2], [1, 2]]
 
+    def getWeightedPlots(self):
+        if self.view_type == 2:
+            return [False, False, True, True]
+        else:
+            return [False, True]
+
+    def getWeightTickets(self):
+        if self.view_type == 2:
+            return [nan, nan, 0, 1]
+        else:
+            return [nan, 0]
+
     def getTitles(self, with_um=False):
         if self.view_type == 2:
             if with_um: return ["Intensity SE \u03c0 [ph/s/.1%bw/mm\u00b2]",
                                 "Intensity SE \u03c3 [ph/s/.1%bw/mm\u00b2]",
                                 "Phase SE \u03c0 [rad]",
-                                "Phase SE \u03c3 [rad]"]
+                                "Phase SE \u03c0 [rad]"]
             else: return ["Intensity SE \u03c0",
                           "Intensity SE \u03c3",
                           "Phase SE \u03c0",
