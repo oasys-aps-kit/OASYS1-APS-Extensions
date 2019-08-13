@@ -749,7 +749,7 @@ class HybridScreenErrorAnalysis(AutomaticElement):
 
         self.plot_canvas_stats[plot_canvas_index].plotCurves(stats.get_scan_values(),
                                                              stats.get_sigmas(),
-                                                             stats.get_relative_intensities(),
+                                                             stats.get_relative_peak_intensities(),
                                                              "Statistics",
                                                              "Profiles",
                                                              "Sigma [" + sigma_um + "]",

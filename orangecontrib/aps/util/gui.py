@@ -13,8 +13,9 @@ class HistogramData(object):
     fwhm = 0.0
     sigma = 0.0
     peak_intensity = 0.0
+    intensity_integral = 0.0
 
-    def __init__(self, histogram=None, bins=None, offset=0.0, xrange=None, fwhm=0.0, sigma=0.0, peak_intensity=0.0, scan_value=0.0):
+    def __init__(self, histogram=None, bins=None, offset=0.0, xrange=None, fwhm=0.0, sigma=0.0, peak_intensity=0.0, intensity_integral=0.0, scan_value=0.0):
         self.histogram = histogram
         self.bins = bins
         self.offset = offset
@@ -22,6 +23,7 @@ class HistogramData(object):
         self.fwhm = fwhm
         self.sigma = sigma
         self.peak_intensity = peak_intensity
+        self.intensity_integral=intensity_integral
         self.scan_value = scan_value
 
     def get_centroid(self):
@@ -92,28 +94,29 @@ class StatisticalDataCollection(object):
 
     def add_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity]])
+            self.data = numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity], [histo_data.intensity_integral]])
         else:
             self.data = self.data.flatten()
             self.data = numpy.insert(self.data,
-                                     [0, int(len(self.data)/4), int(2*len(self.data)/4), int(3*len(self.data)/4)],
-                                     [histo_data.scan_value, histo_data.fwhm, histo_data.sigma, histo_data.peak_intensity])
-            self.data = self.data.reshape(4, int(len(self.data)/4))
+                                     [0, int(len(self.data)/5), int(2*len(self.data)/5), int(3*len(self.data)/5), int(4*len(self.data)/5)],
+                                     [histo_data.scan_value, histo_data.fwhm, histo_data.sigma, histo_data.peak_intensity, histo_data.intensity_integral])
+            self.data = self.data.reshape(5, int(len(self.data)/5))
 
     def replace_reference_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity]])
+            self.data = numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity], [histo_data.intensity_integral]])
         else:
             self.data[0, 0] = histo_data.scan_value
             self.data[1, 0] = histo_data.fwhm
             self.data[2, 0] = histo_data.sigma
             self.data[3, 0] = histo_data.peak_intensity
+            self.data[4, 0] = histo_data.intensity_integral
 
     def add_statistical_data(self, histo_data=HistogramData()):
         if self.data is None:
-            self.data = numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity]])
+            self.data = numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity], [histo_data.intensity_integral]])
         else:
-            self.data = numpy.append(self.data, numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity]]), axis=1)
+            self.data = numpy.append(self.data, numpy.array([[histo_data.scan_value], [histo_data.fwhm], [histo_data.sigma], [histo_data.peak_intensity], [histo_data.intensity_integral]]), axis=1)
 
     def get_scan_values(self):
         return self.data[0, :]
@@ -124,9 +127,15 @@ class StatisticalDataCollection(object):
     def get_sigmas(self):
         return self.data[2, :]
 
-    def get_relative_intensities(self):
+    def get_relative_peak_intensities(self):
         try:
             return self.data[3, :]/self.data[3, 0]
+        except:
+            return -1
+
+    def get_relative_integral_intensities(self):
+        try:
+            return self.data[4, :]/self.data[4, 0]
         except:
             return -1
 
@@ -142,9 +151,11 @@ class StatisticalDataCollection(object):
     def get_sigma(self, index):
         return self.data[2, index]
 
-    def get_relative_intensity(self, index):
+    def get_relative_peak_intensity(self, index):
         return self.data[3, index]/self.data[3, 0]
 
+    def get_relative_integral_intensity(self, index):
+        return self.data[4, index]/self.data[4, 0]
 
 
 class DoublePlotWidget(QWidget):
@@ -201,7 +212,7 @@ def write_histo_and_stats_file_hdf5(histo_data=HistogramDataCollection(),
         statistics.create_dataset("scan_values", data=stats.get_scan_values())
         statistics.create_dataset("fhwm", data=stats.get_fwhms())
         statistics.create_dataset("sigma", data=stats.get_sigmas())
-        statistics.create_dataset("relative_intensity", data=stats.get_relative_intensities())
+        statistics.create_dataset("relative_intensity", data=stats.get_relative_peak_intensities())
 
         file.flush()
         file.close()
@@ -229,7 +240,7 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
         for scan_value, fwhm, sigma, peak_intensity in zip(stats.get_scan_values(),
                                                            stats.get_fwhms(),
                                                            stats.get_sigmas(),
-                                                           stats.get_relative_intensities()):
+                                                           stats.get_relative_peak_intensities()):
             file_fwhm.write(str(scan_value) + "   " + str(fwhm) + "\n")
             file_sigma.write(str(scan_value) + "   " + str(sigma) + "\n")
             file_peak_intensity.write(str(scan_value) + "   " + str(peak_intensity) + "\n")

@@ -205,6 +205,7 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
         fwhm = sigma*2.35 if fwhm is None else fwhm*factor
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
+        integral_intensity = numpy.sum(histogram_stats)
 
         rcParams['axes.formatter.useoffset']='False'
 
@@ -213,7 +214,7 @@ class Scan3DHistoWidget(AbstractScanHistoWidget):
 
         self.add_histo(scan_variable_value, histogram, has_colormap, colormap, histo_index)
 
-        return HistogramData(histogram_stats, bins_stats, 0.0, xrange, fwhm, sigma, peak_intensity)
+        return HistogramData(histogram_stats, bins_stats, 0.0, xrange, fwhm, sigma, peak_intensity, integral_intensity)
 
     def add_histo(self, scan_value, intensities, has_colormap, colormap, histo_index):
         if self.xx is None: raise ValueError("Initialize X range first")
@@ -393,6 +394,7 @@ class ScanHistoWidget(AbstractScanHistoWidget):
         fwhm = sigma*2.35 if fwhm is None else fwhm*factor
 
         peak_intensity = numpy.average(histogram_stats[numpy.where(histogram_stats>=numpy.max(histogram_stats)*0.85)])
+        integral_intensity = numpy.sum(histogram_stats)
 
         if histo_index==0 and show_reference:
             h_title = "Reference"
@@ -437,7 +439,7 @@ class ScanHistoWidget(AbstractScanHistoWidget):
 
         self.plot_canvas.addDockWidget(Qt.RightDockWidgetArea, self.plot_canvas.getLegendsDockWidget())
 
-        return HistogramData(histogram_stats, bins_stats, offset, xrange, fwhm, sigma, peak_intensity)
+        return HistogramData(histogram_stats, bins_stats, offset, xrange, fwhm, sigma, peak_intensity, integral_intensity)
 
     def add_empty_curve(self, histo_data):
         self.plot_canvas.addCurve(numpy.array([histo_data.get_centroid()]),

@@ -477,7 +477,7 @@ class Histogram(SRWWidget):
 
                 self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
                                                   self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
-                                                  self.current_stats.get_relative_intensities(),
+                                                  self.current_stats.get_relative_peak_intensities(),
                                                   "Statistics",
                                                   wavefront.scanned_variable_data.get_scanned_variable_display_name() + um,
                                                   "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,

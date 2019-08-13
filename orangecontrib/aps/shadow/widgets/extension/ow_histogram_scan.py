@@ -122,6 +122,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
     has_colormap=Setting(1)
     plot_type_3D = Setting(0)
     stats_to_plot = Setting(0)
+    stats_to_plot_2 = Setting(0)
 
     def __init__(self):
         super().__init__()
@@ -250,7 +251,7 @@ class Histogram(ow_automatic_element.AutomaticElement):
                                             "Lost Only"],
                                      sendSelectedValue=False, orientation="horizontal")
 
-        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=260)
+        incremental_box = oasysgui.widgetBox(tab_gen, "Incremental Result", addSpace=True, orientation="vertical", height=290)
 
         gui.button(incremental_box, self, "Clear Stored Data", callback=self.clearResults, height=30)
         gui.separator(incremental_box)
@@ -286,6 +287,10 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
         gui.comboBox(self.box_scan, self, "stats_to_plot", label="Stats: Spot Dimension", labelWidth=310,
                      items=["Sigma", "FWHM"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        gui.comboBox(self.box_scan, self, "stats_to_plot_2", label="Stats: Intensity", labelWidth=310,
+                     items=["Peak", "Integral"],
                      sendSelectedValue=False, orientation="horizontal")
 
         gui.button(self.box_scan, self, "Export Scanning Results/Stats", callback=self.export_scanning_stats_analysis, height=30)
@@ -466,11 +471,11 @@ class Histogram(ow_automatic_element.AutomaticElement):
 
                 self.plot_canvas_stats.plotCurves(self.current_stats.get_scan_values(),
                                                   self.current_stats.get_sigmas() if self.stats_to_plot==0 else self.current_stats.get_fwhms(),
-                                                  self.current_stats.get_relative_intensities(),
+                                                  self.current_stats.get_relative_peak_intensities() if self.stats_to_plot_2==0 else self.current_stats.get_relative_integral_intensities(),
                                                   "Statistics",
                                                   beam.scanned_variable_data.get_scanned_variable_display_name() + um,
                                                   "Sigma " + xum if self.stats_to_plot==0 else "FWHM " + xum,
-                                                  "Relative Peak Intensity")
+                                                  "Relative Peak Intensity" if self.stats_to_plot_2==0 else "Relative Integral Intensity")
 
 
     def plot_histo(self, var_x, title, xtitle, ytitle, xum):
