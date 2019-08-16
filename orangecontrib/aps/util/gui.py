@@ -258,6 +258,11 @@ def write_histo_and_stats_file(histo_data=HistogramDataCollection(),
         file_sigma = open(os.path.join(output_folder, "sigma" + suffix + ".dat"), "w")
         file_peak_intensity = open(os.path.join(output_folder, "intensity" + suffix + ".dat"), "w")
 
+        file_fwhm.write("scan_value " + "   " + "fwhm" +  "\n")
+        file_sigma.write("scan_value " + "   " + "sigma" +  "\n")
+        file_peak_intensity.write("scan_value " + "   " + "absolute_peak_intensity" + "   " + "relative_peak_intensity"
+                                  + "   " + "absolute_integral_intensity" + "   " + "relative_integral_intensity" +  "\n")
+
         for scan_value, \
             fwhm, sigma, \
             absolute_peak_intensity, relative_peak_intensity, \
