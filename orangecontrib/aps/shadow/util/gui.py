@@ -468,6 +468,30 @@ class PowerPlotXYWidget(QWidget):
 
         self.setLayout(QVBoxLayout())
 
+    def manage_empty_beam(self, ticket_to_add, nbins, xrange, yrange, var_x, var_y, cumulated_total_power, energy_min, energy_max, energy_step, show_image, to_mm):
+        if not ticket_to_add is None:
+            ticket      = copy.deepcopy(ticket_to_add)
+            last_ticket = copy.deepcopy(ticket_to_add)
+        else:
+            ticket = {}
+            ticket["histogram"] = numpy.zeros((nbins, nbins))
+            ticket['intensity'] = numpy.zeros((nbins, nbins))
+            ticket['nrays']     = 0
+            ticket['good_rays'] = 0
+
+            if not xrange is None and not yrange is None:
+                ticket['bin_h_center'] = numpy.arange(xrange[0], xrange[1], nbins)*to_mm
+                ticket['bin_v_center'] = numpy.arange(yrange[0], yrange[1], nbins)*to_mm
+            else:
+                raise ValueError("Beam is empty and no range has been specified: Calculation is impossible")
+
+        self.plot_power_density_ticket(ticket, var_x, var_y, cumulated_total_power, energy_min, energy_max, energy_step, show_image)
+
+        if not ticket_to_add is None:
+            return ticket, last_ticket
+        else:
+            return ticket, None
+
     def plot_power_density(self, shadow_beam, var_x, var_y, total_power, cumulated_total_power, energy_min, energy_max, energy_step,
                            nbins=100, xrange=None, yrange=None, nolost=1, ticket_to_add=None, to_mm=1.0, show_image=True,
                            kind_of_calculation=0,
@@ -480,6 +504,20 @@ class PowerPlotXYWidget(QWidget):
                            gamma=1.0):
 
         n_rays = len(shadow_beam._beam.rays[:, 0]) # lost and good!
+
+        if n_rays == 0:
+            return self.manage_empty_beam(ticket_to_add,
+                                          nbins,
+                                          xrange,
+                                          yrange,
+                                          var_x,
+                                          var_y,
+                                          cumulated_total_power,
+                                          energy_min,
+                                          energy_max,
+                                          energy_step,
+                                          show_image,
+                                          to_mm)
 
         history_item = shadow_beam.getOEHistory(oe_number=shadow_beam._oe_number)
 
@@ -533,6 +571,20 @@ class PowerPlotXYWidget(QWidget):
         else:
             beam = shadow_beam._beam
 
+        if len(beam.rays) == 0:
+            return self.manage_empty_beam(ticket_to_add,
+                                          nbins,
+                                          xrange,
+                                          yrange,
+                                          var_x,
+                                          var_y,
+                                          cumulated_total_power,
+                                          energy_min,
+                                          energy_max,
+                                          energy_step,
+                                          show_image,
+                                          to_mm)
+
         ticket = beam.histo2(var_x, var_y, nbins=nbins, xrange=xrange, yrange=yrange, nolost=1 if nolost != 2 else 2, ref=23)
 
         ticket['bin_h_center'] *= to_mm
@@ -542,7 +594,7 @@ class PowerPlotXYWidget(QWidget):
         bin_v_size = (ticket['bin_v_center'][1] - ticket['bin_v_center'][0])
 
         if kind_of_calculation > 0:
-            if replace_poor_statistic == 0 or (replace_poor_statistic==1 and len(beam.rays[:, 1]) < good_rays_limit):
+            if replace_poor_statistic == 0 or (replace_poor_statistic==1 and ticket['good_rays'] < good_rays_limit):
                 if kind_of_calculation == 1: # FLAT
                     PowerPlotXYWidget.get_flat_2d(ticket['histogram'], ticket['bin_h_center'], ticket['bin_v_center'])
                 elif kind_of_calculation == 2: # GAUSSIAN
