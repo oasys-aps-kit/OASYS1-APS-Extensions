@@ -740,15 +740,17 @@ class PowerLoopPoint(widget.OWWidget):
 
                                 cumulated_power_before = cumulated_power[before]
 
-                                interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
-                                                                            numpy.linspace(start=cumulated_power_before[0],
-                                                                                           stop=cumulated_power_before[-1],
-                                                                                           num=n_points_out_harmonic))
+                                if len(cumulated_power_before) > 0:
+                                    interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                                                numpy.linspace(start=cumulated_power_before[0],
+                                                                                               stop=cumulated_power_before[-1],
+                                                                                               num=n_points_out_harmonic))
 
                                 if self.binning_style == 0: # constant power
                                     cumulated_power_after = cumulated_power[after]
 
-                                    interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                    if len(cumulated_power_after) > 0:
+                                        interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
                                                                                 numpy.linspace(start=cumulated_power_after[0],
                                                                                                stop=cumulated_power_after[-1],
                                                                                                num=number_of_points_around_harmonic))
@@ -756,12 +758,13 @@ class PowerLoopPoint(widget.OWWidget):
                                 else:
                                     energies_after = energies[after]
 
-                                    interpolated_energies = numpy.linspace(start=energies_after[0],
-                                                                           stop=energies_after[-1],
-                                                                           num=number_of_points_around_harmonic)
+                                    if len(energies_after) > 0:
+                                        interpolated_energies = numpy.linspace(start=energies_after[0],
+                                                                               stop=energies_after[-1],
+                                                                               num=number_of_points_around_harmonic)
 
-                                    interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
-                                                                                numpy.interp(interpolated_energies, energies, cumulated_power))
+                                        interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
+                                                                                    numpy.interp(interpolated_energies, energies, cumulated_power))
 
                                 previous_after_harmonic = harmonic + delta_e
 
