@@ -69,7 +69,6 @@ from srxraylib.util.inverse_method_sampler import Sampler2D
 from orangecontrib.shadow.util.shadow_objects import ShadowBeam, ShadowSource
 from orangecontrib.shadow.widgets.gui.ow_generic_element import GenericElement
 
-from orangecontrib.aps.util.random_distributions import Distribution2D, Grid2D, distribution_from_grid
 from orangecontrib.aps.util.custom_distribution import CustomDistribution
 
 import scipy.constants as codata
@@ -78,6 +77,10 @@ m2ev = codata.c * codata.h / codata.e
 
 from oasys_srw.srwlib import *
 from oasys_srw.srwlib import array as srw_array
+
+VERTICAL = 1
+HORIZONTAL = 2
+BOTH = 3
 
 class Distribution:
     POSITION = 0
@@ -470,7 +473,11 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(left_box_1, self, "auto_energy", "Set Undulator at Energy [eV]", labelWidth=250, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_1, self, "auto_harmonic_number", "As Harmonic #",  labelWidth=250, valueType=int, orientation="horizontal")
 
-        gui.button(left_box_1, self, "Set Kv value", callback=self.auto_set_undulator)
+        button_box = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="horizontal")
+
+        gui.button(button_box, self, "Set Kv value", callback=self.auto_set_undulator_V)
+        gui.button(button_box, self, "Set Kh value", callback=self.auto_set_undulator_H)
+        gui.button(button_box, self, "Set Both K values", callback=self.auto_set_undulator_B)
 
         gui.rubber(self.controlArea)
         gui.rubber(self.mainArea)
@@ -494,8 +501,16 @@ class APSUndulator(GenericElement):
     def get_default_initial_z(self):
         return -0.5*self.undulator_period*(self.number_of_periods + 4) # initial Longitudinal Coordinate (set before the ID)
 
+    def auto_set_undulator_V(self):
+        self.auto_set_undulator(VERTICAL)
 
-    def auto_set_undulator(self):
+    def auto_set_undulator_H(self):
+        self.auto_set_undulator(HORIZONTAL)
+
+    def auto_set_undulator_B(self):
+        self.auto_set_undulator(BOTH)
+
+    def auto_set_undulator(self, which=VERTICAL):
         if not self.distribution_source == 0: raise Exception("This calculation can be performed only for explicit SRW Calculation")
         congruence.checkStrictlyPositiveNumber(self.auto_energy, "Set Undulator at Energy")
         congruence.checkStrictlyPositiveNumber(self.auto_harmonic_number, "As Harmonic #")
@@ -503,9 +518,10 @@ class APSUndulator(GenericElement):
         congruence.checkStrictlyPositiveNumber(self.undulator_period, "Period Length")
 
         wavelength = self.auto_harmonic_number*m2ev/self.auto_energy
+        K = round(numpy.sqrt(2*(((wavelength*2*self.gamma()**2)/self.undulator_period)-1)), 6)
 
-        self.Kv = round(numpy.sqrt(2*(((wavelength*2*self.gamma()**2)/self.undulator_period)-1)), 6)
-        self.Kh = 0
+        if which == VERTICAL   or which==BOTH: self.Kv = K
+        if which == HORIZONTAL or which==BOTH: self.Kh = K
 
         self.set_WFUseHarmonic()
 
