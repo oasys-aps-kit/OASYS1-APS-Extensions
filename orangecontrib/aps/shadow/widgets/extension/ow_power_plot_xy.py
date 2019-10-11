@@ -297,18 +297,19 @@ class PowerPlotXY(AutomaticElement):
         self.le_loaded_plot_file_name = oasysgui.lineEdit(post_box_1, self, "loaded_plot_file_name", "Loaded File", labelWidth=100,  valueType=str, orientation="horizontal")
         gui.button(post_box_1, self, "...", callback=self.selectPlotFile)
 
+        gui.separator(post_box)
+
         button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
         gui.button(button_box, self, "Rebin Plot", callback=self.rebinPlot, height=35)
         gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
 
-        post_box_0 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=110)
+        post_box_0 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=60)
         oasysgui.lineEdit(post_box_0, self, "new_nbins_h", "Nr. Bins H", labelWidth=200,  valueType=int, orientation="horizontal")
         oasysgui.lineEdit(post_box_0, self, "new_nbins_v", "Nr. Bins V", labelWidth=200,  valueType=int, orientation="horizontal")
 
         button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
         gui.button(button_box, self, "Smooth Plot", callback=self.smoothPlot, height=35)
         gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
-
 
         gui.separator(post_box)
 
