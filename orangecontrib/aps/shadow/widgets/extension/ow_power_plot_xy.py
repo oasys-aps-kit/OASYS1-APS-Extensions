@@ -125,6 +125,10 @@ class PowerPlotXY(AutomaticElement):
 
 
     loaded_plot_file_name = "<load hdf5 file>"
+
+    new_nbins_h = Setting(25)
+    new_nbins_v = Setting(25)
+
     filter = Setting(3)
     filter_sigma_h = Setting(1.0)
     filter_sigma_v = Setting(1.0)
@@ -287,15 +291,24 @@ class PowerPlotXY(AutomaticElement):
 
         # post porcessing
 
-        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=300)
+        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=400)
 
         post_box_1 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal", height=25)
         self.le_loaded_plot_file_name = oasysgui.lineEdit(post_box_1, self, "loaded_plot_file_name", "Loaded File", labelWidth=100,  valueType=str, orientation="horizontal")
         gui.button(post_box_1, self, "...", callback=self.selectPlotFile)
 
         button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
+        gui.button(button_box, self, "Rebin Plot", callback=self.rebinPlot, height=35)
+        gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
+
+        post_box_0 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=110)
+        oasysgui.lineEdit(post_box_0, self, "new_nbins_h", "Nr. Bins H", labelWidth=200,  valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(post_box_0, self, "new_nbins_v", "Nr. Bins V", labelWidth=200,  valueType=int, orientation="horizontal")
+
+        button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
         gui.button(button_box, self, "Smooth Plot", callback=self.smoothPlot, height=35)
         gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
+
 
         gui.separator(post_box)
 
@@ -512,6 +525,51 @@ class PowerPlotXY(AutomaticElement):
 
                 if self.IS_DEVELOP: raise e
 
+    def rebinPlot(self):
+        if not self.plotted_ticket is None:
+            try:
+                congruence.checkStrictlyPositiveNumber(self.new_nbins_h, "Nr. Bins H")
+                congruence.checkStrictlyPositiveNumber(self.new_nbins_v, "Nr. Bins V")
+
+                ticket = self.plotted_ticket.copy()
+
+                histogram = ticket["histogram"]
+                h_coord = ticket["bin_h_center"]
+                v_coord = ticket["bin_v_center"]
+
+                h_coord, v_coord, histogram = self.rebin(h_coord, v_coord, histogram, (int(self.new_nbins_h), int(self.new_nbins_v)))
+
+                ticket["histogram"] = histogram
+                ticket["bin_h_center"] = h_coord
+                ticket["bin_v_center"] = v_coord
+
+                pixel_area = (h_coord[1]-h_coord[0])*(v_coord[1]-v_coord[0])
+
+                if self.plot_canvas is None:
+                    self.plot_canvas = PowerPlotXYWidget()
+                    self.image_box.layout().addWidget(self.plot_canvas)
+
+                cumulated_power_plot = numpy.sum(histogram)*pixel_area
+
+                energy_min = 0.0
+                energy_max = 0.0
+                energy_step = 0.0
+
+                self.plot_canvas.cumulated_power_plot = cumulated_power_plot
+                self.plot_canvas.plot_power_density_ticket(ticket,
+                                                           ticket["h_label"],
+                                                           ticket["v_label"],
+                                                           cumulated_total_power=0.0,
+                                                           energy_min=energy_min,
+                                                           energy_max=energy_max,
+                                                           energy_step=energy_step)
+
+                self.plotted_ticket = ticket
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
+
     def smoothPlot(self):
         if not self.plotted_ticket is None:
             try:
@@ -522,7 +580,8 @@ class PowerPlotXY(AutomaticElement):
                 if self.filter == 1: congruence.checkStrictlyPositiveNumber(self.filter_spline_order, "Spline Order")
 
                 ticket = self.plotted_ticket.copy()
-                mask = numpy.where(self.plotted_ticket_original["histogram"] <= self.plotted_ticket_original["histogram"].max()*self.masking_level)
+
+                mask = numpy.where(self.plotted_ticket["histogram"] <= self.plotted_ticket["histogram"].max()*self.masking_level)
 
                 histogram = ticket["histogram"]
                 h_coord = ticket["bin_h_center"]
@@ -580,7 +639,12 @@ class PowerPlotXY(AutomaticElement):
 
                 if self.IS_DEVELOP: raise e
 
+    def rebin(self, x, y, z, new_shape):
+        shape = (new_shape[0], z.shape[0] // new_shape[0], new_shape[1], z.shape[1] // new_shape[1])
 
+        return numpy.linspace(x[0], x[-1], new_shape[0]), \
+               numpy.linspace(y[0], y[-1], new_shape[1]),  \
+               z.reshape(shape).mean(-1).mean(1)
 
     def apply_fill_holes(self, histogram):
         from skimage.morphology import reconstruction
