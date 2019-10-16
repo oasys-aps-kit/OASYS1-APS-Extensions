@@ -710,12 +710,6 @@ class PowerLoopPoint(widget.OWWidget):
                                                                         numpy.linspace(start=interpolated_cumulated_power[-1],
                                                                                        stop=numpy.max(cumulated_power),
                                                                                        num=self.number_of_points_after_boundary))
-
-                        out = open("/Users/lrebuffi/Desktop/ziotreno.txt", "w")
-                        out.write(text)
-                        out.flush()
-                        out.close()
-
                     elif self.autobinning==2:
                         if self.refine_around_harmonic == 0:
                             interpolated_cumulated_power = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
