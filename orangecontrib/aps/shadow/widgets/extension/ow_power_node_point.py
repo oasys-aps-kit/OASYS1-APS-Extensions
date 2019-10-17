@@ -232,12 +232,13 @@ class PowerLoopPoint(widget.OWWidget):
         gui.separator(left_box_1)
 
         gui.comboBox(left_box_1, self, "autobinning", label="Energy Binning",
-                                            items=["Manual", "Automatic (On Harmonics)", "Automatic (Constant Power)"], labelWidth=150,
+                                            items=["Manual", "Automatic (On Harmonics)", "Automatic (Constant Power)", "Automatic (Constant Energy)"], labelWidth=150,
                                             callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
 
         self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=50)
         self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=200)
         self.autobinning_box_3 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=250)
+        self.autobinning_box_4 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=105)
 
         # ----------------------------------------------
 
@@ -286,6 +287,18 @@ class PowerLoopPoint(widget.OWWidget):
         gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file_only)
 
         oasysgui.widgetLabel(self.autobinning_box_3, "Energy From, Energy To, Energy Step [eV], Power [W]")
+
+        # ----------------------------------------------
+
+        oasysgui.lineEdit(self.autobinning_box_4, self, "auto_n_step", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(self.autobinning_box_4, self, "auto_perc_total_power", "% Total Power", labelWidth=250, valueType=float, orientation="horizontal")
+
+        button_box = oasysgui.widgetBox(self.autobinning_box_4, "", addSpace=False, orientation="horizontal")
+
+        gui.button(button_box, self, "Reload Spectrum and Filters", callback=self.read_spectrum_and_filters_file)
+        gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file_only)
+
+        oasysgui.widgetLabel(self.autobinning_box_4, "Energy From, Energy To, Energy Step [eV], Power [W]")
 
         def write_text():
             self.energies = self.text_area.toPlainText()
@@ -388,8 +401,9 @@ class PowerLoopPoint(widget.OWWidget):
         self.autobinning_box_1.setVisible(self.autobinning==0)
         self.autobinning_box_2.setVisible(self.autobinning==1)
         self.autobinning_box_3.setVisible(self.autobinning==2)
+        self.autobinning_box_4.setVisible(self.autobinning==3)
         self.text_area.setReadOnly(self.autobinning>=1)
-        self.text_area.setFixedHeight(140 if self.autobinning==1 else (95 if self.autobinning==2 else 290))
+        self.text_area.setFixedHeight(140 if self.autobinning==1 else (95 if self.autobinning==2 else (231 if self.autobinning==3 else 290)))
 
         if self.autobinning==2: self.set_RefineAroundHarmonic()
 
@@ -770,13 +784,28 @@ class PowerLoopPoint(widget.OWWidget):
                                 interpolated_cumulated_power = numpy.append(interpolated_cumulated_power,
                                                                numpy.linspace(start=cumulated_power_last[0], stop=cumulated_power_last[-1], num=self.number_of_points_last))
 
-                    interpolated_lower_energies = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
-                    interpolated_upper_energies = numpy.append(interpolated_lower_energies, [energies[-1] + energy_step])
-                    energy_bins                 = numpy.diff(interpolated_upper_energies)
+                    if self.autobinning==1 or self.autobinning==2:
+                        interpolated_lower_energies = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
+                        interpolated_upper_energies = numpy.append(interpolated_lower_energies, [energies[-1] + energy_step])
+                        energy_bins                 = numpy.diff(interpolated_upper_energies)
 
-                    interpolated_cumulated_power = interpolated_cumulated_power[:-1]
-                    interpolated_lower_energies = interpolated_lower_energies[:-1]
-                    interpolated_upper_energies = interpolated_upper_energies[1:-1]
+                        interpolated_cumulated_power = interpolated_cumulated_power[:-1]
+                        interpolated_lower_energies = interpolated_lower_energies[:-1]
+                        interpolated_upper_energies = interpolated_upper_energies[1:-1]
+                    elif self.autobinning==3:
+                        minimum_energy = energies[0]
+                        maximum_energy = energies[-1]
+                        energy_step = (maximum_energy-minimum_energy)/self.auto_n_step
+
+                        interpolated_lower_energies = numpy.arange(minimum_energy, maximum_energy,             energy_step)
+                        interpolated_upper_energies = numpy.arange(minimum_energy, maximum_energy+energy_step, energy_step)
+                        interpolated_cumulated_power = numpy.interp(interpolated_lower_energies, energies, cumulated_power)
+
+                        energy_bins = energy_step*numpy.ones(self.auto_n_step)
+
+                        interpolated_cumulated_power = interpolated_cumulated_power[:-1]
+                        interpolated_lower_energies = interpolated_lower_energies[:-1]
+                        interpolated_upper_energies = interpolated_upper_energies[1:-1]
 
                     if self.autobinning==2 and self.refine_around_harmonic == 0:
                         power_steps = numpy.ones(len(energy_bins))*(interpolated_cumulated_power[1]-interpolated_cumulated_power[0])
