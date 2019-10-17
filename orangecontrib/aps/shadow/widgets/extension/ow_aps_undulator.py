@@ -144,7 +144,7 @@ class APSUndulator(GenericElement):
     vertical_range_modification_factor_at_resizing         = Setting(0.5)
     vertical_resolution_modification_factor_at_resizing    = Setting(5.0)
 
-    #kind_of_sampler = Setting(1)
+    kind_of_sampler = Setting(1)
     save_srw_result = Setting(0)
     
     # SRW FILE INPUT
@@ -320,8 +320,8 @@ class APSUndulator(GenericElement):
 
         tabs_srw = oasysgui.tabWidget(self.srw_box)
 
-        #gui.comboBox(self.srw_box, self, "kind_of_sampler", label="Random Generator", labelWidth=250,
-        #             items=["Simple", "Accurate"], orientation="horizontal")
+        gui.comboBox(self.srw_box, self, "kind_of_sampler", label="Random Generator", labelWidth=250,
+                     items=["Simple", "Accurate", "Accurate (SRIO)", ], orientation="horizontal")
 
         gui.comboBox(self.srw_box, self, "save_srw_result", label="Save SRW results", labelWidth=310,
                      items=["No", "Yes"], orientation="horizontal", callback=self.set_SaveFileSRW)
@@ -705,7 +705,7 @@ class APSUndulator(GenericElement):
                                                                  coord_z=z,
                                                                  intensity=intensity_source_dimension,
                                                                  distribution_type=Distribution.POSITION,
-                                                                 #kind_of_sampler=self.kind_of_sampler,
+                                                                 kind_of_sampler=self.kind_of_sampler,
                                                                  seed=0 if self.seed==0 else self.seed+1)
 
                 self.progressBarSet(70)
@@ -715,7 +715,7 @@ class APSUndulator(GenericElement):
                                                                  coord_z=z_first,
                                                                  intensity=intensity_angular_distribution,
                                                                  distribution_type=Distribution.DIVERGENCE,
-                                                                 #kind_of_sampler=self.kind_of_sampler,
+                                                                 kind_of_sampler=self.kind_of_sampler,
                                                                  seed=0 if self.seed==0 else self.seed+2)
 
                 self.setStatusMessage("Plotting Results")
@@ -1074,9 +1074,9 @@ class APSUndulator(GenericElement):
                                                     coord_z,
                                                     intensity,
                                                     distribution_type=Distribution.POSITION,
-                                                    kind_of_sampler=1,
+                                                    kind_of_sampler=2,
                                                     seed=0):
-        if kind_of_sampler == 1:
+        if kind_of_sampler == 2:
             s2d = Sampler2D(intensity, coord_x, coord_z)
 
             samples_x, samples_z = s2d.get_n_sampled_points(len(beam_out._beam.rays))
@@ -1116,6 +1116,39 @@ class APSUndulator(GenericElement):
                 beam_out._beam.rays[:, 3] =  numpy.cos(alpha_z)*numpy.sin(alpha_x)
                 beam_out._beam.rays[:, 4] =  numpy.cos(alpha_z)*numpy.cos(alpha_x)
                 beam_out._beam.rays[:, 5] =  numpy.sin(alpha_z)
+        elif kind_of_sampler == 1:
+            min_x = numpy.min(coord_x)
+            max_x = numpy.max(coord_x)
+            delta_x = max_x - min_x
+
+            min_z = numpy.min(coord_z)
+            max_z = numpy.max(coord_z)
+            delta_z = max_z - min_z
+
+            dim_x = len(coord_x)
+            dim_z = len(coord_z)
+
+            from orangecontrib.aps.util.random_distributions import Distribution2D, Grid2D, distribution_from_grid
+
+            grid = Grid2D((dim_x, dim_z))
+            grid[..., ...] = intensity.tolist()
+
+            d = Distribution2D(distribution_from_grid(grid, dim_x, dim_z), (0, 0), (dim_x, dim_z))
+
+            samples = d.get_samples(len(beam_out._beam.rays), seed)
+
+            if distribution_type == Distribution.POSITION:
+                beam_out._beam.rays[:, 0] = min_x + samples[:, 0] * delta_x
+                beam_out._beam.rays[:, 2] = min_z + samples[:, 1] * delta_z
+
+            elif distribution_type == Distribution.DIVERGENCE:
+                alpha_x = min_x + samples[:, 0] * delta_x
+                alpha_z = min_z + samples[:, 1] * delta_z
+
+                beam_out._beam.rays[:, 3] = numpy.cos(alpha_z) * numpy.sin(alpha_x)
+                beam_out._beam.rays[:, 4] = numpy.cos(alpha_z) * numpy.cos(alpha_x)
+                beam_out._beam.rays[:, 5] = numpy.sin(alpha_z)
+
         else:
             raise ValueError("Sampler not recognized")
         

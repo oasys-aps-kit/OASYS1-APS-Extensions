@@ -319,11 +319,14 @@ def distribution_from_grid(grid, x_cells, y_cells):
 	grid_w, grid_h = grid.dims
 	w = grid_w // x_cells
 	h = grid_h // y_cells
-	
-	for index in grid.index_iter():
-		i, j = index
-		distribution[i // w, j // h] += grid[index]
-	
+
+	try:
+		for index in grid.index_iter():
+			i, j = index
+			distribution[i // w, j // h] += grid[index]
+	except RuntimeError:
+		pass
+
 	distribution2 = Grid2D((x_cells + 1, y_cells + 1), 0)
 	distribution2[1:, 1:] = distribution	
 
