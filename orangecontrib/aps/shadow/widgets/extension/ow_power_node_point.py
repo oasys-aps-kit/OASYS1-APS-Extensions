@@ -68,11 +68,6 @@ from oasys.widgets.exchange import DataExchangeObject
 from syned.storage_ring.light_source import LightSource
 from syned.widget.widget_decorator import WidgetDecorator
 
-IS_DEVELOP = False if not "OASYSDEVELOP" in os.environ.keys() else str(os.environ.get('OASYSDEVELOP')) == "1"
-
-if not IS_DEVELOP:
-    raise NotImplementedError()
-
 class EnergyBinning(object):
     def __init__(self,
                  energy_value_from = 0.0,
