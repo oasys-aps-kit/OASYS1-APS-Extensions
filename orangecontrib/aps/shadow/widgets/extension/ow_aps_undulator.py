@@ -193,6 +193,7 @@ class APSUndulator(GenericElement):
     power_step = None
     compute_power = False
     test_mode = False
+    integrated_flux = None
 
     def __init__(self, show_automatic_box=False):
         super().__init__(show_automatic_box=show_automatic_box)
@@ -645,6 +646,8 @@ class APSUndulator(GenericElement):
         self.setStatusMessage("")
         self.progressBarInit()
 
+        self.integrated_flux = None
+
         sys.stdout = EmittingStream(textWritten=self.writeStdOut)
 
         try:
@@ -693,6 +696,8 @@ class APSUndulator(GenericElement):
                     self.setStatusMessage("Loading Ascii files")
 
                     x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = self.loadASCIIFiles()
+
+                beam_out.set_initial_flux(self.integrated_flux)
 
                 self.progressBarSet(50)
 
@@ -1026,14 +1031,16 @@ class APSUndulator(GenericElement):
 
         x, z, intensity_angular_distribution = self.transform_srw_array(arI, wfr.mesh)
 
+        dx = (x[1] - x[0]) * 1e3  # mm for power computations
+        dy = (z[1] - z[0]) * 1e3
+
+        self.integrated_flux = intensity_angular_distribution.sum()*dx*dy #TODO: add to the ShadowBeam
+
         if self.compute_power:
             if self.power_step > 0:
                 total_power = self.power_step
             else:
-                dx = (x[1] - x[0])*1e3 # mm for power computations
-                dy = (z[1] - z[0])*1e3
-
-                total_power = intensity_angular_distribution.sum() * dx * dy * (1e3 * self.energy_step * codata.e)
+                total_power = self.integrated_flux * (1e3 * self.energy_step * codata.e)
         else:
             total_power = None
 
