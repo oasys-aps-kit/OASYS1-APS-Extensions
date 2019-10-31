@@ -45,7 +45,7 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-import sys, numpy
+import sys, numpy, os
 
 import scipy.constants as codata
 m2ev = codata.c * codata.h / codata.e
@@ -68,7 +68,9 @@ from oasys.widgets.exchange import DataExchangeObject
 from syned.storage_ring.light_source import LightSource
 from syned.widget.widget_decorator import WidgetDecorator
 
-if True:
+IS_DEVELOP = False if not "OASYSDEVELOP" in os.environ.keys() else str(os.environ.get('OASYSDEVELOP')) == "1"
+
+if not IS_DEVELOP:
     raise NotImplementedError()
 
 class EnergyBinning(object):
@@ -87,7 +89,7 @@ class EnergyBinning(object):
 
 class PowerLoopPoint(widget.OWWidget):
 
-    name = "Power Density Loop Point"
+    name = "Power Density Loop Point 2"
     description = "Tools: LoopPoint"
     icon = "icons/cycle.png"
     maintainer = "Luca Rebuffi"
