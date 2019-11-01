@@ -191,8 +191,11 @@ class APSUndulator(GenericElement):
 
     energy_step = None
     power_step = None
+    start_event = True
     compute_power = False
     integrated_flux = None
+    power_density = None
+
 
     def __init__(self, show_automatic_box=False):
         super().__init__(show_automatic_box=show_automatic_box)
@@ -368,7 +371,6 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(tab_mach, self, "electron_beam_size_v",       "Vertical Beam Size [m]",  labelWidth=230, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(tab_mach, self, "electron_beam_divergence_h", "Horizontal Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(tab_mach, self, "electron_beam_divergence_v", "Vertical Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
-
 
         gui.comboBox(tab_traj, self, "type_of_initialization", label="Trajectory Initialization", labelWidth=140,
                      items=["At Zero Point", "At Fixed Position", "Sampled from Phase Space"],
@@ -757,6 +759,7 @@ class APSUndulator(GenericElement):
                 self.energy = trigger.get_additional_parameter("energy_value")
                 self.energy_step = trigger.get_additional_parameter("energy_step")
                 self.power_step = trigger.get_additional_parameter("power_step")
+                self.start_event = trigger.get_additional_parameter("start_event")
 
                 self.set_WFUseHarmonic()
                 self.set_DistributionSource()
@@ -1020,7 +1023,7 @@ class APSUndulator(GenericElement):
         dx = (x[1] - x[0]) * 1e3  # mm for power computations
         dy = (z[1] - z[0]) * 1e3
 
-        self.integrated_flux = intensity_angular_distribution.sum()*dx*dy #TODO: add to the ShadowBeam
+        self.integrated_flux = intensity_angular_distribution.sum()*dx*dy
 
         if self.compute_power:
             if self.power_step > 0:

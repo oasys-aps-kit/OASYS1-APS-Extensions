@@ -142,7 +142,7 @@ class PowerLoopPoint(widget.OWWidget):
     theta_x=Setting(0.0)
     theta_z=Setting(0.0)
 
-    current_energy_binning = 0
+    current_energy_binning = -1
     current_energy_value = None
     current_energy_value_central = None
     current_energy_value_half_power = None
@@ -150,8 +150,6 @@ class PowerLoopPoint(widget.OWWidget):
     current_power_step = None
 
     energy_binnings = None
-
-    test_mode = False
 
     external_binning = False
 
@@ -657,7 +655,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.current_energy_value_central = None
         self.current_energy_value_half_power = None
         self.current_energy_step = None
-        self.current_energy_binning = 0
+        self.current_energy_binning = -1
         self.current_power_step = None
 
         if not self.external_binning: self.energy_binnings = None
@@ -682,7 +680,7 @@ class PowerLoopPoint(widget.OWWidget):
                                                                    "energy_step"    : self.current_energy_step,
                                                                    "power_step"     : -1 if self.current_power_step is None else self.current_power_step,
                                                                    "seed_increment" : self.seed_increment,
-                                                                   "test_mode"      : False}))
+                                                                   "start_event"    : True}))
         except Exception as e:
             if self.IS_DEVELOP : raise e
             else: pass
@@ -736,6 +734,8 @@ class PowerLoopPoint(widget.OWWidget):
                 elif trigger.new_object:
                     if self.energy_binnings is None: self.calculate_energy_binnings()
 
+                    if self.current_energy_binning == -1: raise Exception("Power Loop has to be started properly: press the button Start")
+
                     if self.current_energy_binning < len(self.energy_binnings):
                         energy_binning = self.energy_binnings[self.current_energy_binning]
 
@@ -760,7 +760,7 @@ class PowerLoopPoint(widget.OWWidget):
                                                                                    "energy_step"    : energy_binning.energy_step,
                                                                                    "power_step"     : -1 if self.current_power_step is None else self.current_power_step,
                                                                                    "seed_increment" : self.seed_increment,
-                                                                                   "test_mode"      : False}))
+                                                                                   "start_event"    : False}))
                         else:
                             self.current_energy_binning += 1
 
@@ -780,7 +780,7 @@ class PowerLoopPoint(widget.OWWidget):
                                                                                        "energy_step"    : energy_binning.energy_step,
                                                                                        "power_step"     : -1 if self.current_power_step is None else self.current_power_step,
                                                                                        "seed_increment" : self.seed_increment,
-                                                                                       "test_mode"      : False}))
+                                                                                       "start_event"    : False}))
                             else:
                                 self.reset_values()
                                 self.start_button.setEnabled(True)
