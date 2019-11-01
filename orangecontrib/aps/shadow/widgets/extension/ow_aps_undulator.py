@@ -190,6 +190,7 @@ class APSUndulator(GenericElement):
     auto_harmonic_number = Setting(1)
 
     energy_step = None
+    power_step = None
     compute_power = False
     integrated_flux = None
 
@@ -729,8 +730,6 @@ class APSUndulator(GenericElement):
                 additional_parameters["total_power"]        = total_power
                 additional_parameters["photon_energy_step"] = self.energy_step
 
-                print("Total Power", total_power)
-
                 beam_out.setScanningData(ShadowBeam.ScanningData("photon_energy", self.energy, "Energy for Power Calculation", "eV", additional_parameters))
 
             self.send("Beam", beam_out)
@@ -757,6 +756,7 @@ class APSUndulator(GenericElement):
 
                 self.energy = trigger.get_additional_parameter("energy_value")
                 self.energy_step = trigger.get_additional_parameter("energy_step")
+                self.power_step = trigger.get_additional_parameter("power_step")
 
                 self.set_WFUseHarmonic()
                 self.set_DistributionSource()
@@ -1023,7 +1023,10 @@ class APSUndulator(GenericElement):
         self.integrated_flux = intensity_angular_distribution.sum()*dx*dy #TODO: add to the ShadowBeam
 
         if self.compute_power:
-            total_power = self.integrated_flux * (1e3 * self.energy_step * codata.e)
+            if self.power_step > 0:
+                total_power = self.power_step
+            else:
+                total_power = self.integrated_flux * (1e3 * self.energy_step * codata.e)
         else:
             total_power = None
 

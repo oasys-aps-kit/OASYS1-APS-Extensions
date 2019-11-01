@@ -467,7 +467,9 @@ class PowerPlotXY(AutomaticElement):
                            ticket["bin_v_center"][0] == self.plotted_ticket["bin_v_center"][0] and \
                            ticket["bin_v_center"][-1] == self.plotted_ticket["bin_v_center"][-1]:
                             ticket["histogram"] += self.plotted_ticket["histogram"]
-                            ticket["histogram"] *= 0.5
+
+                            if  QMessageBox.question(self, "Load Plot", "Average with current Plot?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+                                ticket["histogram"] *= 0.5
                         else:
                             raise ValueError("The plots cannot be merged: the should have same dimensions and ranges")
 

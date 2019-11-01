@@ -517,33 +517,19 @@ class PowerLoopPoint(widget.OWWidget):
 
                     # last energy do not contribute to the total (the approximated integral of the power is out of the range)
 
-                    power           = flux_through_finite_aperture[:-1] * (1e3 * energy_step * codata.e)
+                    power           = flux_through_finite_aperture* (1e3 * energy_step * codata.e)
                     cumulated_power = numpy.cumsum(power)
                     total_power     = cumulated_power[-1]
 
                     if not self.filters is None:
-                        power_filtered           = flux_through_finite_aperture_filtered[:-1] * (1e3 * energy_step * codata.e)
+                        power_filtered           = flux_through_finite_aperture_filtered * (1e3 * energy_step * codata.e)
                         cumulated_power_filtered = numpy.cumsum(power_filtered)
-                        total_power_filtered     = cumulated_power_filtered[-1]
+                        total_power_filtered = cumulated_power_filtered[-1]
 
                     self.text_area.clear()
 
                     self.cumulated_power_plot.clear()
-                    self.cumulated_power_plot.addCurve(energies[1:], cumulated_power, replace=True, legend="Cumulated Power")
-                    if not self.filters is None:  self.cumulated_power_plot.addCurve(energies[1:], cumulated_power_filtered, replace=False, legend="Cumulated Power Filters",
-                                                                                     linestyle="--", color="#006400")
-                    self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
-                    self.cumulated_power_plot.setGraphYLabel("Cumulated " + ("" if self.filters is None else " (Filtered)") + " Power" )
-                    if self.filters is None: self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(total_power, 2)) + " W")
-                    else:self.cumulated_power_plot.setGraphTitle("Total (Filtered) Power: " + str(round(total_power, 2)) + "  (" + str(round(total_power_filtered, 2)) +  ") W")
-
                     self.spectral_flux_plot.clear()
-                    self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture, replace=True, legend="Spectral Flux")
-                    if not self.filters is None: self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture_filtered, replace=False, legend="Spectral Flux Filters",
-                                                                                  linestyle="--", color="#006400")
-                    self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
-                    self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
-                    self.spectral_flux_plot.setGraphTitle("Spectral Flux" + ("" if self.filters is None else " (Filtered)"))
 
                     good = numpy.where(cumulated_power <= self.auto_perc_total_power*0.01*total_power)
 
@@ -582,6 +568,22 @@ class PowerLoopPoint(widget.OWWidget):
                     self.energy_binnings = []
                     self.total_new_objects = 0
 
+                    self.cumulated_power_plot.addCurve(energies, cumulated_power, replace=True, legend="Cumulated Power")
+                    if not self.filters is None:  self.cumulated_power_plot.addCurve(energies, cumulated_power_filtered, replace=False, legend="Cumulated Power Filters",
+                                                                                     linestyle="--", color="#006400")
+                    self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
+                    self.cumulated_power_plot.setGraphYLabel("Cumulated " + ("" if self.filters is None else " (Filtered)") + " Power" )
+                    if self.filters is None: self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(power_steps[:-1].sum(), 2)) + " W")
+                    else:self.cumulated_power_plot.setGraphTitle("Total (Filtered) Power: " + str(round(power_steps[:-1].sum(), 2)) + "  (" + str(round(total_power_filtered, 2)) +  ") W")
+
+                    self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture, replace=True, legend="Spectral Flux")
+                    if not self.filters is None: self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture_filtered, replace=False, legend="Spectral Flux Filters",
+                                                                                  linestyle="--", color="#006400")
+                    self.spectral_flux_plot.setGraphXLabel("Energy [eV]")
+                    self.spectral_flux_plot.setGraphYLabel("Flux [ph/s/.1%bw]")
+                    self.spectral_flux_plot.setGraphTitle("Spectral Flux" + ("" if self.filters is None else " (Filtered)"))
+
+
                     self.cumulated_power_plot.addCurve(interpolated_lower_energies, interpolated_cumulated_power, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
@@ -597,8 +599,8 @@ class PowerLoopPoint(widget.OWWidget):
                                                                               ):
                         energy_binning = EnergyBinning(energy_value_from=round(energy_from, 3),
                                                        energy_value_to=round(energy_to, 3),
-                                                       energy_step=round(energy_bin, 3))#,
-                                                       #power_step=round(power_step, 4))
+                                                       energy_step=round(energy_bin, 3),
+                                                       power_step=round(power_step, 4))
 
                         text += str(round(energy_from, 3)) + ", " + \
                                 str(round(energy_to, 3))   + ", " + \
