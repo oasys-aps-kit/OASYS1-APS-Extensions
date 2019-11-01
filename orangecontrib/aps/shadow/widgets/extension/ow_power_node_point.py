@@ -597,8 +597,8 @@ class PowerLoopPoint(widget.OWWidget):
                                                                               ):
                         energy_binning = EnergyBinning(energy_value_from=round(energy_from, 3),
                                                        energy_value_to=round(energy_to, 3),
-                                                       energy_step=round(energy_bin, 3),
-                                                       power_step=round(power_step, 4))
+                                                       energy_step=round(energy_bin, 3))#,
+                                                       #power_step=round(power_step, 4))
 
                         text += str(round(energy_from, 3)) + ", " + \
                                 str(round(energy_to, 3))   + ", " + \

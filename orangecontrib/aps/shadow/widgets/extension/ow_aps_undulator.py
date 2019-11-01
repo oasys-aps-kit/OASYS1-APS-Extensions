@@ -190,9 +190,7 @@ class APSUndulator(GenericElement):
     auto_harmonic_number = Setting(1)
 
     energy_step = None
-    power_step = None
     compute_power = False
-    test_mode = False
     integrated_flux = None
 
     def __init__(self, show_automatic_box=False):
@@ -651,82 +649,77 @@ class APSUndulator(GenericElement):
         sys.stdout = EmittingStream(textWritten=self.writeStdOut)
 
         try:
-            if self.test_mode:
-                beam_out = ShadowBeam()
-                beam_out._beam.rays = numpy.zeros((1000, 18))
-                total_power = 100.0
-            else:
-                self.checkFields()
+            self.checkFields()
 
-                ###########################################
-                # TODO: TO BE ADDED JUST IN CASE OF BROKEN
-                #       ENVIRONMENT: MUST BE FOUND A PROPER WAY
-                #       TO TEST SHADOW
-                self.fixWeirdShadowBug()
-                ###########################################
+            ###########################################
+            # TODO: TO BE ADDED JUST IN CASE OF BROKEN
+            #       ENVIRONMENT: MUST BE FOUND A PROPER WAY
+            #       TO TEST SHADOW
+            self.fixWeirdShadowBug()
+            ###########################################
 
-                shadow_src = ShadowSource.create_src()
+            shadow_src = ShadowSource.create_src()
 
-                self.populateFields(shadow_src)
+            self.populateFields(shadow_src)
 
-                self.progressBarSet(10)
+            self.progressBarSet(10)
 
-                self.setStatusMessage("Running SHADOW")
+            self.setStatusMessage("Running SHADOW")
 
-                write_begin_file, write_start_file, write_end_file = self.get_write_file_options()
+            write_begin_file, write_start_file, write_end_file = self.get_write_file_options()
 
-                beam_out = ShadowBeam.traceFromSource(shadow_src,
-                                                      write_begin_file=write_begin_file,
-                                                      write_start_file=write_start_file,
-                                                      write_end_file=write_end_file)
+            beam_out = ShadowBeam.traceFromSource(shadow_src,
+                                                  write_begin_file=write_begin_file,
+                                                  write_start_file=write_start_file,
+                                                  write_end_file=write_end_file)
 
-                self.fix_Intensity(beam_out)
+            self.fix_Intensity(beam_out)
 
-                self.progressBarSet(20)
+            self.progressBarSet(20)
 
-                if self.distribution_source == 0:
-                    self.setStatusMessage("Running SRW")
+            if self.distribution_source == 0:
+                self.setStatusMessage("Running SRW")
 
-                    x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power = self.runSRWCalculation()
-                elif self.distribution_source == 1:
-                    self.setStatusMessage("Loading SRW files")
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power = self.runSRWCalculation()
+            elif self.distribution_source == 1:
+                self.setStatusMessage("Loading SRW files")
 
-                    x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = self.loadSRWFiles()
-                elif self.distribution_source == 2: # ASCII FILES
-                    self.setStatusMessage("Loading Ascii files")
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = self.loadSRWFiles()
+            elif self.distribution_source == 2: # ASCII FILES
+                self.setStatusMessage("Loading Ascii files")
 
-                    x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = self.loadASCIIFiles()
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution = self.loadASCIIFiles()
 
-                beam_out.set_initial_flux(self.integrated_flux)
+            beam_out.set_initial_flux(self.integrated_flux)
 
-                self.progressBarSet(50)
+            self.progressBarSet(50)
 
-                self.setStatusMessage("Applying new Spatial/Angular Distribution")
+            self.setStatusMessage("Applying new Spatial/Angular Distribution")
 
-                self.progressBarSet(60)
+            self.progressBarSet(60)
 
-                self.generate_user_defined_distribution_from_srw(beam_out=beam_out,
-                                                                 coord_x=x,
-                                                                 coord_z=z,
-                                                                 intensity=intensity_source_dimension,
-                                                                 distribution_type=Distribution.POSITION,
-                                                                 kind_of_sampler=self.kind_of_sampler,
-                                                                 seed=0 if self.seed==0 else self.seed+1)
+            self.generate_user_defined_distribution_from_srw(beam_out=beam_out,
+                                                             coord_x=x,
+                                                             coord_z=z,
+                                                             intensity=intensity_source_dimension,
+                                                             distribution_type=Distribution.POSITION,
+                                                             kind_of_sampler=self.kind_of_sampler,
+                                                             seed=0 if self.seed==0 else self.seed+1)
 
-                self.progressBarSet(70)
+            self.progressBarSet(70)
 
-                self.generate_user_defined_distribution_from_srw(beam_out=beam_out,
-                                                                 coord_x=x_first,
-                                                                 coord_z=z_first,
-                                                                 intensity=intensity_angular_distribution,
-                                                                 distribution_type=Distribution.DIVERGENCE,
-                                                                 kind_of_sampler=self.kind_of_sampler,
-                                                                 seed=0 if self.seed==0 else self.seed+2)
+            self.generate_user_defined_distribution_from_srw(beam_out=beam_out,
+                                                             coord_x=x_first,
+                                                             coord_z=z_first,
+                                                             intensity=intensity_angular_distribution,
+                                                             distribution_type=Distribution.DIVERGENCE,
+                                                             kind_of_sampler=self.kind_of_sampler,
+                                                             seed=0 if self.seed==0 else self.seed+2)
 
-                self.setStatusMessage("Plotting Results")
+            self.setStatusMessage("Plotting Results")
 
-                self.progressBarSet(80)
-                self.plot_results(beam_out)
+            self.progressBarSet(80)
+            self.plot_results(beam_out)
 
             self.setStatusMessage("")
 
@@ -735,9 +728,6 @@ class APSUndulator(GenericElement):
 
                 additional_parameters["total_power"]        = total_power
                 additional_parameters["photon_energy_step"] = self.energy_step
-
-                if self.test_mode:
-                    additional_parameters["test_mode"] = True
 
                 print("Total Power", total_power)
 
@@ -754,7 +744,6 @@ class APSUndulator(GenericElement):
     def sendNewBeam(self, trigger):
         self.compute_power = False
         self.energy_step = None
-        self.test_mode = False
 
         if trigger and trigger.new_object == True:
             if trigger.has_additional_parameter("seed_increment"):
@@ -768,9 +757,6 @@ class APSUndulator(GenericElement):
 
                 self.energy = trigger.get_additional_parameter("energy_value")
                 self.energy_step = trigger.get_additional_parameter("energy_step")
-                self.power_step = trigger.get_additional_parameter("power_step")
-
-                self.test_mode = trigger.has_additional_parameter("test_mode") and trigger.get_additional_parameter("test_mode") == True
 
                 self.set_WFUseHarmonic()
                 self.set_DistributionSource()
@@ -1037,10 +1023,7 @@ class APSUndulator(GenericElement):
         self.integrated_flux = intensity_angular_distribution.sum()*dx*dy #TODO: add to the ShadowBeam
 
         if self.compute_power:
-            if self.power_step > 0:
-                total_power = self.power_step
-            else:
-                total_power = self.integrated_flux * (1e3 * self.energy_step * codata.e)
+            total_power = self.integrated_flux * (1e3 * self.energy_step * codata.e)
         else:
             total_power = None
 
