@@ -49,6 +49,9 @@ import numpy
 from numpy.matlib import repmat
 from scipy.signal import convolve2d
 
+from silx.gui.plot import Plot2D
+from silx.gui.plot.StackView import StackViewMainWindow
+
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPalette, QColor, QFont
 from orangewidget import gui
@@ -111,6 +114,8 @@ class APSUndulator(GenericElement):
     distribution_source = Setting(0)
 
     # SRW INPUT
+
+    cumulated_view_type = Setting(0)
 
     number_of_periods = Setting(184) # Number of ID Periods (without counting for terminations
     undulator_period =  Setting(0.025) # Period Length [m]
@@ -196,6 +201,10 @@ class APSUndulator(GenericElement):
     integrated_flux = None
     power_density = None
 
+    cumulated_energies = None
+    cumulated_integrated_flux = None
+    cumulated_power_density = None
+    cumulated_power = None
 
     def __init__(self, show_automatic_box=False):
         super().__init__(show_automatic_box=show_automatic_box)
@@ -395,11 +404,13 @@ class APSUndulator(GenericElement):
 
         left_box_3 = oasysgui.widgetBox(tab_wf, "Wavefront Propagation Parameters", addSpace=False, orientation="vertical")
 
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback="setDataX")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback="setDataY")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback="setDataX")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback="setDataY")
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
+
+        self.setDataXY()
 
         left_box_4 = oasysgui.widgetBox(tab_wf, "Drift Back Propagation Parameters", addSpace=False, orientation="vertical")
 
@@ -482,9 +493,68 @@ class APSUndulator(GenericElement):
         gui.button(button_box, self, "Set Both K values", callback=self.auto_set_undulator_B)
 
         gui.rubber(self.controlArea)
+
+
+        cumulated_plot_tab = oasysgui.createTabPage(self.main_tabs, "Cumulated_Plots")
+
+        view_box = oasysgui.widgetBox(cumulated_plot_tab, "Plotting Style", addSpace=False, orientation="horizontal")
+        view_box_1 = oasysgui.widgetBox(view_box, "", addSpace=False, orientation="vertical", width=350)
+
+        self.cumulated_view_type_combo = gui.comboBox(view_box_1, self, "cumulated_view_type", label="Show Plots",
+                                            labelWidth=220,
+                                            items=["No", "Yes"],
+                                            callback=self.set_CumulatedPlotQuality, sendSelectedValue=False, orientation="horizontal")
+
+
+        self.cumulated_tabs = oasysgui.tabWidget(cumulated_plot_tab)
+
+        self.initializeCumulatedTabs()
+
         gui.rubber(self.mainArea)
 
+    def initializeCumulatedTabs(self):
+        current_tab = self.cumulated_tabs.currentIndex()
 
+        self.cumulated_tabs.removeTab(2)
+        self.cumulated_tabs.removeTab(1)
+        self.cumulated_tabs.removeTab(0)
+
+        self.cumulated_plot_canvas = [None]*3
+        self.cumulated_tab = []
+        self.cumulated_tab.append(oasysgui.createTabPage(self.cumulated_tabs, "Spectral Flux"))
+        self.cumulated_tab.append(oasysgui.createTabPage(self.cumulated_tabs, "Cumulated Power"))
+        self.cumulated_tab.append(oasysgui.createTabPage(self.cumulated_tabs, "Power Density"))
+
+        for tab in self.cumulated_tab:
+            tab.setFixedHeight(self.IMAGE_HEIGHT)
+            tab.setFixedWidth(self.IMAGE_WIDTH)
+
+        self.cumulated_tabs.setCurrentIndex(current_tab)
+
+    def set_CumulatedPlotQuality(self):
+        if not self.plotted_beam is None:
+            self.initializeCumulatedTabs()
+
+    def setDataXY(self):
+        self.setDataX()
+        self.setDataY()
+
+    def setDataX(self):
+        x2 = 0.5 * self.source_dimension_wf_h_slit_gap
+        x1 = -x2
+
+        self.dataX = 1e3 * numpy.linspace(x1, x2, self.source_dimension_wf_h_slit_points)
+
+    def setDataY(self):
+        y2 = 0.5 * self.source_dimension_wf_v_slit_gap
+        y1 = -y2
+
+        self.dataY = 1e3*numpy.linspace(y1, y2, self.source_dimension_wf_v_slit_points)
+
+    def onReceivingInput(self):
+        super(APSUndulator, self).onReceivingInput()
+
+        self.initializeCumulatedTabs()
 
     ####################################################################################
     # GRAPHICS
@@ -522,8 +592,18 @@ class APSUndulator(GenericElement):
         wavelength = self.auto_harmonic_number*m2ev/self.auto_energy
         K = round(numpy.sqrt(2*(((wavelength*2*self.gamma()**2)/self.undulator_period)-1)), 6)
 
-        if which == VERTICAL   or which==BOTH: self.Kv = K
-        if which == HORIZONTAL or which==BOTH: self.Kh = K
+        if which == VERTICAL:
+            self.Kv = K
+            self.Kh = 0.0
+
+        if which == BOTH:
+            Kboth = round(K / numpy.sqrt(2), 6)
+            self.Kv = Kboth
+            self.Kh = Kboth
+
+        if which == HORIZONTAL:
+            self.Kh = K
+            self.Kv = 0.0
 
         self.set_WFUseHarmonic()
 
@@ -643,7 +723,7 @@ class APSUndulator(GenericElement):
     # PROCEDURES
     ####################################################################################
 
-    def runShadowSource(self):
+    def runShadowSource(self, do_cumulated_calculations=False):
         self.setStatusMessage("")
         self.progressBarInit()
 
@@ -683,7 +763,7 @@ class APSUndulator(GenericElement):
             if self.distribution_source == 0:
                 self.setStatusMessage("Running SRW")
 
-                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power = self.runSRWCalculation()
+                x, z, intensity_source_dimension, x_first, z_first, intensity_angular_distribution, total_power = self.runSRWCalculation(do_cumulated_calculations)
             elif self.distribution_source == 1:
                 self.setStatusMessage("Loading SRW files")
 
@@ -723,6 +803,7 @@ class APSUndulator(GenericElement):
 
             self.progressBarSet(80)
             self.plot_results(beam_out)
+            self.plot_cumulated_results(do_cumulated_calculations)
 
             self.setStatusMessage("")
 
@@ -747,14 +828,29 @@ class APSUndulator(GenericElement):
         self.energy_step = None
 
         if trigger and trigger.new_object == True:
+            do_cumulated_calculations = False
+
             if trigger.has_additional_parameter("seed_increment"):
                 self.seed += trigger.get_additional_parameter("seed_increment")
+
+            if not trigger.has_additional_parameter("start_event"):
+                self.cumulated_energies = None
+                self.cumulated_integrated_flux = None
+                self.cumulated_power_density = None
+                self.cumulated_power = None
 
             if trigger.has_additional_parameter("energy_value") and trigger.has_additional_parameter("energy_step"):
                 self.compute_power = True
                 self.use_harmonic = 1
                 self.distribution_source = 0
                 self.save_srw_result = 0
+                do_cumulated_calculations = True
+
+                if trigger.has_additional_parameter("start_event") and trigger.get_additional_parameter("start_event") == True:
+                    self.cumulated_energies = None
+                    self.cumulated_integrated_flux = None
+                    self.cumulated_power_density = None
+                    self.cumulated_power = None
 
                 self.energy = trigger.get_additional_parameter("energy_value")
                 self.energy_step = trigger.get_additional_parameter("energy_step")
@@ -765,7 +861,7 @@ class APSUndulator(GenericElement):
                 self.set_DistributionSource()
                 self.set_SaveFileSRW()
 
-            self.runShadowSource()
+            self.runShadowSource(do_cumulated_calculations)
 
     def checkFields(self):
         self.number_of_rays = congruence.checkPositiveNumber(self.number_of_rays, "Number of rays")
@@ -831,6 +927,81 @@ class APSUndulator(GenericElement):
                 beam_out._beam.rays[index, 15] = 0
                 beam_out._beam.rays[index, 16] = 0
                 beam_out._beam.rays[index, 17] = 0
+
+    def cumulated_plot_data1D(self, dataX, dataY, plot_canvas_index, title="", xtitle="", ytitle=""):
+        if self.cumulated_plot_canvas[plot_canvas_index] is None:
+            self.cumulated_plot_canvas[plot_canvas_index] = oasysgui.plotWindow()
+            self.cumulated_tab[plot_canvas_index].layout().addWidget(self.cumulated_plot_canvas[plot_canvas_index])
+
+        self.cumulated_plot_canvas[plot_canvas_index].addCurve(dataX, dataY,)
+
+        self.cumulated_plot_canvas[plot_canvas_index].resetZoom()
+        self.cumulated_plot_canvas[plot_canvas_index].setXAxisAutoScale(True)
+        self.cumulated_plot_canvas[plot_canvas_index].setYAxisAutoScale(True)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphGrid(False)
+
+        self.cumulated_plot_canvas[plot_canvas_index].setXAxisLogarithmic(False)
+        self.cumulated_plot_canvas[plot_canvas_index].setYAxisLogarithmic(False)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphTitle(title)
+
+    def cumulated_plot_data2D(self, data2D, dataX, dataY, plot_canvas_index, title="", xtitle="", ytitle=""):
+
+        if self.cumulated_plot_canvas[plot_canvas_index] is None:
+            self.cumulated_plot_canvas[plot_canvas_index] = Plot2D()
+            self.cumulated_tab[plot_canvas_index].layout().addWidget(self.cumulated_plot_canvas[plot_canvas_index])
+
+        origin = (dataX[0],dataY[0])
+        scale = (dataX[1]-dataX[0], dataY[1]-dataY[0])
+
+        data_to_plot = data2D.T
+
+        colormap = {"name":"temperature", "normalization":"linear", "autoscale":True, "vmin":0, "vmax":0, "colors":256}
+
+        self.cumulated_plot_canvas[plot_canvas_index].resetZoom()
+        self.cumulated_plot_canvas[plot_canvas_index].setXAxisAutoScale(True)
+        self.cumulated_plot_canvas[plot_canvas_index].setYAxisAutoScale(True)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphGrid(False)
+        self.cumulated_plot_canvas[plot_canvas_index].setKeepDataAspectRatio(True)
+        self.cumulated_plot_canvas[plot_canvas_index].yAxisInvertedAction.setVisible(False)
+
+        self.cumulated_plot_canvas[plot_canvas_index].setXAxisLogarithmic(False)
+        self.cumulated_plot_canvas[plot_canvas_index].setYAxisLogarithmic(False)
+        self.cumulated_plot_canvas[plot_canvas_index].getMaskAction().setVisible(False)
+        self.cumulated_plot_canvas[plot_canvas_index].getRoiAction().setVisible(False)
+        self.cumulated_plot_canvas[plot_canvas_index].getColormapAction().setVisible(False)
+        self.cumulated_plot_canvas[plot_canvas_index].setKeepDataAspectRatio(False)
+
+
+
+        self.cumulated_plot_canvas[plot_canvas_index].addImage(numpy.array(data_to_plot),
+                                                     legend="zio billy",
+                                                     scale=scale,
+                                                     origin=origin,
+                                                     colormap=colormap,
+                                                     replace=True)
+
+        self.cumulated_plot_canvas[plot_canvas_index].setActiveImage("zio billy")
+
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphXLabel(xtitle)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphYLabel(ytitle)
+        self.cumulated_plot_canvas[plot_canvas_index].setGraphTitle(title)
+
+    def plot_cumulated_results(self, do_cumulated_calculations):
+        if not self.cumulated_view_type == 0 and do_cumulated_calculations==True:
+            try:
+                self.cumulated_view_type_combo.setEnabled(False)
+
+                self.cumulated_plot_data1D(self.cumulated_energies, self.cumulated_integrated_flux, 0, "Spectral Flux", "Energy [eV]", "Flux [ph/s/0.1%BW]")
+                self.cumulated_plot_data1D(self.cumulated_energies, self.cumulated_power, 1, "Cumulated Power", "Energy [eV]", "Power [W]")
+                self.cumulated_plot_data2D(self.cumulated_power_density, self.dataX, self.dataY, 2, "Power Density [W/mm^2]", "X [mm]", "Y [mm]")
+
+                self.cumulated_view_type_combo.setEnabled(True)
+            except Exception as e:
+                self.cumulated_view_type_combo.setEnabled(True)
+
+                raise Exception("Data not plottable: exception: " + str(e))
 
     ####################################################################################
     # SRW CALCULATION
@@ -993,7 +1164,7 @@ class APSUndulator(GenericElement):
         return h_array, v_array, intensity_array
 
 
-    def runSRWCalculation(self):
+    def runSRWCalculation(self, do_cumulated_calucations=False):
 
         self.checkSRWFields()
 
@@ -1024,14 +1195,33 @@ class APSUndulator(GenericElement):
         dy = (z[1] - z[0]) * 1e3
 
         self.integrated_flux = intensity_angular_distribution.sum()*dx*dy
+        self.computed_power  = self.integrated_flux * (1e3 * self.energy_step * codata.e)
 
         if self.compute_power:
-            if self.power_step > 0:
-                total_power = self.power_step
-            else:
-                total_power = self.integrated_flux * (1e3 * self.energy_step * codata.e)
+            total_power = self.power_step if self.power_step > 0 else self.computed_power
         else:
             total_power = None
+
+        if do_cumulated_calucations:
+            correction_factor = 1.0 if self.power_step <= 0 else self.power_step / self.computed_power # correction for adopting a non costant energy step
+
+            current_energy          = numpy.ones(1) * self.energy
+            current_integrated_flux = numpy.ones(1) * self.integrated_flux
+            current_power_density   = intensity_angular_distribution.copy() * (1e3 * self.energy_step * codata.e * correction_factor)
+            current_power           = self.computed_power * correction_factor
+
+            #print(current_energy[0], '%.3E' % current_integrated_flux[0], current_power)
+
+            if self.cumulated_energies is None:
+                self.cumulated_energies        = current_energy
+                self.cumulated_integrated_flux = current_integrated_flux
+                self.cumulated_power_density   = current_power_density
+                self.cumulated_power           = numpy.ones(1) * (current_power)
+            else:
+                self.cumulated_energies        = numpy.append(self.cumulated_energies,  current_energy)
+                self.cumulated_integrated_flux = numpy.append(self.cumulated_integrated_flux,  current_integrated_flux)
+                self.cumulated_power_density  += current_power_density
+                self.cumulated_power           = numpy.append(self.cumulated_power,  numpy.ones(1) * (self.cumulated_power[-1] + current_power))
 
         distance = wfr.mesh.zStart
 
