@@ -70,17 +70,17 @@ from syned.widget.widget_decorator import WidgetDecorator
 
 class EnergyBinning(object):
     def __init__(self,
-                 energy_value_from = 0.0,
-                 energy_value_to   = 0.0,
+                 energy_value = 0.0,
+                 energy_value_to = None,
                  energy_step       = 0.0,
                  power_step        = None):
-        self.energy_value_from       = energy_value_from
-        self.energy_value_to         = energy_value_to
-        self.energy_step             = energy_step
-        self.power_step              = power_step
+        self.energy_value    = energy_value
+        self.energy_value_to = energy_value_to
+        self.energy_step     = energy_step
+        self.power_step      = power_step
 
     def __str__(self):
-        return str(self.energy_value_from) + ", " + str(self.energy_value_to) + ", " + str(self.energy_step) + ", " + str(self.power_step)
+        return str(self.energy_value) + ", " + str(self.energy_value_to) + ", " + str(self.energy_step) + ", " + str(self.power_step)
 
 class PowerLoopPoint(widget.OWWidget):
 
@@ -144,8 +144,6 @@ class PowerLoopPoint(widget.OWWidget):
 
     current_energy_binning = -1
     current_energy_value = None
-    current_energy_value_central = None
-    current_energy_value_half_power = None
     current_energy_step = None
     current_power_step = None
 
@@ -252,7 +250,7 @@ class PowerLoopPoint(widget.OWWidget):
         gui.button(button_box, self, "Reload Spectrum and Filters", callback=self.read_spectrum_and_filters_file)
         gui.button(button_box, self, "Reload Spectrum Only", callback=self.read_spectrum_file_only)
 
-        oasysgui.widgetLabel(self.autobinning_box_2, "Energy From, Energy To, Energy Step [eV], Power [W]")
+        oasysgui.widgetLabel(self.autobinning_box_2, "Energy Value [eV], Energy Step [eV], Power Step [W]")
 
         def write_text():
             self.energies = self.text_area.toPlainText()
@@ -486,8 +484,8 @@ class PowerLoopPoint(widget.OWWidget):
 
                 self.spectrum_data = data.copy()
 
-                energies                             = data[:, 0]
-                flux_through_finite_aperture         = data[:, 1]
+                energies                              = data[:, 0]
+                flux_through_finite_aperture          = data[:, 1]
                 flux_through_finite_aperture_filtered = flux_through_finite_aperture.copy()
 
                 if not self.filters is None:
@@ -536,32 +534,27 @@ class PowerLoopPoint(widget.OWWidget):
                     flux_through_finite_aperture = flux_through_finite_aperture[good]
 
                     if self.autobinning==1: # constant power
-                        interpolated_cumulated_power = numpy.linspace(start=0, stop=numpy.max(cumulated_power), num=self.auto_n_step)
+                        interpolated_cumulated_power = numpy.linspace(start=numpy.min(cumulated_power), stop=numpy.max(cumulated_power), num=self.auto_n_step+1)
+                        interpolated_energies        = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
+                        energy_steps = numpy.ediff1d(interpolated_energies)
 
-                        interpolated_lower_energies = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
-                        interpolated_upper_energies = numpy.append(interpolated_lower_energies, [energies[-1]])
-                        energy_bins                 = numpy.diff(interpolated_upper_energies)
-
+                        interpolated_energies        = interpolated_energies[:-1]
                         interpolated_cumulated_power = interpolated_cumulated_power[:-1]
-                        interpolated_lower_energies  = interpolated_lower_energies[:-1]
-                        interpolated_upper_energies  = interpolated_upper_energies[1:-1]
 
-                        power_steps = numpy.ones(self.auto_n_step)*cumulated_power[-1]/self.auto_n_step
+                        power_steps  = numpy.ones(self.auto_n_step)*cumulated_power[-1]/self.auto_n_step
 
                     elif self.autobinning==2: # constant energy
                         minimum_energy = energies[0]
                         maximum_energy = energies[-1]
                         energy_step = (maximum_energy-minimum_energy)/self.auto_n_step
 
-                        interpolated_lower_energies  = numpy.arange(minimum_energy, maximum_energy, energy_step)
-                        interpolated_upper_energies  = energy_step + interpolated_lower_energies
-                        interpolated_cumulated_power = numpy.interp(interpolated_lower_energies, energies, cumulated_power)
+                        interpolated_energies        = numpy.arange(minimum_energy, maximum_energy, energy_step)
+                        interpolated_cumulated_power = numpy.interp(interpolated_energies, energies, cumulated_power)
 
-                        energy_bins = energy_step*numpy.ones(self.auto_n_step)
+                        energy_steps = numpy.ones(self.auto_n_step)*energy_step
+                        power_steps  = numpy.ediff1d(numpy.append(numpy.zeros(1), interpolated_cumulated_power))
 
-                        power_steps = numpy.ediff1d(numpy.append(numpy.zeros(1), interpolated_cumulated_power))
-
-                    flux_steps = numpy.interp(interpolated_lower_energies, energies, flux_through_finite_aperture)
+                    flux_steps = numpy.interp(interpolated_energies, energies, flux_through_finite_aperture)
 
                     self.energy_binnings = []
                     self.total_new_objects = 0
@@ -571,8 +564,8 @@ class PowerLoopPoint(widget.OWWidget):
                                                                                      linestyle="--", color="#006400")
                     self.cumulated_power_plot.setGraphXLabel("Energy [eV]")
                     self.cumulated_power_plot.setGraphYLabel("Cumulated " + ("" if self.filters is None else " (Filtered)") + " Power" )
-                    if self.filters is None: self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(power_steps[:-1].sum(), 2)) + " W")
-                    else:self.cumulated_power_plot.setGraphTitle("Total (Filtered) Power: " + str(round(power_steps[:-1].sum(), 2)) + "  (" + str(round(total_power_filtered, 2)) +  ") W")
+                    if self.filters is None: self.cumulated_power_plot.setGraphTitle("Total Power: " + str(round(power_steps.sum(), 2)) + " W")
+                    else:self.cumulated_power_plot.setGraphTitle("Total (Filtered) Power: " + str(round(power_steps.sum(), 2)) + "  (" + str(round(total_power_filtered, 2)) +  ") W")
 
                     self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture, replace=True, legend="Spectral Flux")
                     if not self.filters is None: self.spectral_flux_plot.addCurve(energies, flux_through_finite_aperture_filtered, replace=False, legend="Spectral Flux Filters",
@@ -582,27 +575,21 @@ class PowerLoopPoint(widget.OWWidget):
                     self.spectral_flux_plot.setGraphTitle("Spectral Flux" + ("" if self.filters is None else " (Filtered)"))
 
 
-                    self.cumulated_power_plot.addCurve(interpolated_lower_energies, interpolated_cumulated_power, replace=False, legend="Energy Binning",
+                    self.cumulated_power_plot.addCurve(interpolated_energies, interpolated_cumulated_power, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
-                    self.spectral_flux_plot.addCurve(interpolated_lower_energies, flux_steps, replace=False, legend="Energy Binning",
+                    self.spectral_flux_plot.addCurve(interpolated_energies, flux_steps, replace=False, legend="Energy Binning",
                                                        color="red", linestyle=" ", symbol="+")
 
                     text = ""
 
-                    for energy_from, energy_to, energy_bin, power_step in zip(interpolated_lower_energies,
-                                                                              interpolated_upper_energies,
-                                                                              energy_bins,
-                                                                              power_steps
-                                                                              ):
-                        energy_binning = EnergyBinning(energy_value_from=round(energy_from, 3),
-                                                       energy_value_to=round(energy_to, 3),
-                                                       energy_step=round(energy_bin, 3),
+                    for energy_value, energy_step, power_step in zip(interpolated_energies, energy_steps, power_steps):
+                        energy_binning = EnergyBinning(energy_value=round(energy_value, 3),
+                                                       energy_step=round(energy_step, 3),
                                                        power_step=round(power_step, 4))
 
-                        text += str(round(energy_from, 3)) + ", " + \
-                                str(round(energy_to, 3))   + ", " + \
-                                str(round(energy_bin, 3))  + ", " + \
+                        text += str(round(energy_value, 3)) + ", " + \
+                                str(round(energy_step, 3))  + ", " + \
                                 str(round(power_step, 4)) + "\n"
 
                         self.energy_binnings.append(energy_binning)
@@ -631,11 +618,16 @@ class PowerLoopPoint(widget.OWWidget):
                 if len(data) == 3:
                     if self.energy_binnings is None: self.energy_binnings = []
 
-                    energy_binning = EnergyBinning(energy_value_from=float(data[0].strip()),
-                                                   energy_value_to=float(data[1].strip()),
-                                                   energy_step=float(data[2].strip()))
+                    energy_from = float(data[0].strip())
+                    energy_to   = float(data[1].strip())
+                    energy_step = float(data[2].strip())
+
+                    energy_binning = EnergyBinning(energy_value=energy_from,
+                                                   energy_value_to=energy_to,
+                                                   energy_step=energy_step)
                     self.energy_binnings.append(energy_binning)
-                    self.total_new_objects += int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_step)
+
+                    self.total_new_objects += int((energy_to - energy_from) / energy_step)
 
     def calculate_number_of_new_objects(self):
         if len(self.energy_binnings) > 0:
@@ -644,7 +636,7 @@ class PowerLoopPoint(widget.OWWidget):
             else:
                 energy_binning = self.energy_binnings[self.current_energy_binning]
 
-                self.number_of_new_objects = int((energy_binning.energy_value_to - energy_binning.energy_value_from) / energy_binning.energy_step)
+                self.number_of_new_objects = int((energy_binning.energy_value_to - energy_binning.energy_value) / energy_binning.energy_step)
         else:
             self.number_of_new_objects = 0
 
@@ -652,8 +644,6 @@ class PowerLoopPoint(widget.OWWidget):
         self.current_new_object = 0
         self.total_current_new_object = 0
         self.current_energy_value = None
-        self.current_energy_value_central = None
-        self.current_energy_value_half_power = None
         self.current_energy_step = None
         self.current_energy_binning = -1
         self.current_power_step = None
@@ -667,7 +657,7 @@ class PowerLoopPoint(widget.OWWidget):
             self.current_new_object = 1
             self.total_current_new_object = 1
             self.current_energy_binning = 0
-            self.current_energy_value             = round(self.energy_binnings[0].energy_value_from, 8)
+            self.current_energy_value             = round(self.energy_binnings[0].energy_value, 8)
             self.current_energy_step              = round(self.energy_binnings[0].energy_step, 8)
             self.current_power_step               = None if self.energy_binnings[0].power_step is None else round(self.energy_binnings[0].power_step, 8)
             self.calculate_number_of_new_objects()
@@ -745,7 +735,7 @@ class PowerLoopPoint(widget.OWWidget):
                             if self.current_energy_value is None:
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
-                                self.current_energy_value = round(energy_binning.energy_value_from, 8)
+                                self.current_energy_value = round(energy_binning.energy_value, 8)
                             else:
                                 self.current_new_object += 1
                                 self.current_energy_value = round(self.current_energy_value + energy_binning.energy_step, 8)
@@ -769,7 +759,7 @@ class PowerLoopPoint(widget.OWWidget):
 
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
-                                self.current_energy_value = round(energy_binning.energy_value_from, 8)
+                                self.current_energy_value = round(energy_binning.energy_value, 8)
                                 self.current_power_step = None if energy_binning.power_step is None else round(energy_binning.power_step, 8)
 
                                 self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))

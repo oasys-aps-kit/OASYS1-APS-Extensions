@@ -993,9 +993,13 @@ class APSUndulator(GenericElement):
             try:
                 self.cumulated_view_type_combo.setEnabled(False)
 
+                total_power = str(round(self.cumulated_power[-1], 2))
+
                 self.cumulated_plot_data1D(self.cumulated_energies, self.cumulated_integrated_flux, 0, "Spectral Flux", "Energy [eV]", "Flux [ph/s/0.1%BW]")
-                self.cumulated_plot_data1D(self.cumulated_energies, self.cumulated_power, 1, "Cumulated Power", "Energy [eV]", "Power [W]")
-                self.cumulated_plot_data2D(self.cumulated_power_density, self.dataX, self.dataY, 2, "Power Density [W/mm^2]", "X [mm]", "Y [mm]")
+                self.cumulated_plot_data1D(self.cumulated_energies, self.cumulated_power, 1,
+                                           "Cumulated Power (Total = " + total_power + " W)", "Energy [eV]", "Power [W]")
+                self.cumulated_plot_data2D(self.cumulated_power_density, self.dataX, self.dataY, 2,
+                                           "Power Density [W/mm^2] (Total Power = " + total_power + " W)", "X [mm]", "Y [mm]")
 
                 self.cumulated_view_type_combo.setEnabled(True)
             except Exception as e:
@@ -1195,22 +1199,17 @@ class APSUndulator(GenericElement):
         dy = (z[1] - z[0]) * 1e3
 
         self.integrated_flux = intensity_angular_distribution.sum()*dx*dy
-        self.computed_power  = self.integrated_flux * (1e3 * self.energy_step * codata.e)
 
         if self.compute_power:
-            total_power = self.power_step if self.power_step > 0 else self.computed_power
+            total_power = self.power_step if self.power_step > 0 else self.integrated_flux * (1e3 * self.energy_step * codata.e)
         else:
             total_power = None
 
-        if do_cumulated_calucations:
-            correction_factor = 1.0 if self.power_step <= 0 else self.power_step / self.computed_power # correction for adopting a non costant energy step
-
+        if self.compute_power and do_cumulated_calucations:
             current_energy          = numpy.ones(1) * self.energy
             current_integrated_flux = numpy.ones(1) * self.integrated_flux
-            current_power_density   = intensity_angular_distribution.copy() * (1e3 * self.energy_step * codata.e * correction_factor)
-            current_power           = self.computed_power * correction_factor
-
-            #print(current_energy[0], '%.3E' % current_integrated_flux[0], current_power)
+            current_power_density   = intensity_angular_distribution.copy() * total_power / self.integrated_flux
+            current_power           = total_power
 
             if self.cumulated_energies is None:
                 self.cumulated_energies        = current_energy
