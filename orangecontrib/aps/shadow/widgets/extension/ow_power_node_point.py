@@ -724,7 +724,9 @@ class PowerLoopPoint(widget.OWWidget):
                 elif trigger.new_object:
                     if self.energy_binnings is None: self.calculate_energy_binnings()
 
-                    if self.current_energy_binning == -1: raise Exception("Power Loop has to be started properly: press the button Start")
+                    if self.current_energy_binning == -1:
+                        QMessageBox.critical(self, "Error", "Power Loop has to be started properly: press the button Start", QMessageBox.Ok)
+                        return
 
                     if self.current_energy_binning < len(self.energy_binnings):
                         energy_binning = self.energy_binnings[self.current_energy_binning]

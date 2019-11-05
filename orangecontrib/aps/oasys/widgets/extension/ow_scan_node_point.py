@@ -54,6 +54,7 @@ from oasys.widgets.gui import ConfirmDialog
 
 from orangewidget import gui
 from PyQt5.QtGui import QFont, QPalette, QColor
+from PyQt5.QtWidgets import QMessageBox
 from orangewidget.settings import Setting
 
 from oasys.util.oasys_util import TriggerIn, TriggerOut
@@ -88,7 +89,7 @@ class ScanLoopPoint(widget.OWWidget):
 
     variable_value_from = Setting(0.0)
     variable_value_to = Setting(0.0)
-    variable_value_step = 0.0
+    variable_value_step = Setting(0.0)
 
     list_of_values = Setting([""])
     kind_of_loop = Setting(0)
@@ -294,6 +295,10 @@ class ScanLoopPoint(widget.OWWidget):
                     self.setStatusMessage("")
                     self.send("Trigger", TriggerOut(new_object=False))
                 elif trigger.new_object:
+                    if self.current_new_object == 0:
+                        QMessageBox.critical(self, "Error", "Loop has to be started properly: press the button Start", QMessageBox.Ok)
+                        return
+
                     if (self.current_new_object < self.number_of_new_objects) or (self.current_new_object == self.number_of_new_objects and self.kind_of_loop==0):
                         if self.current_variable_value is None:
                             self.current_new_object = 1
