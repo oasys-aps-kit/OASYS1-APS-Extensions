@@ -404,10 +404,10 @@ class APSUndulator(GenericElement):
 
         left_box_3 = oasysgui.widgetBox(tab_wf, "Wavefront Propagation Parameters", addSpace=False, orientation="vertical")
 
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback="setDataX")
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback="setDataY")
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback="setDataX")
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback="setDataY")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback=self.setDataX)
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback=self.setDataY)
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback=self.setDataX)
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback=self.setDataY)
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
 
         self.setDataXY()
@@ -494,7 +494,6 @@ class APSUndulator(GenericElement):
 
         gui.rubber(self.controlArea)
 
-
         cumulated_plot_tab = oasysgui.createTabPage(self.main_tabs, "Cumulated_Plots")
 
         view_box = oasysgui.widgetBox(cumulated_plot_tab, "Plotting Style", addSpace=False, orientation="horizontal")
@@ -532,8 +531,11 @@ class APSUndulator(GenericElement):
         self.cumulated_tabs.setCurrentIndex(current_tab)
 
     def set_CumulatedPlotQuality(self):
-        if not self.plotted_beam is None:
+        if not self.cumulated_power is None:
             self.initializeCumulatedTabs()
+
+            self.plot_cumulated_results(True)
+
 
     def setDataXY(self):
         self.setDataX()
@@ -1168,7 +1170,7 @@ class APSUndulator(GenericElement):
         return h_array, v_array, intensity_array
 
 
-    def runSRWCalculation(self, do_cumulated_calucations=False):
+    def runSRWCalculation(self, do_cumulated_calculations=False):
 
         self.checkSRWFields()
 
@@ -1205,7 +1207,7 @@ class APSUndulator(GenericElement):
         else:
             total_power = None
 
-        if self.compute_power and do_cumulated_calucations:
+        if self.compute_power and do_cumulated_calculations:
             current_energy          = numpy.ones(1) * self.energy
             current_integrated_flux = numpy.ones(1) * self.integrated_flux
             current_power_density   = intensity_angular_distribution.copy() * total_power / self.integrated_flux
