@@ -513,14 +513,14 @@ class PowerLoopPoint(widget.OWWidget):
 
                     # last energy do not contribute to the total (the approximated integral of the power is out of the range)
 
-                    power           = flux_through_finite_aperture* (1e3 * energy_step * codata.e)
+                    power           = flux_through_finite_aperture * (1e3 * energy_step * codata.e)
                     cumulated_power = numpy.cumsum(power)
                     total_power     = cumulated_power[-1]
 
                     if not self.filters is None:
                         power_filtered           = flux_through_finite_aperture_filtered * (1e3 * energy_step * codata.e)
                         cumulated_power_filtered = numpy.cumsum(power_filtered)
-                        total_power_filtered = cumulated_power_filtered[-1]
+                        total_power_filtered     = cumulated_power_filtered[-1]
 
                     self.text_area.clear()
 
@@ -795,33 +795,6 @@ class PowerLoopPoint(widget.OWWidget):
             self.setStatusMessage("")
             self.suspend_loop = False
             self.run_loop = True
-
-
-    def __get_resonance_energy(self, harmonic_number=1):
-        gamma = 1e9*self.electron_energy / (codata.m_e *  codata.c**2 / codata.e)
-
-        resonance_wavelength = (self.period_length / (2.0*gamma**2)) * (1 + self.K_vertical**2 / 2.0 + self.K_horizontal**2 / 2.0 + gamma**2 * (self.theta_x**2 + self.theta_z ** 2))
-
-        return harmonic_number*m2ev/resonance_wavelength
-
-    def __get_red_shifted_energy(self, energies, flux_through_finite_aperture, harmonic_energy):
-        harmonic_index = (numpy.abs(energies - harmonic_energy)).argmin()
-        harmonic_flux = flux_through_finite_aperture[harmonic_index]
-
-        current_index = harmonic_index
-        current_difference = harmonic_flux
-        previous_difference = 1.1*harmonic_flux
-
-        while(previous_difference > current_difference):
-            current_index -= 1
-            if current_index == 0: break
-            previous_difference = current_difference
-            current_difference = numpy.abs(self.flux_factor*harmonic_flux-flux_through_finite_aperture[current_index])
-
-        red_shifted_index = current_index
-        red_shifted_energy = (energies[red_shifted_index] + energies[red_shifted_index+1])/2
-
-        return red_shifted_energy
 
 if __name__ == "__main__":
     a = QApplication(sys.argv)
