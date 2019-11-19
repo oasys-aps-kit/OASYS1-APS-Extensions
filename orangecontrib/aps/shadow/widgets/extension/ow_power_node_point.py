@@ -122,17 +122,7 @@ class PowerLoopPoint(widget.OWWidget):
     auto_n_step = Setting(1001)
     auto_perc_total_power = Setting(99)
 
-    refine_around_harmonic = Setting(1)
-    
-    percentage_of_points_around_harmonic = Setting(50)
-    flux_factor = Setting(2.0)
-    binning_style = Setting(1)
-    number_of_points_last = Setting(3)
-
-    boundary_energy = Setting(40000.0)
-    percentage_boundary = Setting(5e-4)
-    number_of_points_first_harmonic = Setting(100)
-    number_of_points_after_boundary = Setting(500)
+    send_power_step = Setting(0)
 
     electron_energy = Setting(6.0)
     K_vertical = Setting(1.943722)
@@ -232,7 +222,7 @@ class PowerLoopPoint(widget.OWWidget):
                      callback=self.set_Autobinning, sendSelectedValue=False, orientation="horizontal")
 
         self.autobinning_box_1 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=50)
-        self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=110)
+        self.autobinning_box_2 = oasysgui.widgetBox(left_box_1, "", addSpace=False, orientation="vertical", height=140)
 
         # ----------------------------------------------
 
@@ -244,6 +234,7 @@ class PowerLoopPoint(widget.OWWidget):
 
         oasysgui.lineEdit(self.autobinning_box_2, self, "auto_n_step", "Number of Steps", labelWidth=250, valueType=int, orientation="horizontal")
         oasysgui.lineEdit(self.autobinning_box_2, self, "auto_perc_total_power", "% Total Power", labelWidth=250, valueType=float, orientation="horizontal")
+        gui.comboBox(self.autobinning_box_2, self, "send_power_step", label="Send Power Step", items=["No", "Yes"], labelWidth=350, sendSelectedValue=False, orientation="horizontal")
 
         button_box = oasysgui.widgetBox(self.autobinning_box_2, "", addSpace=False, orientation="horizontal")
 
@@ -353,7 +344,7 @@ class PowerLoopPoint(widget.OWWidget):
         self.autobinning_box_1.setVisible(self.autobinning==0)
         self.autobinning_box_2.setVisible(self.autobinning==1 or self.autobinning==2)
         self.text_area.setReadOnly(self.autobinning>=1)
-        self.text_area.setFixedHeight(231 if self.autobinning>=1 else 290)
+        self.text_area.setFixedHeight(201 if self.autobinning>=1 else 290)
 
     def read_spectrum_file(self, reset_filters=True):
         try:
@@ -659,7 +650,7 @@ class PowerLoopPoint(widget.OWWidget):
             self.current_energy_binning = 0
             self.current_energy_value             = round(self.energy_binnings[0].energy_value, 8)
             self.current_energy_step              = round(self.energy_binnings[0].energy_step, 8)
-            self.current_power_step               = None if self.energy_binnings[0].power_step is None else round(self.energy_binnings[0].power_step, 8)
+            self.current_power_step               = None if self.energy_binnings[0].power_step is None else (None if self.send_power_step==0 else round(self.energy_binnings[0].power_step, 8))
             self.calculate_number_of_new_objects()
 
             self.start_button.setEnabled(False)
@@ -742,7 +733,7 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.current_new_object += 1
                                 self.current_energy_value = round(self.current_energy_value + energy_binning.energy_step, 8)
 
-                            self.current_power_step = None if energy_binning.power_step is None else round(energy_binning.power_step, 8)
+                            self.current_power_step = None if energy_binning.power_step is None else (None if self.send_power_step==0 else round(energy_binning.power_step, 8))
 
                             self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                             self.start_button.setEnabled(False)
@@ -762,7 +753,7 @@ class PowerLoopPoint(widget.OWWidget):
                                 self.current_new_object = 1
                                 self.calculate_number_of_new_objects()
                                 self.current_energy_value = round(energy_binning.energy_value, 8)
-                                self.current_power_step = None if energy_binning.power_step is None else round(energy_binning.power_step, 8)
+                                self.current_power_step = None if energy_binning.power_step is None else (None if self.send_power_step==0 else round(energy_binning.power_step, 8))
 
                                 self.setStatusMessage("Running " + self.get_object_name() + " " + str(self.total_current_new_object) + " of " + str(self.total_new_objects))
                                 self.start_button.setEnabled(False)

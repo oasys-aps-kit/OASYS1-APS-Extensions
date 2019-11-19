@@ -1210,7 +1210,7 @@ class APSUndulator(GenericElement):
         if self.compute_power and do_cumulated_calculations:
             current_energy          = numpy.ones(1) * self.energy
             current_integrated_flux = numpy.ones(1) * self.integrated_flux
-            current_power_density   = intensity_angular_distribution.copy() * total_power / self.integrated_flux
+            current_power_density   = intensity_angular_distribution.copy() * (1e3 * self.energy_step * codata.e)
             current_power           = total_power
 
             if self.cumulated_energies is None:
