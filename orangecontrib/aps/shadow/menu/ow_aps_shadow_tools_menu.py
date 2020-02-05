@@ -55,7 +55,7 @@ from orangecontrib.aps.shadow.widgets.extension.ow_power_plot_xy import PowerPlo
 
 class APSShadowToolsMenu(OMenu):
     def __init__(self):
-        super().__init__(name="APS Shadow Tools")
+        super().__init__(name="APS Shadow")
 
         self.openContainer()
         self.addContainer("Cumulative Plotting")
