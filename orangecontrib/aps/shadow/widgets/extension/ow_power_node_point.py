@@ -524,6 +524,10 @@ class PowerLoopPoint(widget.OWWidget):
                     cumulated_power              = cumulated_power[good]
                     flux_through_finite_aperture = flux_through_finite_aperture[good]
 
+                    if not self.filters is None:
+                        cumulated_power_filtered = cumulated_power_filtered[good]
+                        flux_through_finite_aperture_filtered = flux_through_finite_aperture_filtered[good]
+
                     if self.autobinning==1: # constant power
                         interpolated_cumulated_power = numpy.linspace(start=numpy.min(cumulated_power), stop=numpy.max(cumulated_power), num=self.auto_n_step+1)
                         interpolated_energies        = numpy.interp(interpolated_cumulated_power, cumulated_power, energies)
