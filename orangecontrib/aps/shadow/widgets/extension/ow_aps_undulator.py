@@ -130,6 +130,9 @@ class APSUndulator(GenericElement):
     electron_beam_divergence_h = Setting(2.9e-06)
     electron_beam_divergence_v = Setting(1.5e-06)
 
+    auto_expand = Setting(0)
+    auto_expand_rays = Setting(0)
+
     type_of_initialization = Setting(0)
 
     moment_x = Setting(0.0)
@@ -410,14 +413,20 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback=self.setDataY)
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
 
-        self.setDataXY()
-
         left_box_4 = oasysgui.widgetBox(tab_wf, "Drift Back Propagation Parameters", addSpace=False, orientation="vertical")
 
         oasysgui.lineEdit(left_box_4, self, "horizontal_range_modification_factor_at_resizing", "H range modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_4, self, "horizontal_resolution_modification_factor_at_resizing", "H resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_4, self, "vertical_range_modification_factor_at_resizing", "V range modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_4, self, "vertical_resolution_modification_factor_at_resizing", "V resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
+
+        gui.comboBox(tab_wf, self, "auto_expand", label="Auto Expand Slit to Compensate Random Generator", labelWidth=310,
+                     items=["No", "Yes"], orientation="horizontal", callback=self.set_auto_expand)
+
+        self.cb_auto_expand_rays = gui.comboBox(tab_wf, self, "auto_expand_rays", label="Auto Increase Number of Rays", labelWidth=310,
+                                                items=["No", "Yes"], orientation="horizontal")
+
+        self.set_auto_expand()
 
         ####################################################################################
         # SRW FILES
@@ -536,22 +545,32 @@ class APSUndulator(GenericElement):
 
             self.plot_cumulated_results(True)
 
+    def set_auto_expand(self):
+        self.cb_auto_expand_rays.setEnabled(self.auto_expand==1)
+
+        self.setDataXY()
 
     def setDataXY(self):
         self.setDataX()
         self.setDataY()
 
     def setDataX(self):
-        x2 = 0.5 * self.source_dimension_wf_h_slit_gap
+        source_dimension_wf_h_slit_points, \
+        source_dimension_wf_h_slit_gap = self.get_source_slit_data(direction="h")
+
+        x2 = 0.5 * source_dimension_wf_h_slit_gap
         x1 = -x2
 
-        self.dataX = 1e3 * numpy.linspace(x1, x2, self.source_dimension_wf_h_slit_points)
+        self.dataX = 1e3 * numpy.linspace(x1, x2, source_dimension_wf_h_slit_points)
 
     def setDataY(self):
-        y2 = 0.5 * self.source_dimension_wf_v_slit_gap
+        source_dimension_wf_v_slit_points, \
+        source_dimension_wf_v_slit_gap = self.get_source_slit_data(direction="v")
+
+        y2 = 0.5 * source_dimension_wf_v_slit_gap
         y1 = -y2
 
-        self.dataY = 1e3*numpy.linspace(y1, y2, self.source_dimension_wf_v_slit_points)
+        self.dataY = 1e3*numpy.linspace(y1, y2, source_dimension_wf_v_slit_points)
 
     def onReceivingInput(self):
         super(APSUndulator, self).onReceivingInput()
@@ -882,7 +901,7 @@ class APSUndulator(GenericElement):
             congruence.checkFile(self.optimize_file_name)
 
     def populateFields(self, shadow_src):
-        shadow_src.src.NPOINT = self.number_of_rays
+        shadow_src.src.NPOINT = self.number_of_rays if self.auto_expand==0 else (self.number_of_rays if self.auto_expand_rays==0 else int(numpy.ceil(self.number_of_rays*1.1)))
         shadow_src.src.ISTAR1 = self.seed
         shadow_src.src.F_OPD = 1
         shadow_src.src.F_SR_TYPE = 0
@@ -1100,17 +1119,42 @@ class APSUndulator(GenericElement):
 
         return elecBeam
 
+    def get_source_slit_data(self, direction="b"):
+        if self.auto_expand==1:
+            source_dimension_wf_h_slit_points = int(numpy.ceil(0.55*self.source_dimension_wf_h_slit_points)*2)
+            source_dimension_wf_v_slit_points = int(numpy.ceil(0.55*self.source_dimension_wf_v_slit_points)*2)
+            source_dimension_wf_h_slit_gap = self.source_dimension_wf_h_slit_gap*1.1
+            source_dimension_wf_v_slit_gap = self.source_dimension_wf_v_slit_gap*1.1
+        else:
+            source_dimension_wf_h_slit_points = self.source_dimension_wf_h_slit_points
+            source_dimension_wf_v_slit_points = self.source_dimension_wf_v_slit_points
+            source_dimension_wf_h_slit_gap = self.source_dimension_wf_h_slit_gap
+            source_dimension_wf_v_slit_gap = self.source_dimension_wf_v_slit_gap
+
+        if direction=="h":
+            return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap
+        elif direction=="v":
+            return source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
+        else:
+            return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap, source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
+
     def createInitialWavefrontMesh(self, elecBeam):
         #****************** Initial Wavefront
         wfr = SRWLWfr() #For intensity distribution at fixed photon energy
-        wfr.allocate(1, self.source_dimension_wf_h_slit_points, self.source_dimension_wf_v_slit_points) #Numbers of points vs Photon Energy, Horizontal and Vertical Positions
+
+        source_dimension_wf_h_slit_points, \
+        source_dimension_wf_h_slit_gap, \
+        source_dimension_wf_v_slit_points, \
+        source_dimension_wf_v_slit_gap = self.get_source_slit_data(direction="b")
+
+        wfr.allocate(1, source_dimension_wf_h_slit_points, source_dimension_wf_v_slit_points) #Numbers of points vs Photon Energy, Horizontal and Vertical Positions
         wfr.mesh.zStart = self.source_dimension_wf_distance #Longitudinal Position [m] from Center of Straight Section at which SR has to be calculated
         wfr.mesh.eStart = self.energy if self.use_harmonic==1 else self.resonance_energy(harmonic=self.harmonic_number)  #Initial Photon Energy [eV]
         wfr.mesh.eFin = wfr.mesh.eStart #Final Photon Energy [eV]
 
-        wfr.mesh.xStart = -0.5*self.source_dimension_wf_h_slit_gap #Initial Horizontal Position [m]
+        wfr.mesh.xStart = -0.5*source_dimension_wf_h_slit_gap #Initial Horizontal Position [m]
         wfr.mesh.xFin = -1 * wfr.mesh.xStart #0.00015 #Final Horizontal Position [m]
-        wfr.mesh.yStart = -0.5*self.source_dimension_wf_v_slit_gap #Initial Vertical Position [m]
+        wfr.mesh.yStart = -0.5*source_dimension_wf_v_slit_gap #Initial Vertical Position [m]
         wfr.mesh.yFin = -1 * wfr.mesh.yStart#0.00015 #Final Vertical Position [m]
 
         wfr.partBeam = elecBeam
