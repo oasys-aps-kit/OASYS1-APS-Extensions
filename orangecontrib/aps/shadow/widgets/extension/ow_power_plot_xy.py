@@ -291,7 +291,7 @@ class PowerPlotXY(AutomaticElement):
 
         # post porcessing
 
-        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=400)
+        post_box = oasysgui.widgetBox(tab_post, "Post Processing Setting", addSpace=False, orientation="vertical", height=500)
 
         post_box_1 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal", height=25)
         self.le_loaded_plot_file_name = oasysgui.lineEdit(post_box_1, self, "loaded_plot_file_name", "Loaded File", labelWidth=100,  valueType=str, orientation="horizontal")
@@ -299,9 +299,15 @@ class PowerPlotXY(AutomaticElement):
 
         gui.separator(post_box)
 
+        button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical")
+        gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
+        gui.separator(button_box)
+        gui.button(button_box, self, "Invert", callback=self.invertPlot, height=35)
+
+        gui.separator(post_box)
+
         button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
         gui.button(button_box, self, "Rebin Plot", callback=self.rebinPlot, height=35)
-        gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
 
         post_box_0 = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="vertical", height=60)
         oasysgui.lineEdit(post_box_0, self, "new_nbins_h", "Nr. Bins H", labelWidth=200,  valueType=int, orientation="horizontal")
@@ -309,7 +315,6 @@ class PowerPlotXY(AutomaticElement):
 
         button_box = oasysgui.widgetBox(post_box, "", addSpace=False, orientation="horizontal")
         gui.button(button_box, self, "Smooth Plot", callback=self.smoothPlot, height=35)
-        gui.button(button_box, self, "Reset", callback=self.reloadPlot, height=35)
 
         gui.separator(post_box)
 
@@ -528,6 +533,48 @@ class PowerPlotXY(AutomaticElement):
 
                 if self.IS_DEVELOP: raise e
 
+    def invertPlot(self):
+        if not self.plotted_ticket is None:
+            try:
+                ticket = self.plotted_ticket.copy()
+
+                histogram = ticket["histogram"]
+                h_coord = ticket["bin_h_center"]
+                v_coord = ticket["bin_v_center"]
+
+                h_coord, v_coord, histogram = self.invert(h_coord, v_coord, histogram)
+
+                ticket["histogram"] = histogram
+                ticket["bin_h_center"] = h_coord
+                ticket["bin_v_center"] = v_coord
+
+                pixel_area = (h_coord[1]-h_coord[0])*(v_coord[1]-v_coord[0])
+
+                if self.plot_canvas is None:
+                    self.plot_canvas = PowerPlotXYWidget()
+                    self.image_box.layout().addWidget(self.plot_canvas)
+
+                cumulated_power_plot = numpy.sum(histogram)*pixel_area
+
+                energy_min = 0.0
+                energy_max = 0.0
+                energy_step = 0.0
+
+                self.plot_canvas.cumulated_power_plot = cumulated_power_plot
+                self.plot_canvas.plot_power_density_ticket(ticket,
+                                                           ticket["v_label"],
+                                                           ticket["h_label"],
+                                                           cumulated_total_power=0.0,
+                                                           energy_min=energy_min,
+                                                           energy_max=energy_max,
+                                                           energy_step=energy_step)
+
+                self.plotted_ticket = ticket
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e), QMessageBox.Ok)
+
+                if self.IS_DEVELOP: raise e
+
     def rebinPlot(self):
         if not self.plotted_ticket is None:
             try:
@@ -648,6 +695,9 @@ class PowerPlotXY(AutomaticElement):
         return numpy.linspace(x[0], x[-1], new_shape[0]), \
                numpy.linspace(y[0], y[-1], new_shape[1]),  \
                z.reshape(shape).mean(-1).mean(1)
+
+    def invert(self, x, y, data):
+        return y, x, data.T
 
     def apply_fill_holes(self, histogram):
         from skimage.morphology import reconstruction
