@@ -109,7 +109,7 @@ class FootprintFileReader(oasyswidget.OWWidget):
     def setBeam(self, beam):
         if ShadowCongruence.checkEmptyBeam(beam[0]) and ShadowCongruence.checkGoodBeam(beam[0]):
             if beam[0].scanned_variable_data and beam[0].scanned_variable_data.has_additional_parameter("total_power"):
-                self.input_beam = beam[0]
+                self.input_beam     = beam[0]
                 self.footprint_beam = beam[1]
 
                 self.calculate_footprint()
@@ -134,11 +134,9 @@ class FootprintFileReader(oasyswidget.OWWidget):
 
             n_rays = len(beam_out._beam.rays[:, 0]) # lost and good!
 
-            history_entry =  self.input_beam.getOEHistory(self.input_beam._oe_number)
+            incident_beam = self.input_beam.getOEHistory(self.input_beam._oe_number)._input_beam
 
-            incident_beam = history_entry._input_beam
-
-            ticket = incident_beam._beam.histo2(2, 1, nbins=100, xrange=None, yrange=None, nolost=1, ref=23)
+            ticket = incident_beam._beam.histo2(1, 3, nbins=100, xrange=None, yrange=None, nolost=1, ref=23)
             ticket['histogram'] *= (total_power/n_rays) # power
 
             additional_parameters["incident_power"] = ticket['histogram'].sum()
@@ -159,7 +157,6 @@ class FootprintFileReader(oasyswidget.OWWidget):
                                         beam_out._beam.rays[:, 15]**2 + beam_out._beam.rays[:, 16]**2 + beam_out._beam.rays[:, 17]**2
 
                 electric_field = numpy.sqrt(incident_intensity - transmitted_intensity)
-
                 electric_field[numpy.where(electric_field == numpy.nan)] = 0.0
 
                 beam_out._beam.rays[:, 6]  = electric_field
