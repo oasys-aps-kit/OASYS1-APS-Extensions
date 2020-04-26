@@ -50,10 +50,12 @@ from numpy.matlib import repmat
 from scipy.signal import convolve2d
 
 from silx.gui.plot import Plot2D
-from silx.gui.plot.StackView import StackViewMainWindow
 
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QDialogButtonBox
+from PyQt5.QtGui import QPixmap, QPalette, QColor, QFont
 from PyQt5 import QtWidgets
-from PyQt5.QtGui import QPalette, QColor, QFont
+
+import orangecanvas.resources as resources
 from orangewidget import gui
 from orangewidget.settings import Setting
 from oasys.widgets import gui as oasysgui
@@ -121,6 +123,20 @@ class APSUndulator(GenericElement):
     undulator_period =  Setting(0.025) # Period Length [m]
     Kv =  Setting(0.857)
     Kh =  Setting(0)
+    Bh = Setting(0.0)
+    Bv = Setting(1.5)
+
+    magnetic_field_from = Setting(0)
+
+    initial_phase_vertical = Setting(0.0)
+    initial_phase_horizontal = Setting(0.0)
+
+    symmetry_vs_longitudinal_position_vertical = Setting(1)
+    symmetry_vs_longitudinal_position_horizontal = Setting(0)
+
+    horizontal_central_position = Setting(0.0)
+    vertical_central_position = Setting(0.0)
+    longitudinal_central_position = Setting(0.0)
 
     electron_energy_in_GeV = Setting(6.0)
     electron_energy_spread = Setting(1.35e-3)
@@ -361,17 +377,59 @@ class APSUndulator(GenericElement):
         tab_ls = oasysgui.createTabPage(tabs_srw, "Undulator Setting")
         tab_wf = oasysgui.createTabPage(tabs_srw, "Wavefront Setting")
 
-        left_box_1 = oasysgui.widgetBox(tab_ls, "Undulator Parameters", addSpace=False, orientation="vertical")
-
-        oasysgui.lineEdit(left_box_1, self, "number_of_periods", "Number of Periods", labelWidth=260,  valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(left_box_1, self, "undulator_period", "Undulator Period [m]", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
-        oasysgui.lineEdit(left_box_1, self, "Kv", "K Vertical", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
-        oasysgui.lineEdit(left_box_1, self, "Kh", "K Horizontal", labelWidth=260,  valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        ####################################
 
         tab_und = oasysgui.tabWidget(tab_ls)
 
         tab_mach = oasysgui.createTabPage(tab_und, "Machine Parameters")
+        tab_id   = oasysgui.createTabPage(tab_und, "ID Parameters")
         tab_traj = oasysgui.createTabPage(tab_und, "Trajectory")
+
+        oasysgui.lineEdit(tab_id, self, "undulator_period", "Period Length [m]", labelWidth=260, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(tab_id, self, "number_of_periods", "Number of Periods", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_id, self, "horizontal_central_position", "Horizontal Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_id, self, "vertical_central_position", "Vertical Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_id, self, "longitudinal_central_position", "Longitudinal Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal")
+
+        gui.separator(tab_id)
+
+        gui.comboBox(tab_id, self, "magnetic_field_from", label="Magnetic Field", labelWidth=350,
+                     items=["From K", "From B"],
+                     callback=self.set_MagneticField,
+                     sendSelectedValue=False, orientation="horizontal")
+
+        container = oasysgui.widgetBox(tab_id, "", addSpace=False, orientation="horizontal")
+
+        horizontal_box = oasysgui.widgetBox(container, "", addSpace=False, orientation="vertical", width=205)
+        vertical_box = oasysgui.widgetBox(container,  "", addSpace=False, orientation="vertical", width=155)
+
+        gui.label(horizontal_box, self, "                     Horizontal")
+        gui.label(vertical_box, self, "  Vertical")
+
+        self.magnetic_field_box_1_h = oasysgui.widgetBox(horizontal_box, "", addSpace=False, orientation="vertical")
+        self.magnetic_field_box_2_h = oasysgui.widgetBox(horizontal_box, "", addSpace=False, orientation="vertical")
+        self.magnetic_field_box_1_v = oasysgui.widgetBox(vertical_box, "", addSpace=False, orientation="vertical")
+        self.magnetic_field_box_2_v = oasysgui.widgetBox(vertical_box, "", addSpace=False, orientation="vertical")
+
+        oasysgui.lineEdit(self.magnetic_field_box_1_h, self, "Kh", "K", labelWidth=70, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(self.magnetic_field_box_1_v, self, "Kv", " ", labelWidth=2, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(self.magnetic_field_box_2_h, self, "Bh", "B [T]", labelWidth=70, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+        oasysgui.lineEdit(self.magnetic_field_box_2_v, self, "Bv", " ", labelWidth=2, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
+
+        self.set_MagneticField()
+
+        oasysgui.lineEdit(horizontal_box, self, "initial_phase_horizontal", "\u03c6\u2080 [rad]", labelWidth=70, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(vertical_box, self, "initial_phase_vertical", " ", labelWidth=2, valueType=float, orientation="horizontal")
+
+        gui.comboBox(horizontal_box, self, "symmetry_vs_longitudinal_position_horizontal", label="Symmetry", labelWidth=70,
+                     items=["Symmetrical", "Anti-Symmetrical"],
+                     sendSelectedValue=False, orientation="horizontal")
+
+        symmetry_v_box =  oasysgui.widgetBox(vertical_box, "", addSpace=False, orientation="horizontal")
+        gui.comboBox(symmetry_v_box, self, "symmetry_vs_longitudinal_position_vertical", label=" ", labelWidth=2,
+                     items=["Symmetrical", "Anti-Symmetrical"],
+                     sendSelectedValue=False, orientation="horizontal")
+        #gui.button(symmetry_v_box, self, "?", callback=self.open_help, width=12)
 
         oasysgui.lineEdit(tab_mach, self, "electron_energy_in_GeV", "Energy [GeV]", labelWidth=260, valueType=float, orientation="horizontal", callback=self.set_harmonic_energy)
         oasysgui.lineEdit(tab_mach, self, "electron_energy_spread", "Energy Spread", labelWidth=260, valueType=float, orientation="horizontal")
@@ -627,6 +685,36 @@ class APSUndulator(GenericElement):
             self.Kv = 0.0
 
         self.set_WFUseHarmonic()
+
+    class ShowHelpDialog(QDialog):
+
+        def __init__(self, parent=None):
+            QDialog.__init__(self, parent)
+            self.setWindowTitle('Symmetry vs Longitudinal Position')
+            layout = QVBoxLayout(self)
+            label = QLabel("")
+
+            file = os.path.join(resources.package_dirname("orangecontrib.aps.shadow.widgets.extensions"), "misc", "symmetry.png")
+
+            label.setPixmap(QPixmap(file))
+
+            bbox = QDialogButtonBox(QDialogButtonBox.Ok)
+
+            bbox.accepted.connect(self.accept)
+            layout.addWidget(label)
+            layout.addWidget(bbox)
+
+    def open_help(self):
+        dialog = APSUndulator.ShowHelpDialog(parent=self)
+        dialog.show()
+
+    def set_MagneticField(self):
+        self.magnetic_field_box_1_h.setVisible(self.magnetic_field_from==0)
+        self.magnetic_field_box_2_h.setVisible(self.magnetic_field_from==1)
+        self.magnetic_field_box_1_v.setVisible(self.magnetic_field_from==0)
+        self.magnetic_field_box_2_v.setVisible(self.magnetic_field_from==1)
+
+        self.set_harmonic_energy()
 
     def set_harmonic_energy(self):
         if self.distribution_source==0 and self.use_harmonic==0:
@@ -1074,10 +1162,31 @@ class APSUndulator(GenericElement):
 
     def createUndulator(self):
         #***********Undulator
-        By, Bx = self.magnetic_field_from_K() #Peak Vertical field [T]
+        if self.magnetic_field_from == 0:
+            By, Bx = self.magnetic_field_from_K() #Peak Vertical field [T]
+        else:
+            By = self.Bv
+            Bx = self.Bh
 
-        und = SRWLMagFldU([SRWLMagFldH(1, 'h', Bx, 0, 1, 1), SRWLMagFldH(1, 'v', By, 0, -1, 1)], self.undulator_period, self.number_of_periods) #Planar Undulator
-        magFldCnt = SRWLMagFldC([und], array('d', [0.0]), array('d', [0.0]), array('d', [0.0])) #Container of all Field Elements
+        symmetry_vs_longitudinal_position_horizontal = 1 if self.symmetry_vs_longitudinal_position_horizontal == 0 else -1
+        symmetry_vs_longitudinal_position_vertical = 1 if self.symmetry_vs_longitudinal_position_vertical == 0 else -1
+
+        und = SRWLMagFldU([SRWLMagFldH(1, 'h',
+                                       _B=Bx,
+                                       _ph=self.initial_phase_horizontal,
+                                       _s=symmetry_vs_longitudinal_position_horizontal,
+                                       _a=1.0),
+                           SRWLMagFldH(1, 'v',
+                                       _B=By,
+                                       _ph=self.initial_phase_vertical,
+                                       _s=symmetry_vs_longitudinal_position_vertical,
+                                       _a=1)],
+                          self.undulator_period, self.number_of_periods) #Planar Undulator
+
+        magFldCnt = SRWLMagFldC(_arMagFld=[und],
+                                _arXc = array('d', [self.horizontal_central_position]),
+                                _arYc = array('d', [self.vertical_central_position]),
+                                _arZc = array('d', [self.longitudinal_central_position]))#Container of all Field Elements
 
         return magFldCnt
 
