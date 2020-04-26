@@ -443,7 +443,7 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(tab_mach, self, "electron_beam_divergence_v", "Vertical Beam Divergence [rad]", labelWidth=230, valueType=float, orientation="horizontal")
 
         gui.comboBox(tab_traj, self, "type_of_initialization", label="Trajectory Initialization", labelWidth=140,
-                     items=["At Zero Point", "At Fixed Position", "Sampled from Phase Space"],
+                     items=["Automatic", "At Fixed Position", "Sampled from Phase Space"],
                      callback=self.set_TypeOfInitialization,
                      sendSelectedValue=False, orientation="horizontal")
 
@@ -650,7 +650,7 @@ class APSUndulator(GenericElement):
         self.moment_z = self.get_default_initial_z()
 
     def get_default_initial_z(self):
-        return -0.5*self.undulator_period*(self.number_of_periods + 4) # initial Longitudinal Coordinate (set before the ID)
+        return self.longitudinal_central_position-0.5*self.undulator_period*(self.number_of_periods + 8) # initial Longitudinal Coordinate (set before the ID)
 
     def auto_set_undulator_V(self):
         self.auto_set_undulator(VERTICAL)
