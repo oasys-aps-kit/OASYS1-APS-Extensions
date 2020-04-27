@@ -389,9 +389,16 @@ class APSUndulator(GenericElement):
         oasysgui.lineEdit(tab_id, self, "number_of_periods", "Number of Periods", labelWidth=260, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(tab_id, self, "horizontal_central_position", "Horizontal Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(tab_id, self, "vertical_central_position", "Vertical Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal")
-        oasysgui.lineEdit(tab_id, self, "longitudinal_central_position", "Longitudinal Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(tab_id, self, "longitudinal_central_position", "Longitudinal Central Position [m]", labelWidth=260, valueType=float, orientation="horizontal", callback=self.show_warning)
 
-        gui.separator(tab_id)
+        self.warning_label = oasysgui.widgetLabel(tab_id, "  Warning: The source will be positioned at the center\n" +
+                                                  "  of the ID: the relative distance of the first optical\n" +
+                                                  "  element has to be longitudinally shifted accordingly")
+        self.warning_label.setStyleSheet("color: red; font: bold")
+
+        self.show_warning()
+
+        gui.separator(tab_id, height=10)
 
         gui.comboBox(tab_id, self, "magnetic_field_from", label="Magnetic Field", labelWidth=350,
                      items=["From K", "From B"],
@@ -463,15 +470,15 @@ class APSUndulator(GenericElement):
 
         self.set_TypeOfInitialization()
 
-        left_box_3 = oasysgui.widgetBox(tab_wf, "Wavefront Propagation Parameters", addSpace=False, orientation="vertical")
+        left_box_3 = oasysgui.widgetBox(tab_wf, "Divergence Distribution Propagation Parameters", addSpace=False, orientation="vertical")
 
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_gap", "H Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback=self.setDataX)
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_gap", "V Slit Gap [m]", labelWidth=250, valueType=float, orientation="horizontal", callback=self.setDataY)
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_h_slit_points", "H Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback=self.setDataX)
         oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_v_slit_points", "V Slit Points", labelWidth=250, valueType=int, orientation="horizontal", callback=self.setDataY)
-        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]", labelWidth=250, valueType=float, orientation="horizontal")
+        oasysgui.lineEdit(left_box_3, self, "source_dimension_wf_distance", "Propagation Distance [m]\n(relative to the center of the ID)", labelWidth=250, valueType=float, orientation="horizontal")
 
-        left_box_4 = oasysgui.widgetBox(tab_wf, "Drift Back Propagation Parameters", addSpace=False, orientation="vertical")
+        left_box_4 = oasysgui.widgetBox(tab_wf, "Size Distribution (Back) Propagation Parameters", addSpace=False, orientation="vertical")
 
         oasysgui.lineEdit(left_box_4, self, "horizontal_range_modification_factor_at_resizing", "H range modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
         oasysgui.lineEdit(left_box_4, self, "horizontal_resolution_modification_factor_at_resizing", "H resolution modification factor at resizing", labelWidth=290, valueType=float, orientation="horizontal")
@@ -641,6 +648,9 @@ class APSUndulator(GenericElement):
 
     def after_change_workspace_units(self):
         pass
+
+    def show_warning(self):
+        self.warning_label.setVisible(self.longitudinal_central_position != 0.0)
 
     def set_TypeOfInitialization(self):
         self.left_box_3_1.setVisible(self.type_of_initialization==1)
@@ -1190,7 +1200,7 @@ class APSUndulator(GenericElement):
 
         return magFldCnt
 
-    def createElectronBeam(self):
+    def createElectronBeam(self, distribution_type=Distribution.DIVERGENCE):
         #***********Electron Beam
         elecBeam = SRWLPartBeam()
 
@@ -1217,10 +1227,10 @@ class APSUndulator(GenericElement):
         elecBeam.Iavg = self.ring_current #Average Current [A]
 
         #2nd order statistical moments
-        elecBeam.arStatMom2[0] = (self.electron_beam_size_h)**2 #<(x-x0)^2>
+        elecBeam.arStatMom2[0] = 0 if distribution_type==Distribution.DIVERGENCE else (self.electron_beam_size_h)**2 #<(x-x0)^2>
         elecBeam.arStatMom2[1] = 0
         elecBeam.arStatMom2[2] = (self.electron_beam_divergence_h)**2 #<(x'-x'0)^2>
-        elecBeam.arStatMom2[3] = (self.electron_beam_size_v)**2 #<(y-y0)^2>
+        elecBeam.arStatMom2[3] = 0 if distribution_type==Distribution.DIVERGENCE else (self.electron_beam_size_v)**2 #<(y-y0)^2>
         elecBeam.arStatMom2[4] = 0
         elecBeam.arStatMom2[5] = (self.electron_beam_divergence_v)**2 #<(y'-y'0)^2>
         # energy spread
@@ -1240,12 +1250,9 @@ class APSUndulator(GenericElement):
             source_dimension_wf_h_slit_gap = self.source_dimension_wf_h_slit_gap
             source_dimension_wf_v_slit_gap = self.source_dimension_wf_v_slit_gap
 
-        if direction=="h":
-            return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap
-        elif direction=="v":
-            return source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
-        else:
-            return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap, source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
+        if direction=="h":   return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap
+        elif direction=="v": return source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
+        else:                return source_dimension_wf_h_slit_points, source_dimension_wf_h_slit_gap, source_dimension_wf_v_slit_points, source_dimension_wf_v_slit_gap
 
     def createInitialWavefrontMesh(self, elecBeam):
         #****************** Initial Wavefront
@@ -1257,7 +1264,7 @@ class APSUndulator(GenericElement):
         source_dimension_wf_v_slit_gap = self.get_source_slit_data(direction="b")
 
         wfr.allocate(1, source_dimension_wf_h_slit_points, source_dimension_wf_v_slit_points) #Numbers of points vs Photon Energy, Horizontal and Vertical Positions
-        wfr.mesh.zStart = self.source_dimension_wf_distance #Longitudinal Position [m] from Center of Straight Section at which SR has to be calculated
+        wfr.mesh.zStart = self.source_dimension_wf_distance - self.longitudinal_central_position #Longitudinal Position [m] from Center of Straight Section at which SR has to be calculated
         wfr.mesh.eStart = self.energy if self.use_harmonic==1 else self.resonance_energy(harmonic=self.harmonic_number)  #Initial Photon Energy [eV]
         wfr.mesh.eFin = wfr.mesh.eStart #Final Photon Energy [eV]
 
@@ -1285,7 +1292,7 @@ class APSUndulator(GenericElement):
     def createBeamlineSourceDimension(self, wfr):
         #***************** Optical Elements and Propagation Parameters
 
-        opDrift = SRWLOptD(-wfr.mesh.zStart)
+        opDrift = SRWLOptD(-self.source_dimension_wf_distance) # back to the center of the undulator
         ppDrift = [0, 0, 1., 1, 0,
                    self.horizontal_range_modification_factor_at_resizing,
                    self.horizontal_resolution_modification_factor_at_resizing,
@@ -1328,9 +1335,8 @@ class APSUndulator(GenericElement):
         self.checkSRWFields()
 
         magFldCnt = self.createUndulator()
-        elecBeam = self.createElectronBeam()
+        elecBeam = self.createElectronBeam(distribution_type=Distribution.DIVERGENCE)
         wfr = self.createInitialWavefrontMesh(elecBeam)
-        optBLSouDim = self.createBeamlineSourceDimension(wfr)
 
         arPrecParSpec = self.createCalculationPrecisionSettings()
 
@@ -1377,7 +1383,7 @@ class APSUndulator(GenericElement):
                 self.cumulated_power_density  += current_power_density
                 self.cumulated_power           = numpy.append(self.cumulated_power,  numpy.ones(1) * (self.cumulated_power[-1] + current_power))
 
-        distance = wfr.mesh.zStart
+        distance = self.source_dimension_wf_distance # relative to the center of the undulator
 
         x_first = numpy.arctan(x/distance)
         z_first = numpy.arctan(z/distance)
@@ -1391,7 +1397,11 @@ class APSUndulator(GenericElement):
         if self.save_srw_result == 1: srwl_uti_save_intens_ascii(arI, wfrAngDist.mesh, self.angular_distribution_srw_file)
 
         # for source dimension, back propagation to the source central position
+        elecBeam    = self.createElectronBeam(distribution_type=Distribution.POSITION)
+        wfr         = self.createInitialWavefrontMesh(elecBeam)
+        optBLSouDim = self.createBeamlineSourceDimension(wfr)
 
+        srwl.CalcElecFieldSR(wfr, 0, magFldCnt, arPrecParSpec)
         srwl.PropagElecField(wfr, optBLSouDim)
 
         arI = array('f', [0]*wfr.mesh.nx*wfr.mesh.ny) #"flat" 2D array to take intensity data
