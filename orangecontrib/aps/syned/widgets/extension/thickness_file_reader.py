@@ -234,8 +234,6 @@ class OWThicknessFileReader(OWWidget):
 
             if self.IS_DEVELOP: raise exception
 
-
-
     def render_surface(self):
         try:
             self.read_data_files()
