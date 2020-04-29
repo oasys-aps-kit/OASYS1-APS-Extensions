@@ -1,6 +1,6 @@
 import os, sys, numpy
 from scipy.interpolate import RectBivariateSpline
-from scipy.optimize import least_squares, leastsq, curve_fit
+from scipy.optimize import curve_fit
 
 from matplotlib import cm
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -19,8 +19,8 @@ from orangewidget.settings import Setting
 from oasys.widgets import gui as oasysgui
 from oasys.widgets import congruence
 
-from orangecontrib.shadow.util.shadow_objects import ShadowPreProcessorData, ShadowOpticalElement, ShadowBeam, ShadowFile
-from orangecontrib.shadow.util.shadow_util import ShadowCongruence, ShadowPhysics, ShadowPreProcessor
+from orangecontrib.shadow.util.shadow_objects import ShadowOpticalElement, ShadowBeam
+from orangecontrib.shadow.util.shadow_util import ShadowPreProcessor
 
 from Shadow import ShadowTools as ST
 
