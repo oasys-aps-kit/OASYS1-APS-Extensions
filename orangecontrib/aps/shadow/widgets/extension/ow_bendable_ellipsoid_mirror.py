@@ -262,47 +262,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         shadow_oe_temp  = shadow_oe.duplicate()
         input_beam_temp = self.input_beam.duplicate(history=False)
 
-        if self.add_acceptance_slits==1:
-            congruence.checkStrictlyPositiveNumber(self.auto_slit_width_xaxis, "Slit width/x-axis")
-            congruence.checkStrictlyPositiveNumber(self.auto_slit_height_zaxis, "Slit height/z-axis")
-
-            n_screen = 1
-            i_screen = numpy.zeros(10)  # after
-            i_abs = numpy.zeros(10)
-            i_slit = numpy.zeros(10)
-            i_stop = numpy.zeros(10)
-            k_slit = numpy.zeros(10)
-            thick = numpy.zeros(10)
-            file_abs = ['', '', '', '', '', '', '', '', '', '']
-            rx_slit = numpy.zeros(10)
-            rz_slit = numpy.zeros(10)
-            sl_dis = numpy.zeros(10)
-            file_scr_ext = ['', '', '', '', '', '', '', '', '', '']
-            cx_slit = numpy.zeros(10)
-            cz_slit = numpy.zeros(10)
-
-            i_screen[0] = 1
-            i_slit[0] = 1
-
-            rx_slit[0] = self.auto_slit_width_xaxis
-            rz_slit[0] = self.auto_slit_height_zaxis
-            cx_slit[0] = self.auto_slit_center_xaxis
-            cz_slit[0] = self.auto_slit_center_zaxis
-
-            shadow_oe_temp._oe.set_screens(n_screen,
-                                           i_screen,
-                                           i_abs,
-                                           sl_dis,
-                                           i_slit,
-                                           i_stop,
-                                           k_slit,
-                                           thick,
-                                           numpy.array(file_abs),
-                                           rx_slit,
-                                           rz_slit,
-                                           cx_slit,
-                                           cz_slit,
-                                           numpy.array(file_scr_ext))
+        self.manage_acceptance_slits(shadow_oe_temp)
 
         ShadowBeam.traceFromOE(input_beam_temp,
                                shadow_oe_temp,
@@ -310,7 +270,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
                                write_end_file=0,
                                widget_class_name=type(self).__name__)
 
-        x, y, z  = self.calculate_ideal_surface(shadow_oe_temp)
+        x, y, z = self.calculate_ideal_surface(shadow_oe_temp)
 
         bender_parameter, z_bender_correction = self.calculate_bender_correction(y, z)
 
@@ -332,7 +292,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
             z_bender_correction += z_figure_error
 
-            self.plot3D(x, y, z_figure_error, 3, "Figure Error Surface")
+            self.plot3D(x, y, z_figure_error,      3, "Figure Error Surface")
             self.plot3D(x, y, z_bender_correction, 4, "Ideal - Bender + Figure Error Surfaces")
 
         self.temporary_file, _ = os.path.splitext(self.ms_defect_file_name)
@@ -340,8 +300,12 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         ST.write_shadow_surface(z_bender_correction.T, numpy.round(x, 6), numpy.round(y, 6), self.temporary_file)
 
+        # Add new surface as figure error
+        shadow_oe._oe.F_RIPPLE  = 1
+        shadow_oe._oe.F_G_S     = 2
         shadow_oe._oe.FILE_RIP  = bytes(self.temporary_file, 'utf-8')
 
+        # Redo Raytracing with the new file
         super().completeOperations(shadow_oe)
 
         self.send("PreProcessor_Data", ShadowPreProcessorData(error_profile_data_file=self.temporary_file,
@@ -350,6 +314,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
     def instantiateShadowOE(self):
         return ShadowOpticalElement.create_ellipsoid_mirror()
+
 
     def calculate_ideal_surface(self, shadow_oe, sign=-1):
         x = numpy.linspace(-self.dim_x_minus, self.dim_x_plus, self.bender_bin_x + 1)
@@ -421,9 +386,9 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         epsilon = 1e-12
         parameters, _ = curve_fit(bender_function, y_fit, ideal_profile_fit,
                                   p0=[self.e, self.ratio, self.M1],
-                                  bounds=([self.e_min if self.e_fixed==0 else self.e-epsilon,
-                                           self.ratio_min if self.ratio_fixed==0 else self.ratio-epsilon,
-                                           self.M1_min if self.M1_fixed==0 else self.M1-epsilon],
+                                  bounds=([self.e_min if self.e_fixed==0 else (self.e-epsilon),
+                                           self.ratio_min if self.ratio_fixed==0 else (self.ratio-epsilon),
+                                           self.M1_min if self.M1_fixed==0 else (self.M1-epsilon)],
                                           [self.e_max if self.e_fixed == 0 else self.e,
                                            self.ratio_max if self.ratio_fixed == 0 else self.ratio,
                                            self.M1_max if self.M1_fixed == 0 else self.M1]),
@@ -434,7 +399,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         correction_profile = ideal_profile - bender_profile
 
         # r-squared = 1 - residual sum of squares / total sum of squares
-        r_squared = 1 - (numpy.sum(correction_profile**2) / numpy.sum((ideal_profile - numpy.mean(ideal_profile)) ** 2))
+        r_squared = 1 - (numpy.sum(correction_profile**2) / numpy.sum((ideal_profile - numpy.mean(ideal_profile))**2))
 
         self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0, title="Bender vs. Ideal Profiles", um=1, r_squared=r_squared)
         self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D")
