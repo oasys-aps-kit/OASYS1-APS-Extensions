@@ -481,6 +481,8 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
             figure.canvas.draw()
 
+            axis.mouse_init()
+
 if __name__ == "__main__":
     a = QApplication(sys.argv)
     ow = BendableEllipsoidMirror()
