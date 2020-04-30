@@ -1,5 +1,5 @@
 import os, sys, numpy
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, interp2d
 from scipy.optimize import curve_fit
 
 from matplotlib import cm
@@ -323,14 +323,12 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         if self.modified_surface > 0:
             x_e, y_e, z_e = ShadowPreProcessor.read_surface_error_file(self.ms_defect_file_name)
 
-            if (len(x) == len(x_e) and len(y) == len(y_e)) and \
-               (numpy.allclose(x, x_e) and numpy.allclose(y, y_e)):
+            if len(x) == len(x_e) and len(y) == len(y_e) and \
+                    x[0] == x_e[0] and x[-1] == x_e[-1] and \
+                    y[0] == y_e[0] and y[-1] == y_e[-1]:
                 z_figure_error = z_e
             else:
-                z_figure_error = numpy.zeros((z.shape))
-                for i in range(z.shape[0]):
-                    for j in range(z.shape[1]):
-                        z_figure_error[i, j] = RectBivariateSpline(x_e, y_e, z_e).ev(x[i], y[j])
+                z_figure_error = interp2d(y_e, x_e, z_e, kind='cubic')(y, x)
 
             z_bender_correction += z_figure_error
 
@@ -347,8 +345,8 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         super().completeOperations(shadow_oe)
 
         self.send("PreProcessor_Data", ShadowPreProcessorData(error_profile_data_file=self.temporary_file,
-                                                              error_profile_x_dim=self.bender_bin_x,
-                                                              error_profile_y_dim=self.bender_bin_y))
+                                                              error_profile_x_dim=self.dim_x_plus+self.dim_x_minus,
+                                                              error_profile_y_dim=self.dim_y_plus+self.dim_y_minus))
 
     def instantiateShadowOE(self):
         return ShadowOpticalElement.create_ellipsoid_mirror()
@@ -388,36 +386,35 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         # 𝑥′=𝑥cos𝜃−𝑦sin𝜃
         # 𝑦′=𝑥sin𝜃 + 𝑦cos𝜃
         #yp = y*numpy.cos(theta) - ideal_profile*numpy.sin(theta)
+        # TODO: think about rotating the conic coefficients instead
+        #       or reinterpolating the ellipsis on the original coordinates?
 
-        theta = numpy.arctan((ideal_profile[0] - ideal_profile[-1]) / L)
+        theta         = numpy.arctan((ideal_profile[0] - ideal_profile[-1]) / L)
         ideal_profile = y*numpy.sin(theta) + ideal_profile*numpy.cos(theta)
         ideal_profile -= numpy.max(ideal_profile)
 
         if self.which_length == 0:
-            y_fit = y
+            y_fit             = y
             ideal_profile_fit = ideal_profile
         else:
-            cursor = numpy.where(numpy.logical_and(y >= -self.optimized_length/2, y <= self.optimized_length/2) )
-
+            cursor            = numpy.where(numpy.logical_and(y >= -self.optimized_length/2,
+                                                              y <= self.optimized_length/2) )
             y_fit             = y[cursor]
             ideal_profile_fit = ideal_profile[cursor]
 
         def bender_function(Y, e, ratio, M1):
             Eh_3 = self.E*self.h**3
-
-            M2 = M1 * ratio
-            A = (M1 + M2)/2
-            B = (M1 - M2)/L
-            C = Eh_3*(2*b0 + e*b0)/24
-            D = Eh_3*e*b0/(12*L) #e*b0/L # TODO: verify formula
-            H = (A*D + B*C)/D**2
-
+            M2   = M1 * ratio
+            A    = (M1 + M2)/2
+            B    = (M1 - M2)/L
+            C    = Eh_3*(2*b0 + e*b0)/24
+            D    = Eh_3*e*b0/(12*L)
+            H    = (A*D + B*C)/D**2
             CDLP = C + D*L/2
             CDLM = C - D*L/2
+            F    = (H/L)*((CDLM*numpy.log(CDLM) - CDLP*numpy.log(CDLP))/D + L)
+            G    = -(H*((CDLM*numpy.log(CDLM) + CDLP*numpy.log(CDLP))) - (B*L**2)/4)/(2*D)
             CDY  = C + D*Y
-
-            F = (H/L)*((CDLM*numpy.log(CDLM) - CDLP*numpy.log(CDLP))/D + L)
-            G = -(H*((CDLM*numpy.log(CDLM) + CDLP*numpy.log(CDLP))) - (B*L**2)/4)/(2*D) # TODO: verify sing of the second term
 
             return H * ((CDY/D)*numpy.log(CDY) - Y) - (B*Y**2)/(2*D) + F*Y + G
 
@@ -431,12 +428,15 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
                                            self.ratio_max if self.ratio_fixed == 0 else self.ratio,
                                            self.M1_max if self.M1_fixed == 0 else self.M1]),
                                   method='trf',
-                                  jac="3-point")#, loss="soft_l1", f_scale=0.1)
+                                  jac="3-point")
 
         bender_profile = bender_function(y, parameters[0], parameters[1], parameters[2])
         correction_profile = ideal_profile - bender_profile
-        
-        self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0, title="Bender vs. Ideal Profiles", um=1)
+
+        # r-squared = 1 - residual sum of squares / total sum of squares
+        r_squared = 1 - (numpy.sum(correction_profile**2) / numpy.sum((ideal_profile - numpy.mean(ideal_profile)) ** 2))
+
+        self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0, title="Bender vs. Ideal Profiles", um=1, r_squared=r_squared)
         self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D")
 
         z_bender_correction = numpy.zeros(z.shape)
@@ -444,7 +444,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         return parameters, z_bender_correction
 
-    def plot1D(self, x_coords, y_values, y_values_2=None, index=0, title="", um=0):
+    def plot1D(self, x_coords, y_values, y_values_2=None, index=0, title="", um=0, r_squared=None):
         if self.show_bender_plots == 1:
             figure = self.figure_canvas[index].figure
 
@@ -453,7 +453,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
             axis.set_xlabel("Y [" + self.workspace_units_label + "]")
             axis.set_ylabel("Z [" + ("nm" if um==0 else "\u03bcm") + "]")
-            axis.set_title(title)
+            axis.set_title(title  + (("\n" + r'$R^2$ = ' + str(r_squared)) if not r_squared is None else ""))
             
             axis.plot(x_coords, (y_values * self.workspace_units_to_m * (1e9 if um==0 else 1e6)), color="blue", label="bender", linewidth=2)
             if not y_values_2 is None: axis.plot(x_coords, (y_values_2 * self.workspace_units_to_m * (1e9 if um==0 else 1e6)), "-.r", label="ideal")
