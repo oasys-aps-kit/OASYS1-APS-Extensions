@@ -131,7 +131,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         oasysgui.lineEdit(m1_box, self, "M1", "Momentum 1", labelWidth=170, valueType=float, orientation="horizontal")
         le = oasysgui.lineEdit(m1_box, self, "M1_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
         le.setEnabled(False)
-        le.setStyleSheet("color: blue; background-color: orange; font:bold")
+        le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
         def set_M1_fit(): self.M1 = self.M1_out
         gui.button(m1_box, self, "<-", width=20, callback=set_M1_fit)
         m1_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
@@ -147,7 +147,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         oasysgui.lineEdit(ratio_box, self, "ratio", "Momentum 1/Momentum 2", labelWidth=170, valueType=float, orientation="horizontal")
         le = oasysgui.lineEdit(ratio_box, self, "ratio_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
         le.setEnabled(False)
-        le.setStyleSheet("color: blue; background-color: orange; font:bold")
+        le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
         def set_ratio_fit(): self.ratio = self.ratio_out
         gui.button(ratio_box, self, "<-", width=20, callback=set_ratio_fit)
         ratio_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
@@ -163,7 +163,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         oasysgui.lineEdit(e_box, self, "e", "Minor side/Major side", labelWidth=170, valueType=float, orientation="horizontal")
         le = oasysgui.lineEdit(e_box, self, "e_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
         le.setEnabled(False)
-        le.setStyleSheet("color: blue; background-color: orange; font:bold")
+        le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
         def set_e_fit(): self.e = self.e_out
         gui.button(e_box, self, "<-", width=20, callback=set_e_fit)
         e_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
