@@ -396,16 +396,19 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         # r-squared = 1 - residual sum of squares / total sum of squares
         r_squared = 1 - (numpy.sum(correction_profile**2) / numpy.sum((ideal_profile - numpy.mean(ideal_profile))**2))
+        rms       = round(correction_profile.std()*1e9*self.workspace_units_to_m, 6)
 
-        self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0, title="Bender vs. Ideal Profiles", um=1, r_squared=r_squared)
-        self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D")
+
+        self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0,
+                    title = "Bender vs. Ideal Profiles" + "\n" + r'$R^2$ = ' + str(r_squared), um=1)
+        self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D, r.m.s. = " + str(rms) + " nm")
 
         z_bender_correction = numpy.zeros(z.shape)
         for i in range(z_bender_correction.shape[0]): z_bender_correction[i, :] = numpy.copy(correction_profile)
 
         return parameters, z_bender_correction
 
-    def plot1D(self, x_coords, y_values, y_values_2=None, index=0, title="", um=0, r_squared=None):
+    def plot1D(self, x_coords, y_values, y_values_2=None, index=0, title="", um=0):
         if self.show_bender_plots == 1:
             figure = self.figure_canvas[index].figure
 
@@ -414,7 +417,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
             axis.set_xlabel("Y [" + self.workspace_units_label + "]")
             axis.set_ylabel("Z [" + ("nm" if um==0 else "\u03bcm") + "]")
-            axis.set_title(title  + (("\n" + r'$R^2$ = ' + str(r_squared)) if not r_squared is None else ""))
+            axis.set_title(title)
             
             axis.plot(x_coords, (y_values * self.workspace_units_to_m * (1e9 if um==0 else 1e6)), color="blue", label="bender", linewidth=2)
             if not y_values_2 is None: axis.plot(x_coords, (y_values_2 * self.workspace_units_to_m * (1e9 if um==0 else 1e6)), "-.r", label="ideal")
