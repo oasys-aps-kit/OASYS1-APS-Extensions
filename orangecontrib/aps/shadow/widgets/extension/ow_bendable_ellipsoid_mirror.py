@@ -78,6 +78,8 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     E = Setting(131000)
     h = Setting(10)
 
+    output_file_name = Setting("mirror_bender.dat")
+
     which_length = Setting(0)
     optimized_length = Setting(0.0)
 
@@ -120,58 +122,44 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         fit_box = oasysgui.widgetBox(tab_bender, "Fit Setting", addSpace=False, orientation="vertical")
 
-        gui.comboBox(fit_box, self, "which_length", label="Optimized Length", items=["Total", "Partial"], labelWidth=150, orientation="horizontal",
-                     callback=self.set_which_length)
-        self.le_optimized_length = oasysgui.lineEdit(fit_box, self, "optimized_length", "Optimized Length ", labelWidth=260, valueType=float, orientation="horizontal")
+        file_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal", height=25)
+        self.le_output_file_name = oasysgui.lineEdit(file_box, self, "output_file_name", "Out File Name", labelWidth=100, valueType=str, orientation="horizontal")
+        gui.button(file_box, self, "...", callback=self.select_output_file, width=20)
+
+        length_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
+
+        self.cb_optimized_length = gui.comboBox(length_box, self, "which_length", label="Optimized Length ", items=["Total", "Partial"],
+                     labelWidth=150, orientation="horizontal", callback=self.set_which_length)
+        self.le_optimized_length = oasysgui.lineEdit(length_box, self, "optimized_length", " ", labelWidth=10, valueType=float, orientation="horizontal")
         self.set_which_length()
 
         gui.separator(fit_box)
 
-        m1_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-        oasysgui.lineEdit(m1_box, self, "M1", "Momentum 1", labelWidth=170, valueType=float, orientation="horizontal")
-        le = oasysgui.lineEdit(m1_box, self, "M1_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
-        le.setEnabled(False)
-        le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
-        def set_M1_fit(): self.M1 = self.M1_out
-        gui.button(m1_box, self, "<-", width=20, callback=set_M1_fit)
-        m1_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-        gui.checkBox(m1_box, self, "M1_fixed", " ", labelWidth=20, callback=self.set_M1)
-        gui.label(m1_box, self, "  Fixed")
-        self.le_M1_min = oasysgui.lineEdit(m1_box, self, "M1_min", "    or             Min", labelWidth=100, valueType=float, orientation="horizontal")
-        self.le_M1_max = oasysgui.lineEdit(m1_box, self, "M1_max", "Max", labelWidth=30, valueType=float, orientation="horizontal")
-        self.set_M1()
+        def add_parameter_box(variable, label):
+            box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
+            oasysgui.lineEdit(box, self, variable, label, labelWidth=50, valueType=float, orientation="horizontal")
 
+            le = oasysgui.lineEdit(box, self, variable + "_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
+            le.setEnabled(False)
+            le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
+            def set_variable_fit(): setattr(self, variable, getattr(self, variable + "_out"))
+            gui.button(box, self, "<-", width=20, callback=set_variable_fit)
+
+            box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
+            gui.label(box, self, "       ", labelWidth=50)
+            gui.checkBox(box, self, variable + "_fixed", " ", labelWidth=15, callback=getattr(self, "set_" + variable))
+
+            setattr(self, "le_" + variable + "_min", oasysgui.lineEdit(box, self, variable + "_min", "Fixed or Min",
+                                                                       labelWidth=75, valueType=float, orientation="horizontal"))
+            setattr(self, "le_" + variable + "_max", oasysgui.lineEdit(box, self, variable + "_max", "Max",
+                                                                        labelWidth=30, valueType=float, orientation="horizontal"))
+            getattr(self, "set_" + variable)()
+
+        add_parameter_box("M1", "M1")
         gui.separator(fit_box)
-
-        ratio_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-        oasysgui.lineEdit(ratio_box, self, "ratio", "Momentum 1/Momentum 2", labelWidth=170, valueType=float, orientation="horizontal")
-        le = oasysgui.lineEdit(ratio_box, self, "ratio_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
-        le.setEnabled(False)
-        le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
-        def set_ratio_fit(): self.ratio = self.ratio_out
-        gui.button(ratio_box, self, "<-", width=20, callback=set_ratio_fit)
-        ratio_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-        gui.checkBox(ratio_box, self, "ratio_fixed", " ", labelWidth=20, callback=self.set_ratio)
-        gui.label(ratio_box, self, "  Fixed")
-        self.le_ratio_min = oasysgui.lineEdit(ratio_box, self, "ratio_min", "    or             Min", labelWidth=100, valueType=float, orientation="horizontal")
-        self.le_ratio_max = oasysgui.lineEdit(ratio_box, self, "ratio_max", "Max", labelWidth=30, valueType=float, orientation="horizontal")
-        self.set_ratio()
-
+        add_parameter_box("ratio", "M1/M2")
         gui.separator(fit_box)
-
-        e_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-        oasysgui.lineEdit(e_box, self, "e", "Minor side/Major side", labelWidth=170, valueType=float, orientation="horizontal")
-        le = oasysgui.lineEdit(e_box, self, "e_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
-        le.setEnabled(False)
-        le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
-        def set_e_fit(): self.e = self.e_out
-        gui.button(e_box, self, "<-", width=20, callback=set_e_fit)
-        e_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-        gui.checkBox(e_box, self, "e_fixed", " ", labelWidth=20, callback=self.set_e)
-        gui.label(e_box, self, "  Fixed")
-        self.le_e_min = oasysgui.lineEdit(e_box, self, "e_min", "    or             Min", labelWidth=100, valueType=float, orientation="horizontal")
-        self.le_e_max = oasysgui.lineEdit(e_box, self, "e_max", "Max", labelWidth=30, valueType=float, orientation="horizontal")
-        self.set_e()
+        add_parameter_box("e", "e")
 
         #######################################################
         
@@ -216,6 +204,9 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     #
     ################################################################
 
+    def select_output_file(self):
+        self.le_output_file_name.setText(oasysgui.selectFileFromDialog(self, self.output_file_name, "Select Output File", file_extension_filter="Data Files (*.dat)"))
+
     def set_which_length(self):
         self.le_optimized_length.setEnabled(self.which_length==1)
     
@@ -238,7 +229,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         label.setText(label.text() + " [N/" + self.workspace_units_label + "^2]")
         label = self.le_h.parent().layout().itemAt(0).widget()
         label.setText(label.text() + " [" + self.workspace_units_label + "]")
-        label = self.le_optimized_length.parent().layout().itemAt(0).widget()
+        label = self.cb_optimized_length.parent().layout().itemAt(0).widget()
         label.setText(label.text() + " [" + self.workspace_units_label + "]")
 
     def checkFields(self):
@@ -257,6 +248,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         congruence.checkStrictlyPositiveNumber(self.bender_bin_x, "Bins X")
         congruence.checkStrictlyPositiveNumber(self.bender_bin_y, "Bins Y")
+        self.output_file_name_full = congruence.checkFileName(self.output_file_name)
 
     def completeOperations(self, shadow_oe):
         shadow_oe_temp  = shadow_oe.duplicate()
@@ -295,20 +287,17 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
             self.plot3D(x, y, z_figure_error,      3, "Figure Error Surface")
             self.plot3D(x, y, z_bender_correction, 4, "Ideal - Bender + Figure Error Surfaces")
 
-        self.temporary_file, _ = os.path.splitext(self.ms_defect_file_name)
-        self.temporary_file += "_bender.dat"
-
-        ST.write_shadow_surface(z_bender_correction.T, numpy.round(x, 6), numpy.round(y, 6), self.temporary_file)
+        ST.write_shadow_surface(z_bender_correction.T, numpy.round(x, 6), numpy.round(y, 6), self.output_file_name_full)
 
         # Add new surface as figure error
         shadow_oe._oe.F_RIPPLE  = 1
         shadow_oe._oe.F_G_S     = 2
-        shadow_oe._oe.FILE_RIP  = bytes(self.temporary_file, 'utf-8')
+        shadow_oe._oe.FILE_RIP  = bytes(self.output_file_name_full, 'utf-8')
 
         # Redo Raytracing with the new file
         super().completeOperations(shadow_oe)
 
-        self.send("PreProcessor_Data", ShadowPreProcessorData(error_profile_data_file=self.temporary_file,
+        self.send("PreProcessor_Data", ShadowPreProcessorData(error_profile_data_file=self.output_file_name,
                                                               error_profile_x_dim=self.dim_x_plus+self.dim_x_minus,
                                                               error_profile_y_dim=self.dim_y_plus+self.dim_y_minus))
 
@@ -346,17 +335,19 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         b0 = self.dim_x_plus + self.dim_x_minus
         L = self.dim_y_plus + self.dim_y_minus  # add optimization length
 
-        ideal_profile = z[0, :]  # one row is the profile of the cylinder, enough for the minimizer
+        # flip the coordinate system to be consistent with Mike's formulas
+        ideal_profile = z[0, :][::-1]  # one row is the profile of the cylinder, enough for the minimizer
 
         # 𝑥′=𝑥cos𝜃−𝑦sin𝜃
         # 𝑦′=𝑥sin𝜃 + 𝑦cos𝜃
         #yp = y*numpy.cos(theta) - ideal_profile*numpy.sin(theta)
         # TODO: think about rotating the conic coefficients instead
         #       or reinterpolating the ellipsis on the original coordinates?
+        #theta         = numpy.arctan((ideal_profile[0] - ideal_profile[-1]) / L)
+        #ideal_profile = y*numpy.sin(theta) + ideal_profile*numpy.cos(theta)
+        #ideal_profile -= numpy.max(ideal_profile)
 
-        theta         = numpy.arctan((ideal_profile[0] - ideal_profile[-1]) / L)
-        ideal_profile = y*numpy.sin(theta) + ideal_profile*numpy.cos(theta)
-        ideal_profile -= numpy.max(ideal_profile)
+        ideal_profile += -ideal_profile[0] + ((L/2 + y)*(ideal_profile[0]-ideal_profile[-1]))/L
 
         if self.which_length == 0:
             y_fit             = y
@@ -392,10 +383,15 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
                                           [self.e_max if self.e_fixed == 0 else self.e,
                                            self.ratio_max if self.ratio_fixed == 0 else self.ratio,
                                            self.M1_max if self.M1_fixed == 0 else self.M1]),
-                                  method='trf',
-                                  jac="3-point")
+                                  method='trf')#, jac="3-point")
 
         bender_profile = bender_function(y, parameters[0], parameters[1], parameters[2])
+
+        # rotate back to Shadow system
+        bender_profile = bender_profile[::-1]
+        ideal_profile  = ideal_profile[::-1]
+
+        # from here it's Shadow Axis system
         correction_profile = ideal_profile - bender_profile
 
         # r-squared = 1 - residual sum of squares / total sum of squares

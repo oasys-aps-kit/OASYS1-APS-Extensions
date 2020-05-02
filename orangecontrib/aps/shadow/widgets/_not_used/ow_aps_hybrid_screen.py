@@ -142,17 +142,17 @@ class APSHybridScreen(AbstractHybridScreen):
         self.input_box_2.setVisible(self.crl_material_data==1)
 
     def add_input_parameters_aux(self, input_parameters):
-        input_parameters.crl_material = None
-        input_parameters.crl_delta = None
-        input_parameters.crl_error_profiles = None
+        input_parameters.absorber_material = None
+        input_parameters.absorber_delta = None
+        input_parameters.absorber_error_profiles = None
 
         if self.ghy_calcType==5:
             self.check_fields_aux()
 
-            input_parameters.crl_error_profiles = self.crl_error_profiles
+            input_parameters.absorber_error_profiles = self.crl_error_profiles
 
-            if self.crl_material_data==0: input_parameters.crl_material = self.crl_material
-            else: input_parameters.crl_delta = self.crl_delta
+            if self.crl_material_data==0: input_parameters.absorber_material = self.crl_material
+            else: input_parameters.absorber_delta = self.crl_delta
 
             input_parameters.crl_scaling_factor = self.crl_scaling_factor
 
