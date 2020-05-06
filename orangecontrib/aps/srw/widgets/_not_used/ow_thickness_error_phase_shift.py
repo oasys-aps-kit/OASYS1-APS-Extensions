@@ -159,7 +159,7 @@ class OWThicknessErrorPhaseShift(SRWWavefrontViewer):
             if coordinates.q() != 0.0:
                 raise ValueError("Thickness Error Phase Shift should be applied on unpropagated wavefronts: put 'q' value to 0.0 in the previous optical element")
 
-            crl_delta = optical_element.refractive_index
+            crl_delta = optical_element.delta
             crl_w_mirr_2D_values = [OWThicknessErrorPhaseShift.h5_readsurface(thickness_error_file) for thickness_error_file in self.crl_error_profiles]
 
             # TO WOFRY
