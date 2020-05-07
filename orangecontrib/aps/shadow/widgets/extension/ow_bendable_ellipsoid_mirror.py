@@ -91,9 +91,9 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     ratio_out = 0.0
     e_out     = 0.0
 
-    M1_fixed    = Setting(0)
-    ratio_fixed = Setting(0)
-    e_fixed     = Setting(0)
+    M1_fixed    = Setting(False)
+    ratio_fixed = Setting(False)
+    e_fixed     = Setting(False)
 
     M1_min    = Setting(0.0)
     ratio_min = Setting(0.0)
@@ -211,16 +211,16 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         self.le_optimized_length.setEnabled(self.which_length==1)
     
     def set_M1(self):
-        self.le_M1_min.setEnabled(self.M1_fixed==0)
-        self.le_M1_max.setEnabled(self.M1_fixed==0)
+        self.le_M1_min.setEnabled(self.M1_fixed==False)
+        self.le_M1_max.setEnabled(self.M1_fixed==False)
 
     def set_ratio(self):
-        self.le_ratio_min.setEnabled(self.ratio_fixed==0)
-        self.le_ratio_max.setEnabled(self.ratio_fixed==0)
+        self.le_ratio_min.setEnabled(self.ratio_fixed==False)
+        self.le_ratio_max.setEnabled(self.ratio_fixed==False)
         
     def set_e(self):
-        self.le_e_min.setEnabled(self.e_fixed==0)
-        self.le_e_max.setEnabled(self.e_fixed==0)
+        self.le_e_min.setEnabled(self.e_fixed==False)
+        self.le_e_max.setEnabled(self.e_fixed==False)
 
     def after_change_workspace_units(self):
         super().after_change_workspace_units()
@@ -338,16 +338,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         # flip the coordinate system to be consistent with Mike's formulas
         ideal_profile = z[0, :][::-1]  # one row is the profile of the cylinder, enough for the minimizer
 
-        # 𝑥′=𝑥cos𝜃−𝑦sin𝜃
-        # 𝑦′=𝑥sin𝜃 + 𝑦cos𝜃
-        #yp = y*numpy.cos(theta) - ideal_profile*numpy.sin(theta)
-        # TODO: think about rotating the conic coefficients instead
-        #       or reinterpolating the ellipsis on the original coordinates?
-        #theta         = numpy.arctan((ideal_profile[0] - ideal_profile[-1]) / L)
-        #ideal_profile = y*numpy.sin(theta) + ideal_profile*numpy.cos(theta)
-        #ideal_profile -= numpy.max(ideal_profile)
-
-        ideal_profile += -ideal_profile[0] + ((L/2 + y)*(ideal_profile[0]-ideal_profile[-1]))/L
+        ideal_profile += -ideal_profile[0] + ((L/2 + y)*(ideal_profile[0]-ideal_profile[-1]))/L # Rotation
 
         if self.which_length == 0:
             y_fit             = y
@@ -374,16 +365,17 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
             return H * ((CDY/D)*numpy.log(CDY) - Y) - (B*Y**2)/(2*D) + F*Y + G
 
-        epsilon = 1e-12
+        epsilon_minus = 1 - 1e-6
+        epsilon_plus  = 1 + 1e-6
         parameters, _ = curve_fit(bender_function, y_fit, ideal_profile_fit,
                                   p0=[self.e, self.ratio, self.M1],
-                                  bounds=([self.e_min if self.e_fixed==0 else (self.e-epsilon),
-                                           self.ratio_min if self.ratio_fixed==0 else (self.ratio-epsilon),
-                                           self.M1_min if self.M1_fixed==0 else (self.M1-epsilon)],
-                                          [self.e_max if self.e_fixed == 0 else self.e,
-                                           self.ratio_max if self.ratio_fixed == 0 else self.ratio,
-                                           self.M1_max if self.M1_fixed == 0 else self.M1]),
-                                  method='trf')#, jac="3-point")
+                                  bounds=([self.e_min if self.e_fixed == False else (self.e*epsilon_minus),
+                                           self.ratio_min if self.ratio_fixed == False else (self.ratio*epsilon_minus),
+                                           self.M1_min if self.M1_fixed == False else (self.M1*epsilon_minus)],
+                                          [self.e_max if self.e_fixed == False else (self.e*epsilon_plus),
+                                           self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus),
+                                           self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus)]),
+                                  method='dogbox')#'trf')#, jac="3-point")
 
         bender_profile = bender_function(y, parameters[0], parameters[1], parameters[2])
 
@@ -393,15 +385,17 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         # from here it's Shadow Axis system
         correction_profile = ideal_profile - bender_profile
+        if self.which_length == 1: correction_profile_fit = correction_profile[cursor]
 
         # r-squared = 1 - residual sum of squares / total sum of squares
         r_squared = 1 - (numpy.sum(correction_profile**2) / numpy.sum((ideal_profile - numpy.mean(ideal_profile))**2))
         rms       = round(correction_profile.std()*1e9*self.workspace_units_to_m, 6)
-
+        if self.which_length == 1: rms_opt = round(correction_profile_fit.std()*1e9*self.workspace_units_to_m, 6)
 
         self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0,
                     title = "Bender vs. Ideal Profiles" + "\n" + r'$R^2$ = ' + str(r_squared), um=1)
-        self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D, r.m.s. = " + str(rms) + " nm")
+        self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D, r.m.s. = " + str(rms) + " nm" +
+                                                          ("" if self.which_length == 0 else (", " + str(rms_opt) + " nm (optimized)")))
 
         z_bender_correction = numpy.zeros(z.shape)
         for i in range(z_bender_correction.shape[0]): z_bender_correction[i, :] = numpy.copy(correction_profile)
