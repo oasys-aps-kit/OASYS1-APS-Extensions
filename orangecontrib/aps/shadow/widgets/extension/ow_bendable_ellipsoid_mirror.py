@@ -365,8 +365,8 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
             return H * ((CDY/D)*numpy.log(CDY) - Y) - (B*Y**2)/(2*D) + F*Y + G
 
-        epsilon_minus = 1 - 1e-6
-        epsilon_plus  = 1 + 1e-6
+        epsilon_minus = 1 - 1e-8
+        epsilon_plus  = 1 + 1e-8
         parameters, _ = curve_fit(bender_function, y_fit, ideal_profile_fit,
                                   p0=[self.e, self.ratio, self.M1],
                                   bounds=([self.e_min if self.e_fixed == False else (self.e*epsilon_minus),
@@ -375,7 +375,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
                                           [self.e_max if self.e_fixed == False else (self.e*epsilon_plus),
                                            self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus),
                                            self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus)]),
-                                  method='dogbox')#'trf')#, jac="3-point")
+                                  method='trf')#, jac="3-point")
 
         bender_profile = bender_function(y, parameters[0], parameters[1], parameters[2])
 
