@@ -374,11 +374,10 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
     def calculate_bender_correction(self, y, z, kind_of_bender, shape):
         b0 = self.dim_x_plus + self.dim_x_minus
-        L = self.dim_y_plus + self.dim_y_minus  # add optimization length
+        L  = self.dim_y_plus + self.dim_y_minus  # add optimization length
 
         # flip the coordinate system to be consistent with Mike's formulas
         ideal_profile = z[0, :][::-1]  # one row is the profile of the cylinder, enough for the minimizer
-
         ideal_profile += -ideal_profile[0] + ((L/2 + y)*(ideal_profile[0]-ideal_profile[-1]))/L # Rotation
 
         if self.which_length == 0:
@@ -422,17 +421,17 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
                 bender_function = bender_function_1m
                 initial_guess = [self.M1, self.e]
                 constraints = [[self.M1_min if self.M1_fixed == False else (self.M1 * epsilon_minus),
-                                self.e_min if self.e_fixed == False else (self.e * epsilon_minus)],
+                                self.e_min  if self.e_fixed == False  else (self.e * epsilon_minus)],
                                [self.M1_max if self.M1_fixed == False else (self.M1 * epsilon_plus),
-                                self.e_max if self.e_fixed == False else (self.e * epsilon_plus)]]
+                                self.e_max  if self.e_fixed == False  else (self.e * epsilon_plus)]]
             elif kind_of_bender == DOUBLE_MOMENTUM:
                 bender_function = bender_function_2m
                 initial_guess = [self.M1, self.e, self.ratio]
-                constraints = [[self.M1_min if self.M1_fixed == False else (self.M1*epsilon_minus),
-                                self.e_min if self.e_fixed == False else (self.e*epsilon_minus),
+                constraints = [[self.M1_min    if self.M1_fixed == False    else (self.M1*epsilon_minus),
+                                self.e_min     if self.e_fixed == False     else (self.e*epsilon_minus),
                                 self.ratio_min if self.ratio_fixed == False else (self.ratio*epsilon_minus)],
-                               [self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus),
-                                self.e_max if self.e_fixed == False else (self.e*epsilon_plus),
+                               [self.M1_max    if self.M1_fixed == False    else (self.M1*epsilon_plus),
+                                self.e_max     if self.e_fixed == False     else (self.e*epsilon_plus),
                                 self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus)]]
         elif shape == RECTANGLE:
             def general_bender_function(Y, M1, ratio):
@@ -456,9 +455,9 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
             elif kind_of_bender == DOUBLE_MOMENTUM:
                 bender_function = bender_function_2m
                 initial_guess = [self.M1, self.ratio]
-                constraints = [[self.M1_min if self.M1_fixed == False else (self.M1*epsilon_minus),
+                constraints = [[self.M1_min    if self.M1_fixed == False    else (self.M1*epsilon_minus),
                                 self.ratio_min if self.ratio_fixed == False else (self.ratio*epsilon_minus)],
-                               [self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus),
+                               [self.M1_max    if self.M1_fixed == False    else (self.M1*epsilon_plus),
                                 self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus)]]
 
         parameters, _ = curve_fit(f=bender_function,
