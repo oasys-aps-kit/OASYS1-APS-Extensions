@@ -112,8 +112,6 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     ratio_max = Setting(10.0)
     e_max     = Setting(1.0)
 
-    minimizer = Setting(0)
-
     def __init__(self):
         graphical_Options=ow_optical_element.GraphicalOptions(is_mirror=True)
 
