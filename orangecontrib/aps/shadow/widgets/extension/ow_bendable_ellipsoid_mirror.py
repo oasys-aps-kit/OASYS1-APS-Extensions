@@ -25,6 +25,12 @@ from orangecontrib.shadow.widgets.gui import ow_ellipsoid_element, ow_optical_el
 
 from Shadow import ShadowTools as ST
 
+TRAPEZIUM = 0
+RECTANGLE = 1
+
+SINGLE_MOMENTUM = 0
+DOUBLE_MOMENTUM = 1
+
 class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     name = "Bendable Ellipsoid Mirror"
     description = "Shadow OE: Bendable Ellipsoid Mirror"
@@ -78,6 +84,9 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     E = Setting(131000)
     h = Setting(10)
 
+    kind_of_bender = Setting(1)
+    shape = Setting(0)
+
     output_file_name = Setting("mirror_bender.dat")
 
     which_length = Setting(0)
@@ -103,12 +112,16 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
     ratio_max = Setting(10.0)
     e_max     = Setting(1.0)
 
+    minimizer = Setting(0)
+
     def __init__(self):
         graphical_Options=ow_optical_element.GraphicalOptions(is_mirror=True)
 
         super().__init__(graphical_Options)
 
-        tab_bender = oasysgui.createTabPage(self.tabs_basic_setting, "Bender")
+        tabs = gui.tabWidget(oasysgui.createTabPage(self.tabs_basic_setting, "Bender"))
+
+        tab_bender = oasysgui.createTabPage(tabs, "Bender Setting")
 
         surface_box = oasysgui.widgetBox(tab_bender, "Surface Setting", addSpace=False, orientation="vertical")
 
@@ -120,7 +133,15 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         self.le_E = oasysgui.lineEdit(material_box, self, "E", "Young's Modulus ", labelWidth=260, valueType=float, orientation="horizontal")
         self.le_h = oasysgui.lineEdit(material_box, self, "h", "Thickness ", labelWidth=260, valueType=float, orientation="horizontal")
 
-        fit_box = oasysgui.widgetBox(tab_bender, "Fit Setting", addSpace=False, orientation="vertical")
+        gui.comboBox(material_box, self, "kind_of_bender", label="Kind Of Bender ", items=["Single Momentum", "Double Momentum"],
+                     labelWidth=150, orientation="horizontal", callback=self.set_kind_of_bender)
+
+        gui.comboBox(material_box, self, "shape", label="Shape ", items=["Trapezium", "Rectangle"],
+                     labelWidth=150, orientation="horizontal", callback=self.set_shape)
+
+        tab_fit = oasysgui.createTabPage(tabs, "Fit Setting")
+
+        fit_box = oasysgui.widgetBox(tab_fit, "", addSpace=False, orientation="vertical")
 
         file_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal", height=25)
         self.le_output_file_name = oasysgui.lineEdit(file_box, self, "output_file_name", "Out File Name", labelWidth=100, valueType=str, orientation="horizontal")
@@ -129,37 +150,50 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         length_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
 
         self.cb_optimized_length = gui.comboBox(length_box, self, "which_length", label="Optimized Length ", items=["Total", "Partial"],
-                     labelWidth=150, orientation="horizontal", callback=self.set_which_length)
+                                                labelWidth=150, orientation="horizontal", callback=self.set_which_length)
         self.le_optimized_length = oasysgui.lineEdit(length_box, self, "optimized_length", " ", labelWidth=10, valueType=float, orientation="horizontal")
         self.set_which_length()
 
         gui.separator(fit_box)
 
-        def add_parameter_box(variable, label):
-            box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
+        def add_parameter_box(container_box, variable, label):
+            box = oasysgui.widgetBox(container_box, "", addSpace=False, orientation="horizontal")
             oasysgui.lineEdit(box, self, variable, label, labelWidth=50, valueType=float, orientation="horizontal")
+            gui.label(box, self, " ", labelWidth=58)
 
-            le = oasysgui.lineEdit(box, self, variable + "_out", " ", labelWidth=4, valueType=float, orientation="horizontal")
+            box = oasysgui.widgetBox(container_box, "", addSpace=False, orientation="horizontal")
+
+            setattr(self, "le_" + variable + "_min", oasysgui.lineEdit(box, self, variable + "_min", "Min",
+                                                                       labelWidth=50, valueType=float, orientation="horizontal"))
+            setattr(self, "le_" + variable + "_max", oasysgui.lineEdit(box, self, variable + "_max", "Max",
+                                                                        labelWidth=35, valueType=float, orientation="horizontal"))
+
+            gui.checkBox(box, self, variable + "_fixed", "Fixed", callback=getattr(self, "set_" + variable))
+
+            box = oasysgui.widgetBox(container_box, "", addSpace=False, orientation="horizontal")
+
+            le = oasysgui.lineEdit(box, self, variable + "_out", "Fitted", labelWidth=50, valueType=float, orientation="horizontal")
             le.setEnabled(False)
             le.setStyleSheet("color: blue; background-color: rgb(254, 244, 205); font:bold")
+
             def set_variable_fit(): setattr(self, variable, getattr(self, variable + "_out"))
-            gui.button(box, self, "<-", width=20, callback=set_variable_fit)
+            gui.button(box, self, "<- Use", width=58, callback=set_variable_fit)
 
-            box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="horizontal")
-            gui.label(box, self, "       ", labelWidth=50)
-            gui.checkBox(box, self, variable + "_fixed", " ", labelWidth=15, callback=getattr(self, "set_" + variable))
-
-            setattr(self, "le_" + variable + "_min", oasysgui.lineEdit(box, self, variable + "_min", "Fixed or Min",
-                                                                       labelWidth=75, valueType=float, orientation="horizontal"))
-            setattr(self, "le_" + variable + "_max", oasysgui.lineEdit(box, self, variable + "_max", "Max",
-                                                                        labelWidth=30, valueType=float, orientation="horizontal"))
             getattr(self, "set_" + variable)()
 
-        add_parameter_box("M1", "M1")
-        gui.separator(fit_box)
-        add_parameter_box("ratio", "M1/M2")
-        gui.separator(fit_box)
-        add_parameter_box("e", "e")
+        m1_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="vertical")
+        gui.separator(fit_box, 10)
+        self.ratio_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="vertical")
+        gui.separator(fit_box, 10)
+        self.e_box = oasysgui.widgetBox(fit_box, "", addSpace=False, orientation="vertical")
+        gui.separator(fit_box, 10)
+
+        add_parameter_box(m1_box, "M1", "M1")
+        add_parameter_box(self.ratio_box, "ratio", "M1/M2")
+        add_parameter_box(self.e_box, "e", "e")
+
+        self.set_kind_of_bender()
+        self.set_shape()
 
         #######################################################
         
@@ -206,6 +240,12 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
     def select_output_file(self):
         self.le_output_file_name.setText(oasysgui.selectFileFromDialog(self, self.output_file_name, "Select Output File", file_extension_filter="Data Files (*.dat)"))
+
+    def set_kind_of_bender(self):
+        self.ratio_box.setVisible(self.kind_of_bender==1)
+
+    def set_shape(self):
+        self.e_box.setVisible(self.shape==0)
 
     def set_which_length(self):
         self.le_optimized_length.setEnabled(self.which_length==1)
@@ -264,11 +304,14 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         x, y, z = self.calculate_ideal_surface(shadow_oe_temp)
 
-        bender_parameter, z_bender_correction = self.calculate_bender_correction(y, z)
+        bender_parameter, z_bender_correction = self.calculate_bender_correction(y, z, self.kind_of_bender, self.shape)
 
-        self.e_out     = round(bender_parameter[0], 5)
-        self.ratio_out = round(bender_parameter[1], 5)
-        self.M1_out    = round(bender_parameter[2], int(6*self.workspace_units_to_mm))
+        self.M1_out = round(bender_parameter[0], int(6*self.workspace_units_to_mm))
+        if self.shape == TRAPEZIUM:
+            self.e_out = round(bender_parameter[1], 5)
+            if self.kind_of_bender == DOUBLE_MOMENTUM: self.ratio_out = round(bender_parameter[2], 5)
+        elif self.shape == RECTANGLE:
+            if self.kind_of_bender == DOUBLE_MOMENTUM: self.ratio_out = round(bender_parameter[1], 5)
 
         self.plot3D(x, y, z_bender_correction, 2, "Ideal - Bender Surfaces")
 
@@ -331,7 +374,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
 
         return x, y, z.T
 
-    def calculate_bender_correction(self, y, z):
+    def calculate_bender_correction(self, y, z, kind_of_bender, shape):
         b0 = self.dim_x_plus + self.dim_x_minus
         L = self.dim_y_plus + self.dim_y_minus  # add optimization length
 
@@ -349,35 +392,87 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
             y_fit             = y[cursor]
             ideal_profile_fit = ideal_profile[cursor]
 
-        def bender_function(Y, e, ratio, M1):
-            Eh_3 = self.E*self.h**3
-            M2   = M1 * ratio
-            A    = (M1 + M2)/2
-            B    = (M1 - M2)/L
-            C    = Eh_3*(2*b0 + e*b0)/24
-            D    = Eh_3*e*b0/(12*L)
-            H    = (A*D + B*C)/D**2
-            CDLP = C + D*L/2
-            CDLM = C - D*L/2
-            F    = (H/L)*((CDLM*numpy.log(CDLM) - CDLP*numpy.log(CDLP))/D + L)
-            G    = -(H*((CDLM*numpy.log(CDLM) + CDLP*numpy.log(CDLP))) - (B*L**2)/4)/(2*D)
-            CDY  = C + D*Y
-
-            return H * ((CDY/D)*numpy.log(CDY) - Y) - (B*Y**2)/(2*D) + F*Y + G
-
         epsilon_minus = 1 - 1e-8
-        epsilon_plus  = 1 + 1e-8
-        parameters, _ = curve_fit(bender_function, y_fit, ideal_profile_fit,
-                                  p0=[self.e, self.ratio, self.M1],
-                                  bounds=([self.e_min if self.e_fixed == False else (self.e*epsilon_minus),
-                                           self.ratio_min if self.ratio_fixed == False else (self.ratio*epsilon_minus),
-                                           self.M1_min if self.M1_fixed == False else (self.M1*epsilon_minus)],
-                                          [self.e_max if self.e_fixed == False else (self.e*epsilon_plus),
-                                           self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus),
-                                           self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus)]),
-                                  method='trf')#, jac="3-point")
+        epsilon_plus = 1 + 1e-8
 
-        bender_profile = bender_function(y, parameters[0], parameters[1], parameters[2])
+        Eh_3 = self.E * self.h ** 3
+
+        initial_guess = None
+        constraints = None
+        bender_function = None
+
+        if shape == TRAPEZIUM:
+            def general_bender_function(Y, M1, e, ratio):
+                M2 = M1 * ratio
+                A = (M1 + M2) / 2
+                B = (M1 - M2) / L
+                C = Eh_3 * (2 * b0 + e * b0) / 24
+                D = Eh_3 * e * b0 / (12 * L)
+                H = (A * D + B * C) / D ** 2
+                CDLP = C + D * L / 2
+                CDLM = C - D * L / 2
+                F = (H / L) * ((CDLM * numpy.log(CDLM) - CDLP * numpy.log(CDLP)) / D + L)
+                G = (-H * ((CDLM * numpy.log(CDLM) + CDLP * numpy.log(CDLP))) + (B * L ** 2) / 4) / (2 * D)
+                CDY = C + D * Y
+
+                return H * ((CDY / D) * numpy.log(CDY) - Y) - (B * Y ** 2) / (2 * D) + F * Y + G
+
+            def bender_function_2m(Y, M1, e, ratio): return general_bender_function(Y, M1, e, ratio)
+            def bender_function_1m(Y, M1, e):        return general_bender_function(Y, M1, e, 1.0)
+
+            if kind_of_bender == SINGLE_MOMENTUM:
+                bender_function = bender_function_1m
+                initial_guess = [self.M1, self.e]
+                constraints = [[self.M1_min if self.M1_fixed == False else (self.M1 * epsilon_minus),
+                                self.e_min if self.e_fixed == False else (self.e * epsilon_minus)],
+                               [self.M1_max if self.M1_fixed == False else (self.M1 * epsilon_plus),
+                                self.e_max if self.e_fixed == False else (self.e * epsilon_plus)]]
+            elif kind_of_bender == DOUBLE_MOMENTUM:
+                bender_function = bender_function_2m
+                initial_guess = [self.M1, self.e, self.ratio]
+                constraints = [[self.M1_min if self.M1_fixed == False else (self.M1*epsilon_minus),
+                                self.e_min if self.e_fixed == False else (self.e*epsilon_minus),
+                                self.ratio_min if self.ratio_fixed == False else (self.ratio*epsilon_minus)],
+                               [self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus),
+                                self.e_max if self.e_fixed == False else (self.e*epsilon_plus),
+                                self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus)]]
+        elif shape == RECTANGLE:
+            def general_bender_function(Y, M1, ratio):
+                M2 = M1 * ratio
+                A = (M1 + M2) / 2
+                B = (M1 - M2) / L
+                C = Eh_3 * b0 / 12
+                F = (B * L**2) / (24 * C)
+                G = -(A * L**2) / (8 * C)
+
+                return -(B * Y**3) / (6 * C) + (A * Y**2) / (2 * C) + F * Y + G
+
+            def bender_function_2m(Y, M1, ratio): return general_bender_function(Y, M1, ratio)
+            def bender_function_1m(Y, M1):        return general_bender_function(Y, M1, 1.0)
+
+            if kind_of_bender == SINGLE_MOMENTUM:
+                bender_function = bender_function_1m
+                initial_guess = [self.M1]
+                constraints = [[self.M1_min if self.M1_fixed == False else (self.M1 * epsilon_minus)],
+                               [self.M1_max if self.M1_fixed == False else (self.M1 * epsilon_plus)]]
+            elif kind_of_bender == DOUBLE_MOMENTUM:
+                bender_function = bender_function_2m
+                initial_guess = [self.M1, self.ratio]
+                constraints = [[self.M1_min if self.M1_fixed == False else (self.M1*epsilon_minus),
+                                self.ratio_min if self.ratio_fixed == False else (self.ratio*epsilon_minus)],
+                               [self.M1_max if self.M1_fixed == False else (self.M1*epsilon_plus),
+                                self.ratio_max if self.ratio_fixed == False else (self.ratio*epsilon_plus)]]
+
+        parameters, _ = curve_fit(f=bender_function,
+                                  xdata=y_fit,
+                                  ydata=ideal_profile_fit,
+                                  p0=initial_guess,
+                                  bounds=constraints,
+                                  method='trf')
+
+        if len(parameters)   == 1: bender_profile = bender_function(y, parameters[0])
+        elif len(parameters) == 2: bender_profile = bender_function(y, parameters[0], parameters[1])
+        else:                      bender_profile = bender_function(y, parameters[0], parameters[1], parameters[2])
 
         # rotate back to Shadow system
         bender_profile = bender_profile[::-1]
@@ -392,8 +487,7 @@ class BendableEllipsoidMirror(ow_ellipsoid_element.EllipsoidElement):
         rms       = round(correction_profile.std()*1e9*self.workspace_units_to_m, 6)
         if self.which_length == 1: rms_opt = round(correction_profile_fit.std()*1e9*self.workspace_units_to_m, 6)
 
-        self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0,
-                    title = "Bender vs. Ideal Profiles" + "\n" + r'$R^2$ = ' + str(r_squared), um=1)
+        self.plot1D(y, bender_profile, y_values_2=ideal_profile, index=0, title = "Bender vs. Ideal Profiles" + "\n" + r'$R^2$ = ' + str(r_squared), um=1)
         self.plot1D(y, correction_profile, index=1, title="Correction Profile 1D, r.m.s. = " + str(rms) + " nm" +
                                                           ("" if self.which_length == 0 else (", " + str(rms_opt) + " nm (optimized)")))
 
