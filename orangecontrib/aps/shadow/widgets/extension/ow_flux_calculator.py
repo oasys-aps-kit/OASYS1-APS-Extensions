@@ -237,16 +237,14 @@ def calculate_flux_factor_and_resolving_power(beam):
     return flux_factor, resolving_power, energy, text
 
 def calculate_flux_at_sample(spectrum, flux_index, flux_factor, energy):
-    index_up = numpy.where(spectrum[:, 0] >= energy)
-    index_down = numpy.where(spectrum[:, 0] < energy)
-
-    flux_up = spectrum[index_up, flux_index][0, 0]
-    flux_down = spectrum[index_down, flux_index][0, -1]
-
-    interpolated_flux = (flux_up + flux_down)/2
+    if energy < spectrum[0, 0] or energy > spectrum[-1, 0]: raise ValueError("Spectrum does not contained central energy")
+    interpolated_flux = numpy.interp([energy],
+                                     spectrum[:, 0],
+                                     spectrum[:, flux_index],
+                                     left=spectrum[:, flux_index][0],
+                                     right=spectrum[:, flux_index][-1])[0]
 
     text = "\n# FLUX INTERPOLATION ---------\n"
-    text += "\n Energy range: %g - %g"%(spectrum[index_down, 0][0, -1], spectrum[index_up, 0][0, 0]) + " eV"
     text += "\n Spectral Flux Density: %g"%interpolated_flux + " ph/s/0.1%bw"
 
     return interpolated_flux*flux_factor, text
