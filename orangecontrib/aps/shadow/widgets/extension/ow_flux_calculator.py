@@ -184,9 +184,9 @@ class FluxCalculator(AutomaticElement):
 
                 total_text += "\n" + ttext
 
-                total_text += "\n\n ---> Integrated Flux at Image Plane : %g"%flux_at_sample + " ph/s"
-                total_text += "\n ---> <Flux Density> at Image Plane : %g"%(flux_at_sample/(dx*dy)) + " ph/s/mm^2"
-                total_text += "\n ---> Resolving Power: %g"%resolving_power
+                total_text += "\n\n ---> Integrated Flux : %g"%flux_at_sample + " ph/s"
+                total_text += "\n ---> <Flux Density>  : %g"%(flux_at_sample/(dx*dy)) + " ph/s/mm^2"
+                total_text += "\n ---> Resolving Power : %g"%resolving_power
 
                 self.text.clear()
                 self.text.setText(total_text)
