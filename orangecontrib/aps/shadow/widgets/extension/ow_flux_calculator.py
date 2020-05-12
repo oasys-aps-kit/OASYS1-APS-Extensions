@@ -177,9 +177,15 @@ class FluxCalculator(AutomaticElement):
 
                 flux_at_sample, ttext = calculate_flux_at_sample(self.input_spectrum, self.flux_index, flux_factor, energy)
 
+                ticket = self.input_beam._beam.histo2(1, 3, nbins=100, nolost=1, ref=23)
+
+                dx = ticket['fwhm_v'] * self.workspace_units_to_m*1000
+                dy = ticket['fwhm_h'] * self.workspace_units_to_m*1000
+
                 total_text += "\n" + ttext
 
-                total_text += "\n\n ---> Flux at Image Plane : %g"%flux_at_sample + " ph/s"
+                total_text += "\n\n ---> Integrated Flux at Image Plane : %g"%flux_at_sample + " ph/s"
+                total_text += "\n ---> <Flux Density> at Image Plane : %g"%(flux_at_sample/(dx*dy)) + " ph/s/mm^2"
                 total_text += "\n ---> Resolving Power: %g"%resolving_power
 
                 self.text.clear()
