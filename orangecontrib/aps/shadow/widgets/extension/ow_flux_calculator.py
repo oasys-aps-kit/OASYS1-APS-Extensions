@@ -251,7 +251,7 @@ def calculate_flux_at_sample(spectrum, flux_index, flux_factor, energy):
                                      right=spectrum[:, flux_index][-1])[0]
 
     text = "\n# FLUX INTERPOLATION ---------\n"
-    text += "\n Spectral Flux Density: %g"%interpolated_flux + " ph/s/0.1%bw"
+    text += "\n Initial Flux from Source: %g"%interpolated_flux + " ph/s/0.1%bw"
 
     return interpolated_flux*flux_factor, text
 
