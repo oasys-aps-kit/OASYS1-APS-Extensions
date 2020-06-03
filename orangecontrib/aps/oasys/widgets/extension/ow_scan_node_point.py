@@ -191,6 +191,7 @@ class ScanLoopPoint(widget.OWWidget):
         self.le_variable_value_step.setPalette(palette)
 
         self.set_KindOfLoop()
+        self.calculate_step()
 
         gui.separator(left_box_1)
 
@@ -224,7 +225,7 @@ class ScanLoopPoint(widget.OWWidget):
             if not value.strip() == "":
                 self.list_of_values.append(value)
 
-        self.number_of_new_objects = len(self.list_of_values)
+        if self.kind_of_loop==1: self.number_of_new_objects = len(self.list_of_values)
 
         if len(self.list_of_values) == 0:
             self.list_of_values.append("")
@@ -235,7 +236,8 @@ class ScanLoopPoint(widget.OWWidget):
         self.left_box_1_2.setVisible(self.kind_of_loop==1)
 
     def calculate_step(self):
-        self.variable_value_step = round((self.variable_value_to - self.variable_value_from) / self.number_of_new_objects, 8)
+        try:    self.variable_value_step = round((self.variable_value_to - self.variable_value_from) / self.number_of_new_objects, 8)
+        except: self.variable_value_step = 0.0
 
     def startLoop(self):
         self.current_new_object = 1
