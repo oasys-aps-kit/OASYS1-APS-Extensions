@@ -49,7 +49,7 @@ NAME = "APS SYNED Extension"
 
 DESCRIPTION = "Widgets for APS SYNED Extension."
 
-BACKGROUND = "#dec0a0"
+BACKGROUND = "#B3793B"
 
 ICON = "icons/extension.png"
 
