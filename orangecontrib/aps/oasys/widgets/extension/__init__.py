@@ -53,4 +53,4 @@ BACKGROUND = "#FAAC58"#"#c9901e"
 
 ICON = "icons/extension.png"
 
-PRIORITY = 3
+PRIORITY = 1000001
